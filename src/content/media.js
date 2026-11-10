@@ -62,6 +62,22 @@ export const BODIES = {
   glabrezu: 'body-demon', hezrou: 'body-demon', vrock: 'body-demon', nalfeshnee: 'body-demon', 'pit-fiend': 'body-demon',
   'horned-devil': 'body-demon', 'barbed-devil': 'body-demon', 'bone-devil': 'body-demon', 'ice-devil': 'body-demon', marilith: 'body-demon',
   'shadowflame-tyrant': 'body-balrog', balor: 'body-balrog',
+  // Every dragon by colour, at every age (wings folded: long bodies), and their kin.
+  ...Object.fromEntries(['black', 'blue', 'brass', 'bronze', 'copper', 'gold', 'green', 'red', 'silver', 'white'].flatMap((c) =>
+    ['wyrmling', 'young', 'adult', 'ancient'].map((age) => [`${age}-${c}-dragon`, `body-dragon-${c}`]))),
+  'young-fire-drake': 'body-dragon-red', 'ember-wyrm': 'body-dragon-gold', 'grey-ice-drake': 'body-dragon-white',
+  'long-worm-of-the-burning-fens': 'body-dragon-green', pseudodragon: 'body-dragon-red',
+  wyvern: 'body-dragon-bronze', 'dragon-turtle': 'body-dragon-green', // stand-ins until they get bodies of their own
+  // The rest of the dungeon dwellers (everything in the first twenty floors has a body).
+  'dark-wood-spiderling': 'body-spider', 'giant-wolf-spider': 'body-spider', 'giant-spider': 'body-spider', 'weaver-of-the-nightwood': 'body-spider',
+  'crag-bat': 'body-bat',
+  wolf: 'body-wolf', worg: 'body-wolf', 'dire-wolf': 'body-wolf', 'shadow-wolf': 'body-wolf', 'shadow-wolf-chieftain': 'body-wolf',
+  'spirit-wolf-of-the-shadow': 'body-wolf', 'winter-wolf': 'body-wolf',
+  orc: 'body-orc', 'black-pit-orc': 'body-orc', 'orc-tracker': 'body-orc', 'sun-hardened-great-orc': 'body-orc', 'orc-captain': 'body-orc-captain',
+  'great-goblin-of-the-mountain-halls': 'body-goblin',
+  'hollow-hill-lurker': 'body-lurker',
+  wight: 'body-wight', 'cairn-wight': 'body-wight',
+  'hooded-rider-of-the-shadow': 'body-wraith', 'dread-sovereign-of-the-hooded-riders': 'body-wraith',
 };
 /** Colour shifts so one body serves several kinds (a grey stone troll, a pale snow troll...). */
 export const BODY_TINT = {
@@ -72,6 +88,13 @@ export const BODY_TINT = {
   'cult-fanatic': 'sepia(0.4) hue-rotate(-30deg)', lich: 'grayscale(0.4) brightness(1.1)', 'vampire-spawn': 'grayscale(0.4)',
   hezrou: 'hue-rotate(80deg) saturate(0.8)', vrock: 'grayscale(0.6) brightness(0.9)', 'ice-devil': 'hue-rotate(180deg) saturate(0.7) brightness(1.2)',
   'bone-devil': 'grayscale(0.8) brightness(1.2)', 'pit-fiend': 'saturate(1.3) brightness(0.9)',
+  'ember-wyrm': 'saturate(1.4) hue-rotate(-15deg)', wyvern: 'sepia(0.6) brightness(0.8)', 'dragon-turtle': 'hue-rotate(40deg) brightness(0.8)', 'grey-ice-drake': 'grayscale(0.6) brightness(0.9)', 'long-worm-of-the-burning-fens': 'sepia(0.5) hue-rotate(-20deg)',
+  'dark-wood-spiderling': 'sepia(0.5) brightness(1.1)', 'giant-wolf-spider': 'sepia(0.8) saturate(1.3) brightness(1.15)', 'weaver-of-the-nightwood': 'brightness(0.7) contrast(1.3)',
+  worg: 'sepia(0.6) brightness(0.75)', 'dire-wolf': 'brightness(0.7)', 'shadow-wolf': 'brightness(0.45) contrast(1.3)', 'shadow-wolf-chieftain': 'grayscale(1) brightness(1.15)',
+  'spirit-wolf-of-the-shadow': 'brightness(0.35) contrast(1.5) drop-shadow(0 0 6px #6a0dad)', 'winter-wolf': 'grayscale(1) brightness(1.6)',
+  'orc-tracker': 'sepia(0.6) brightness(0.95)', 'sun-hardened-great-orc': 'brightness(1.1) contrast(1.1)', orc: 'hue-rotate(40deg) saturate(1.3)',
+  'great-goblin-of-the-mountain-halls': 'saturate(0.7) brightness(0.9)', 'cairn-wight': 'grayscale(0.6) brightness(0.8)',
+  'dread-sovereign-of-the-hooded-riders': 'contrast(1.3) drop-shadow(0 0 5px #b8c4ff)',
 };
 export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
 

@@ -20,6 +20,7 @@ import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait, bodyUrl, BODY_TINT } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
+import { getFigures, setFigures, figuresControl } from './settings.js';
 import { formatModifier } from '../engine/abilities.js';
 import { sensesText } from '../engine/monsters.js';
 import { rollDie, roll } from '../engine/dice.js';
@@ -67,7 +68,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     draft: null, def: null, features: null, target: null, invOpen: false, invSel: null, invFilter: 'all',
     ammoSpent: {}, delve: { xp: 0, coins: 0, items: 0, kills: 0 }, lastCheck: null, phialUsed: false,
     vfx: [], effects: [], blood: [],
-    view: (() => { try { return localStorage.getItem('rpg.view') || 'bodies'; } catch { return 'bodies'; } })(),
+    view: getFigures(),
     res: null, buffs: {}, bonusUsed: false, attacksLeft: 0, sneakUsed: false, disengaged: false, sneak: null, pending: null, blast: null, longRested: false,
   };
 
@@ -95,7 +96,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         <button class="btn small ghost" data-dg="zoom-in" aria-label="Zoom in">+</button>
         <button class="btn small ghost" data-dg="fit">Fit</button>
         <button class="btn small ghost" data-dg="center">Find hero</button>
-        <label class="dg-check" title="Round portrait tokens, or bodies seen from above where we have them">Show <select data-dg="view" id="dg-view"><option value="bodies">Bodies</option><option value="tokens" ${s.view === 'tokens' ? 'selected' : ''}>Tokens</option></select></label>
+        <button class="btn small ghost" data-dg="settings" aria-expanded="false" aria-controls="dg-settings">⚙ Settings</button>
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
         <label class="dg-check"><input id="dg-grid" type="checkbox" data-dg="grid" checked> Grid</label>
@@ -123,7 +124,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     </div>
     <div class="dg-endscreen" hidden></div>
     <div class="dg-inv" hidden role="dialog" aria-label="Inventory"></div>
-    <div class="dg-pop" hidden role="dialog" aria-modal="true"></div>`;
+    <div class="dg-pop" hidden role="dialog" aria-modal="true"></div>
+    <div class="dg-settings" id="dg-settings" hidden role="dialog" aria-label="Settings"></div>`;
 
   const $ = (sel) => host.querySelector(sel);
   const viewport = $('.dg-viewport'); const stage = $('.dg-stage');
@@ -2964,6 +2966,19 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     return '';
   }
 
+  /** The in-game settings menu: how creatures are drawn (and the grid). */
+  function toggleSettings(open = $('.dg-settings').hidden) {
+    const box = $('.dg-settings');
+    box.hidden = !open;
+    host.querySelector('[data-dg="settings"]').setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    box.innerHTML = `<div class="dg-settings-card">
+      <div class="foe-head"><h3>Settings</h3><button class="btn icon small" data-dg="close-settings" aria-label="Close settings">✕</button></div>
+      ${figuresControl(s.view, 'data-dg="figures"')}
+      <p class="small muted">Also set on the start screen. Creatures without a body yet keep their token.</p>
+    </div>`;
+  }
+
   /** Bodies, chests, doors and traps open as a pop-up in the middle of the screen. */
   function drawPop() {
     const box = $('.dg-pop');
@@ -3249,6 +3264,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'search': search(); break;
       case 'pick-target': if (el.dataset.kind === 'stairs') { descend(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
       case 'close-loot': s.target = null; redraw(); break;
+      case 'settings': toggleSettings(); break;
+      case 'close-settings': toggleSettings(false); break;
       case 'open-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c); break; }
       case 'pick-lock': if (s.target) pickLock(s.target); break;
       case 'force-lock': if (s.target) forceLock(s.target); break;
@@ -3272,7 +3289,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         break;
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
-      case 'view': s.view = el.value; try { localStorage.setItem('rpg.view', s.view); } catch { /* storage blocked */ } redraw(); break;
+      case 'figures': s.view = el.value; setFigures(s.view); redraw(); break;
       case 'party': {
         const boxes = [...host.querySelectorAll('[data-dg="party"]')];
         let ids = boxes.filter((b) => b.checked).map((b) => b.value);
@@ -3287,12 +3304,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }
+    // Escape closes the settings menu even while one of its options has focus.
+    if (e.key === 'Escape' && !$('.dg-settings').hidden) { toggleSettings(false); host.querySelector('[data-dg="settings"]')?.focus(); return; }
     if (e.target.matches?.('input, select, textarea')) return;
     if (e.key === 'q' || e.key === 'Q') host.querySelector('[data-dg="turn-left"]')?.click();
     else if (e.key === 'e' || e.key === 'E') host.querySelector('[data-dg="turn-right"]')?.click();
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
     else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === 'Escape' && !$('.dg-settings').hidden) toggleSettings(false);
     else if (e.key === 'Escape' && s.target) { s.target = null; redraw(); }
     else if (e.key === 'Escape' && s.pending) { s.pending = null; banner('Cancelled.'); redraw(); }
     else if (e.key === 'Escape' && s.invOpen) { s.invOpen = false; redraw(); }

@@ -23,6 +23,7 @@ import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
+import { getFigures, setFigures, figuresControl } from './settings.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
 import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
@@ -186,6 +187,7 @@ function homeView() {
         <button class="btn primary big" data-action="new">Create a new hero</button>
         <label class="btn ghost">Import hero file<input type="file" accept="application/json,.json" data-action="import" hidden></label>
       </div>
+      <div class="home-settings">${figuresControl(getFigures())}</div>
     </section>
 
     <section>
@@ -807,6 +809,8 @@ function logRoll(label, bonus) {
 }
 
 const actions = {
+  /** Bodies or tokens on the map (start screen); remembered in this browser. */
+  figures(el) { setFigures(el.value); toast(el.value === 'tokens' ? 'Creatures will appear as portrait tokens.' : 'Creatures will appear as bodies seen from above.'); },
   home() {
     if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
     if (['dungeon', 'arena', 'arena-fight'].includes(state.view)) state.tab = 'adventures';

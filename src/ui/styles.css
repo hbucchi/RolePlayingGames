@@ -665,3 +665,16 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .tk-body.tk-flash .body-img { filter: brightness(1.8) sepia(1) hue-rotate(-40deg) saturate(4) !important; }
 .tk-body .tk-selring, .tk-body .tk-aim, .tk-body .tk-activering { fill: none; }
 .tk-body.tk-down .body-img { opacity: .45; }
+
+/* Settings: bodies or tokens (start screen and in-game menu) */
+.figures-choice { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px 10px; margin: 0; display: grid; gap: 6px; background: var(--card); }
+.figures-choice legend { font-family: var(--font-display); font-size: .85rem; padding: 0 6px; }
+.figure-opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; text-align: left; }
+.figure-opt input { margin-top: 4px; accent-color: var(--gold); }
+.figure-opt span { display: grid; }
+.figure-opt small { color: var(--muted); }
+.home-settings { margin: 18px auto 0; max-width: 460px; }
+.dg-settings { position: fixed; z-index: 40; top: max(70px, env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: min(360px, calc(100vw - 32px)); }
+.dg-settings-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; display: grid; gap: 8px; }
+.dg-settings-card h3 { margin: 0; }
+.dg-settings-card .foe-head { display: flex; justify-content: space-between; align-items: center; }
