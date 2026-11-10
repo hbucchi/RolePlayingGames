@@ -50,6 +50,28 @@ export const BODIES = {
   'men-west': 'body-man', 'men-plains': 'body-man', dwarf: 'body-dwarf', halfling: 'body-halfling', elf: 'body-elf',
   goblin: 'body-goblin', 'mountain-goblin': 'body-goblin', 'pit-runt': 'body-goblin-archer',
   'test-dragon': 'body-test-dragon',
+  // Trolls, ogres, witches, sorcerers, the dead, vampires and demons.
+  troll: 'body-troll', 'hill-troll': 'body-troll', 'cave-troll': 'body-troll', 'shadow-bred-war-troll': 'body-troll',
+  'stone-troll': 'body-troll', 'snow-troll': 'body-troll',
+  ogre: 'body-ogre', 'ogre-zombie': 'body-ogre',
+  'green-hag': 'body-witch', 'sea-hag': 'body-witch', 'night-hag': 'body-witch',
+  mage: 'body-sorcerer', archmage: 'body-sorcerer', 'fallen-loremaster': 'body-sorcerer',
+  cultist: 'body-necromancer', 'cult-fanatic': 'body-necromancer', 'herald-of-the-dark-tower': 'body-necromancer', lich: 'body-necromancer',
+  skeleton: 'body-skeleton',
+  vampire: 'body-vampire', 'vampire-spawn': 'body-vampire',
+  glabrezu: 'body-demon', hezrou: 'body-demon', vrock: 'body-demon', nalfeshnee: 'body-demon', 'pit-fiend': 'body-demon',
+  'horned-devil': 'body-demon', 'barbed-devil': 'body-demon', 'bone-devil': 'body-demon', 'ice-devil': 'body-demon', marilith: 'body-demon',
+  'shadowflame-tyrant': 'body-balrog', balor: 'body-balrog',
+};
+/** Colour shifts so one body serves several kinds (a grey stone troll, a pale snow troll...). */
+export const BODY_TINT = {
+  'stone-troll': 'grayscale(0.85) brightness(0.95)', 'snow-troll': 'grayscale(0.7) brightness(1.35)', 'cave-troll': 'brightness(0.8) saturate(0.7)',
+  'shadow-bred-war-troll': 'brightness(0.6) contrast(1.2)', 'ogre-zombie': 'grayscale(0.6) hue-rotate(60deg) brightness(0.85)',
+  'sea-hag': 'hue-rotate(60deg)', 'night-hag': 'hue-rotate(200deg) brightness(0.8)',
+  archmage: 'hue-rotate(60deg) saturate(1.3)', 'fallen-loremaster': 'grayscale(0.5) brightness(0.8)',
+  'cult-fanatic': 'sepia(0.4) hue-rotate(-30deg)', lich: 'grayscale(0.4) brightness(1.1)', 'vampire-spawn': 'grayscale(0.4)',
+  hezrou: 'hue-rotate(80deg) saturate(0.8)', vrock: 'grayscale(0.6) brightness(0.9)', 'ice-devil': 'hue-rotate(180deg) saturate(0.7) brightness(1.2)',
+  'bone-devil': 'grayscale(0.8) brightness(1.2)', 'pit-fiend': 'saturate(1.3) brightness(0.9)',
 };
 export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
 

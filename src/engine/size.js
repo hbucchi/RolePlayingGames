@@ -15,7 +15,7 @@ export const SIZE_SQUARES = { Tiny: 1, Small: 1, Medium: 1, Large: 2, Huge: 3, G
 
 /** Per-creature exceptions (the Westlands' great fire-demon fills a 2x2 block, by request). */
 export const FOOTPRINT_OVERRIDE = {
-  'shadowflame-tyrant': 2,
+  'shadowflame-tyrant': 3, // thick body, wings to the sides
   'grey-ice-drake': { w: 4, h: 2 }, // a long, wingless serpent
   'long-worm-of-the-burning-fens': { w: 5, h: 2 },
   'dragon-turtle': { w: 4, h: 3 },

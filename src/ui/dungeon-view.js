@@ -17,7 +17,7 @@ import {
   immobile, conditionLabels, escapeBonus, canWrestle, BOUND_TEXT,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { monsterPortrait, bodyUrl } from '../content/media.js';
+import { monsterPortrait, bodyUrl, BODY_TINT } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
 import { formatModifier } from '../engine/abilities.js';
@@ -1488,7 +1488,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const scale = spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04;
     const bw = north.w * sz * scale; const bh = north.h * sz * scale;
     const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
-    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : 'none';
+    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (!hero && BODY_TINT[e.statId]) || 'none';
     return `<g class="${cls} tk-body" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}
@@ -1517,7 +1517,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function auraSvg(e, hw, hh) {
     if (!e.aura || e.dead) return '';
     const sz = S(); const ex = sz * e.aura.size * 0.6;
-    return `<image href="assets/vfx/${boltFor(e.aura.type).vfx}-${(Math.floor(Date.now() / 400) % 4) + 1}.jpg" x="${-(hw + ex)}" y="${-(hh + ex)}" width="${2 * (hw + ex)}" height="${2 * (hh + ex)}" class="vfx vfx-aura" preserveAspectRatio="none"/>`;
+    return `<image href="assets/vfx/${boltFor(e.aura.type).vfx}-${(Math.floor(Date.now() / 400) % 4) + 1}.jpg" x="${-(hw + ex)}" y="${-(hh + ex)}" width="${2 * (hw + ex)}" height="${2 * (hh + ex)}" class="vfx vfx-aura" preserveAspectRatio="none" mask="url(#tk-feather)"/>`;
   }
 
   /** A rounded-rectangle token for a long body (w x h squares). */

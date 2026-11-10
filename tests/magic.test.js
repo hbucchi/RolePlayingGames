@@ -138,7 +138,7 @@ test('creature sizes: blocks, distance between blocks, reach and big movers', as
   assert.deepEqual(footprintOf(BESTIARY_BY_ID['ancient-red-dragon']), { w: 5, h: 4 });
   assert.equal(footprintOf(BESTIARY_BY_ID['wyrmling-red-dragon']), 1);
   assert.equal(footprintOf(BESTIARY_BY_ID.roc), 4); // other Gargantuan creatures stay square
-  assert.equal(footprintOf(BESTIARY_BY_ID['shadowflame-tyrant']), 2);
+  assert.equal(footprintOf(BESTIARY_BY_ID['shadowflame-tyrant']), 3); // thick body, wings to the sides
   assert.equal(cellsOf({ x: 1, y: 1 }, 2).length, 4);
   // A 2x2 troll at (5,5) and a hero at (7,5): the nearest troll square is (6,5), one square away.
   assert.equal(blockDistance({ x: 5, y: 5 }, 2, { x: 7, y: 5 }, 1), 1);
