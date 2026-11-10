@@ -176,10 +176,13 @@ export function mountArenaBuilder(host, ctx) {
       redraw(); return;
     }
     if (st.tool === 'foe') {
-      const n = orientFor(footprintOf(BESTIARY_BY_ID[st.foePick]), st.lie === 'ew' ? 2 : 4);
+      const fp0 = footprintOf(BESTIARY_BY_ID[st.foePick]);
+      // The long side lies east-west: along the facing for long bodies, across it for spread wings.
+      const face = (st.lie === 'ew') !== !!fp0.across ? 2 : 4;
+      const n = orientFor(fp0, face);
       const cells = cellsOf(c, n);
       if (!cells.every((q) => standable(map, q.x, q.y) && !occupiedBy(q.x, q.y))) return ctx.notify?.(`A ${BESTIARY_BY_ID[st.foePick].name} needs ${sizeLabel(n)} clear squares here (its top-left corner goes where you click).`, 'bad');
-      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: isSquare(footprintOf(BESTIARY_BY_ID[st.foePick])) ? 4 : (st.lie === 'ew' ? 2 : 4), side: st.side });
+      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: isSquare(fp0) ? 4 : face, side: st.side });
       redraw();
     }
   }

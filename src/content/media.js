@@ -33,7 +33,7 @@ export const MONSTER_PORTRAITS = {
     'fallen-loremaster', 'dread-sovereign-of-the-hooded-riders',
   ].map((id) => [id, id])),
   orc: 'orc', ogre: 'ogre', 'shadowflame-tyrant': 'shadowflame-tyrant', balor: 'shadowflame-tyrant', 'winter-wolf': 'winter-wolf',
-  'captive-princess': 'captive-princess',
+  'captive-princess': 'captive-princess', 'test-dragon': 'red-dragon',
   // Dragons share a few paintings by colour and age.
   'young-fire-drake': 'red-dragon', 'ember-wyrm': 'red-dragon', 'grey-ice-drake': 'white-dragon', pseudodragon: 'dragon-wyrmling',
   ...Object.fromEntries(['black', 'blue', 'brass', 'bronze', 'copper', 'gold', 'green', 'red', 'silver', 'white'].flatMap((c) => {
@@ -41,6 +41,18 @@ export const MONSTER_PORTRAITS = {
     return [[`wyrmling-${c}-dragon`, 'dragon-wyrmling'], [`young-${c}-dragon`, art], [`adult-${c}-dragon`, art], [`ancient-${c}-dragon`, art]];
   })),
 };
+/**
+ * Bodies seen from above (top-down sprites on transparent backgrounds), drawn on the map instead
+ * of round tokens when the player picks "Bodies". Each faces north (head toward the top) and is
+ * turned to the creature's facing. Heroes get the body of their kindred.
+ */
+export const BODIES = {
+  'men-west': 'body-man', 'men-plains': 'body-man', dwarf: 'body-dwarf', halfling: 'body-halfling', elf: 'body-elf',
+  goblin: 'body-goblin', 'mountain-goblin': 'body-goblin', 'pit-runt': 'body-goblin-archer',
+  'test-dragon': 'body-test-dragon',
+};
+export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
+
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
 
 /** Style presets are CSS filter chains applied on top of the painting. */

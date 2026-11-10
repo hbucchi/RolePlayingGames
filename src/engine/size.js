@@ -19,6 +19,8 @@ export const FOOTPRINT_OVERRIDE = {
   'grey-ice-drake': { w: 4, h: 2 }, // a long, wingless serpent
   'long-worm-of-the-burning-fens': { w: 5, h: 2 },
   'dragon-turtle': { w: 4, h: 3 },
+  // Wings spread: wider than long, so the long side lies ACROSS the way it faces.
+  'test-dragon': { w: 5, h: 4, across: true },
 };
 /** Dragons are long: their body by size category (Medium wyrmlings still fit one square). */
 const DRAGON_BODY = { Large: { w: 3, h: 2 }, Huge: { w: 4, h: 3 }, Gargantuan: { w: 5, h: 4 } };
@@ -30,7 +32,7 @@ export const isSquare = (n) => { const d = dims(n); return d.w === d.h; };
 /** The longer side, in squares. */
 export const spanOf = (n) => { const d = dims(n); return Math.max(d.w, d.h); };
 /** The same block turned a quarter: 3 x 2 becomes 2 x 3. */
-export const rotated = (n) => { const d = dims(n); return d.w === d.h ? n : { w: d.h, h: d.w }; };
+export const rotated = (n) => { const d = dims(n); return d.w === d.h ? n : { ...d, w: d.h, h: d.w }; };
 
 export function footprintOf(stat) {
   if (!stat) return 1;
@@ -42,9 +44,10 @@ export function footprintOf(stat) {
 /** A footprint turned to match a facing (0 = north ... 2 = east ... 4 = south ... 6 = west). */
 export function orientFor(n, facing = 4) {
   const d = dims(n); if (d.w === d.h) return n;
-  const eastWest = facing === 2 || facing === 6; // diagonals and north/south: lie north-south
+  let eastWest = facing === 2 || facing === 6; // diagonals and north/south: lie north-south
+  if (d.across) eastWest = !eastWest; // spread wings lie across the facing
   const long = Math.max(d.w, d.h); const short = Math.min(d.w, d.h);
-  return eastWest ? { w: long, h: short } : { w: short, h: long };
+  return eastWest ? { ...d, w: long, h: short } : { ...d, w: short, h: long };
 }
 
 /** Text for a size: "3x2 squares". */

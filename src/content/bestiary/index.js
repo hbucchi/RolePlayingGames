@@ -35,5 +35,19 @@ const RAW = [
   ...westlandsFoes,
 ];
 
-export const BESTIARY = RAW.map(buildMonster).sort((a, b) => a.name.localeCompare(b.name));
+const BUILT = RAW.map(buildMonster);
+
+/**
+ * Test Dragon: an ancient red dragon under another name, used to try out top-down bodies
+ * (wings spread, so it is wider than it is long: 5 x 4 squares, the long side across its facing).
+ */
+const ancientRed = BUILT.find((m) => m.id === 'ancient-red-dragon');
+if (ancientRed) {
+  BUILT.push({
+    ...ancientRed, id: 'test-dragon', name: 'Test Dragon', source: 'Westlands', settings: ['westlands'],
+    appearance: 'A colossal crimson dragon seen from above: great wings spread wide to either side, a long horned neck, four clawed legs and a trailing tail.',
+  });
+}
+
+export const BESTIARY = BUILT.sort((a, b) => a.name.localeCompare(b.name));
 export const BESTIARY_BY_ID = Object.fromEntries(BESTIARY.map((m) => [m.id, m]));

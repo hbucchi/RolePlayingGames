@@ -147,7 +147,7 @@ export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = 
       for (const c of cellsOf(pos, fp)) used.add(cellKey(c.x, c.y));
       const m = createMonster(stat, `m${++n}`, pos, facing);
       m.size = fp; // keep the orientation that fits this room
-      if (w !== h) m.facing = w > h ? (facing < 4 ? 2 : 6) : (facing >= 2 && facing <= 5 ? 4 : 0);
+      if (w !== h) m.facing = (w > h) !== !!dims(fp).across ? (facing < 4 ? 2 : 6) : (facing >= 2 && facing <= 5 ? 4 : 0);
       monsters.push({ ...m, roomDifficulty: difficulty });
     }
   }

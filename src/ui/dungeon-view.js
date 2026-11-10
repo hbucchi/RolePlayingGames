@@ -8,7 +8,7 @@
 import { generateDungeon, roomAt, TILE } from '../engine/dungeon.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
-import { cellsOf, blockDistance, centerOf, dims, isSquare, spanOf, rotated } from '../engine/size.js';
+import { cellsOf, blockDistance, centerOf, dims, isSquare, spanOf, rotated, orientFor } from '../engine/size.js';
 import { reachableSquares, speedToSquares, DIAGONAL_RULES, cellKey } from '../engine/movement.js';
 import { makeOpacity, visibleSquares, revealFrom } from '../engine/vision.js';
 import {
@@ -17,7 +17,7 @@ import {
   immobile, conditionLabels, escapeBonus, canWrestle, BOUND_TEXT,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { monsterPortrait } from '../content/media.js';
+import { monsterPortrait, bodyUrl } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
 import { formatModifier } from '../engine/abilities.js';
@@ -67,6 +67,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     draft: null, def: null, features: null, target: null, invOpen: false, invSel: null, invFilter: 'all',
     ammoSpent: {}, delve: { xp: 0, coins: 0, items: 0, kills: 0 }, lastCheck: null, phialUsed: false,
     vfx: [], effects: [], blood: [],
+    view: (() => { try { return localStorage.getItem('rpg.view') || 'bodies'; } catch { return 'bodies'; } })(),
     res: null, buffs: {}, bonusUsed: false, attacksLeft: 0, sneakUsed: false, disengaged: false, sneak: null, pending: null, blast: null, longRested: false,
   };
 
@@ -94,6 +95,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         <button class="btn small ghost" data-dg="zoom-in" aria-label="Zoom in">+</button>
         <button class="btn small ghost" data-dg="fit">Fit</button>
         <button class="btn small ghost" data-dg="center">Find hero</button>
+        <label class="dg-check" title="Round portrait tokens, or bodies seen from above where we have them">Show <select data-dg="view" id="dg-view"><option value="bodies">Bodies</option><option value="tokens" ${s.view === 'tokens' ? 'selected' : ''}>Tokens</option></select></label>
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
         <label class="dg-check"><input id="dg-grid" type="checkbox" data-dg="grid" checked> Grid</label>
@@ -178,7 +180,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       id: `hero${i}`, isHero: true, name: h.name, pos, facing: 0,
       hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
       weapons, reaction: true, aware: true, tempHp: 0,
-      look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {},
+      look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {}, race: h.race,
     };
     if (carried) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
@@ -804,7 +806,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function turnBody(m, toward) {
     const d = dims(m.size ?? 1); if (d.w === d.h) return;
     const c = centerOf(m.pos, d);
-    const wantEW = Math.abs(toward.x - c.x) >= Math.abs(toward.y - c.y);
+    let wantEW = Math.abs(toward.x - c.x) >= Math.abs(toward.y - c.y);
+    if (d.across) wantEW = !wantEW; // wings spread across the way it faces
     if (wantEW === d.w > d.h) return;
     const nd = rotated(d);
     const pos = { x: Math.round(c.x - (nd.w - 1) / 2), y: Math.round(c.y - (nd.h - 1) / 2) };
@@ -1430,6 +1433,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
    */
   function token(e, { hero = false } = {}) {
     const d = dims(e.size ?? 1);
+    const body = s.view === 'bodies' ? bodyUrl(hero ? e.race : e.statId) : null;
+    if (body) return bodyToken(e, d, body, hero);
     if (d.w !== d.h) return rectToken(e, d);
     const n = d.w;
     const sz = S(); const r = sz * (n > 1 ? 0.44 : 0.36) * n; const R = r + 4;
@@ -1447,11 +1452,55 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         <path d="M ${-R} 0 A ${R} ${R} 0 0 1 ${R} 0" class="tk-frontarc" style="stroke:${ring}"/>
         <path d="M ${-r * 0.42} ${-R - 2} L 0 ${-R - sz * 0.17} L ${r * 0.42} ${-R - 2} Z" class="tk-nose" style="fill:${ring}"/>
       </g>
-      ${img ? `<image href="${esc(img)}" x="${-r}" y="${-r}" width="${r * 2}" height="${r * 2}" clip-path="url(#tk-clip-${n})" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
-    : `<circle r="${r}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
+      ${img && hero ? `<image href="${esc(img)}" x="${-r}" y="${-r}" width="${r * 2}" height="${r * 2}" clip-path="url(#tk-clip-${n})" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
+    : img ? zoomedOut(img, -r, -r, 2 * r, 2 * r, `url(#tk-clip-${n})`, filter)
+      : `<circle r="${r}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
       <circle r="${r}" class="tk-hitflash"/>
       ${chainSvg(e, r)}
       ${hero || state !== 'unhurt' ? hpBar(-r, -R - 16, r * 2, hpFrac) : ''}
+    </g>`;
+  }
+
+  /**
+   * A monster's painting, zoomed out so its whole shape shows: a blurred, darkened copy fills the
+   * token, and the full painting sits on top at a smaller scale with softly faded edges.
+   */
+  function zoomedOut(img, x, y, w, h, clip, filter) {
+    const side = Math.min(w, h) * 0.86; // the whole square painting fits inside
+    const ix = x + (w - side) / 2; const iy = y + (h - side) / 2;
+    return `<g clip-path="${clip}">
+      <image href="${esc(img)}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="xMidYMid slice" filter="url(#tk-blur)" style="opacity:.75"/>
+      <image href="${esc(img)}" x="${ix}" y="${iy}" width="${side}" height="${side}" mask="url(#tk-feather)" style="filter:${filter}"/>
+    </g>`;
+  }
+
+  /**
+   * A body seen from above: the sprite faces north and is turned to the creature's facing, with a
+   * soft shadow so it stands out from the floor. A thin ring of its side's colour lies under it.
+   */
+  function bodyToken(e, d, url, hero) {
+    const sz = S(); const state = woundState(e.hp, e.maxHp);
+    const { ring, hpFrac, cls } = tokenLook(e, hero, state);
+    const off = s.lunge?.id === e.id ? { x: s.lunge.dx * sz * 0.28, y: s.lunge.dy * sz * 0.28 } : { x: 0, y: 0 };
+    const cx = (e.pos.x + d.w / 2) * sz + off.x; const cy = (e.pos.y + d.h / 2) * sz + off.y;
+    // The sprite's own box when facing north (wing-spread bodies are wider than long).
+    const north = dims(orientFor(e.size ?? 1, 0));
+    const scale = spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04;
+    const bw = north.w * sz * scale; const bh = north.h * sz * scale;
+    const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
+    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : 'none';
+    return `<g class="${cls} tk-body" transform="translate(${cx} ${cy})">
+      ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
+      ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}
+      ${hero && e === s.hero && s.members.length > 1 ? `<ellipse rx="${rx + 6}" ry="${ry + 6}" class="tk-activering"/>` : ''}
+      <ellipse rx="${rx}" ry="${ry}" class="body-base" style="stroke:${ring}"/>
+      ${auraSvg(e, rx, ry)}
+      <g class="body-shadow"><g transform="rotate(${facingAngle(e.facing)})">
+        <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" class="body-img" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>
+      </g></g>
+      <ellipse rx="${rx * 0.8}" ry="${ry * 0.8}" class="tk-hitflash"/>
+      ${chainSvg(e, Math.min(rx, ry))}
+      ${hero || state !== 'unhurt' || e.side ? hpBar(-Math.max(rx, sz * 0.36), -ry - 16, 2 * Math.max(rx, sz * 0.36), hpFrac) : ''}
     </g>`;
   }
 
@@ -1490,7 +1539,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       ${auraSvg(e, hw, hh)}
       ${box(4, 'tk-rectback')}
       <clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}"/></clipPath>
-      ${img ? `<image href="${esc(img)}" x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" clip-path="url(#${clip})" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
+      ${img ? zoomedOut(img, -hw, -hh, 2 * hw, 2 * hh, `url(#${clip})`, filter)
     : `<rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
       ${box(0, 'tk-rectframe').replace('class=', `style="stroke:${ring}" class=`)}
       <path d="M ${nx + ux * nose} ${ny + uy * nose} L ${nx - uy * wing} ${ny + ux * wing} L ${nx + uy * wing} ${ny - ux * wing} Z" class="tk-nose" style="fill:${ring}"/>
@@ -1601,6 +1650,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function drawOverlay() {
     if (!s.hero) { overlay.innerHTML = ''; return; }
     const sz = S(); let out = `<defs>${[1, 2, 3, 4].map((n) => `<clipPath id="tk-clip-${n}" clipPathUnits="userSpaceOnUse"><circle r="${sz * (n > 1 ? 0.44 : 0.36) * n}"/></clipPath>`).join('')}
+      <filter id="tk-blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="7"/><feComponentTransfer><feFuncR type="linear" slope=".55"/><feFuncG type="linear" slope=".55"/><feFuncB type="linear" slope=".55"/></feComponentTransfer></filter>
+      <radialGradient id="tk-feather-grad"><stop offset=".62" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient>
+      <mask id="tk-feather" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#tk-feather-grad)"/></mask>
       <radialGradient id="blood-grad"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
       <mask id="blood-mask" maskContentUnits="objectBoundingBox"><ellipse cx="0.5" cy="0.5" rx="0.5" ry="0.36" fill="url(#blood-grad)"/><ellipse cx="0.62" cy="0.42" rx="0.22" ry="0.3" fill="url(#blood-grad)"/></mask></defs>`;
     out += drawBlood();
@@ -3220,6 +3272,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         break;
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
+      case 'view': s.view = el.value; try { localStorage.setItem('rpg.view', s.view); } catch { /* storage blocked */ } redraw(); break;
       case 'party': {
         const boxes = [...host.querySelectorAll('[data-dg="party"]')];
         let ids = boxes.filter((b) => b.checked).map((b) => b.value);

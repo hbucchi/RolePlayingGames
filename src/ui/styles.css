@@ -658,3 +658,10 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .tk-rectback { fill: #120f0c; }
 .tk-rectframe { fill: none; stroke-width: 6; }
 .tk-rect .tk-selring, .tk-rect .tk-aim { fill: none; }
+
+/* Bodies seen from above */
+.tk-body .body-base { fill: rgba(0, 0, 0, .14); stroke-width: 2; opacity: .55; }
+.tk-body .body-shadow { filter: drop-shadow(5px 8px 5px rgba(0, 0, 0, .6)); }
+.tk-body.tk-flash .body-img { filter: brightness(1.8) sepia(1) hue-rotate(-40deg) saturate(4) !important; }
+.tk-body .tk-selring, .tk-body .tk-aim, .tk-body .tk-activering { fill: none; }
+.tk-body.tk-down .body-img { opacity: .45; }

@@ -725,7 +725,7 @@ function dungeonStats(d) {
     speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, str: c.scores.str, attacks: c.attacks,
     look: heroLook(d), skills: Object.fromEntries(c.skills.map((sk) => [sk.id, sk.bonus])),
     saves: Object.fromEntries(c.savingThrows.map((st) => [st.ability, st.bonus])),
-    languages: c.languages, wis: c.mods.wis, int: c.mods.int, toolBonus: c.toolBonus, gearNotes: c.gearNotes,
+    race: c.race?.id, languages: c.languages, wis: c.mods.wis, int: c.mods.int, toolBonus: c.toolBonus, gearNotes: c.gearNotes,
     keenSearch: c.features.some((f) => /Burglar's Eye/.test(f.name)), // advantage when searching
     magic: c.magic, caster: c.caster, attacksPerAction: c.attacksPerAction, cls: c.cls?.id, hitDie: c.hitDie, conMod: c.mods.con, mods: c.mods,
     sneak: c.cls?.id === 'burglar', uncanny: c.cls?.id === 'burglar' && c.level >= 5, evasion: c.cls?.id === 'burglar' && c.level >= 7,
