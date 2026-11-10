@@ -26,13 +26,32 @@ npm test       # rules-engine tests
   to roll a d20 in the dice tray.
 - **Roster:** heroes are saved in browser storage. You can export or import them as JSON, or adopt one
   of four ready-made heroes.
-- **Adventures tab:** placeholder adventure cards for the next milestone.
+- **Adventures tab:** placeholder adventures, plus a playable **Dungeon Sandbox**.
+- **Dungeon generator:** procedural 32×32-square dungeons (each square = 5 ft, 64 px, for a 2048×2048 board),
+  with 14–20 small, medium and large rooms joined by doors and corridors. Every dungeon is reproducible
+  from its seed number.
+- **Grid movement:** speed ÷ 5 ft = squares per turn. Supports the standard and the 5-10-5 diagonal rules,
+  no corner-cutting, and Dash.
+
+### Exporting a dungeon board
+
+```bash
+node tools/export-dungeon.mjs 7 first-delve
+```
+
+This writes `assets/dungeons/first-delve.json` (the grid data), plus `-board.jpg` (painted, no grid) and
+`-grid.jpg` (with grid, room numbers and coordinates), both 2048×2048. Floor, rock and door textures in
+`assets/textures/` were generated with ElevenLabs image generation and made seamless; the renderer applies
+them square by square from the grid data, so the art always lines up with the grid.
 
 ## Layout
 
 ```
 src/
   engine/              pure rules, no DOM: easy to test and reuse on a server later
+    dungeon.js         room placement, MST + A* corridors, doors, connectivity checks
+    dungeon-render.js  grid data -> layered SVG board (textures, walls, grid, doors, labels)
+    movement.js        Dijkstra reachability, diagonal rules, paths
     dice.js            unbiased RNG, dice notation ("4d6kh3", "1d20+5"), seeded RNG for tests
     abilities.js       scores, modifiers, standard array, point buy
     skills.js          the 18 skills
@@ -41,7 +60,10 @@ src/
   content/
     registry.js        list of installed settings
     westlands/         races, classes, backgrounds, premade heroes, adventure stubs
-  ui/                  rendering + events (vanilla JS, no framework)
+  ui/                  rendering + events (vanilla JS, no framework); dungeon-view.js = explorer
+assets/textures/       AI-generated, seamless floor / rock / door textures
+assets/dungeons/       exported boards
+tools/                 export scripts
 tests/                 node:test suites for the engine
 ```
 

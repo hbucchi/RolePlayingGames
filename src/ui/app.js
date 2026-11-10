@@ -14,6 +14,7 @@ import { roll, rollAbilityScore, rollDie } from '../engine/dice.js';
 import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter } from '../engine/storage.js';
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
+import { mountDungeon } from './dungeon-view.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -21,7 +22,7 @@ const root = document.getElementById('app');
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const state = {
-  view: 'home', // home | wizard | sheet
+  view: 'home', // home | wizard | sheet | dungeon
   tab: 'heroes', // heroes | adventures
   draft: null,
   step: 0,
@@ -46,7 +47,11 @@ function notify(text, kind = 'ok') {
   state.notice = { text, kind };
   render();
   clearTimeout(notify.t);
-  notify.t = setTimeout(() => { state.notice = null; render(); }, 3500);
+  notify.t = setTimeout(() => {
+    state.notice = null;
+    // The dungeon view keeps its own state; don't rebuild it just to hide a toast.
+    if (state.view === 'dungeon') root.querySelector('.toast')?.remove(); else render();
+  }, 3500);
 }
 
 function download(filename, text) {
@@ -75,8 +80,9 @@ function focusKey(el) {
 
 function render() {
   const key = focusKey(document.activeElement);
-  const body = state.view === 'wizard' ? wizardView() : state.view === 'sheet' ? sheetView() : homeView();
-  renderInto(body);
+  const views = { wizard: wizardView, sheet: sheetView, dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>' };
+  renderInto((views[state.view] ?? homeView)());
+  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes() });
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
 }
 
@@ -157,15 +163,18 @@ function adventuresView() {
   return `
     <section>
       <h1>Adventures</h1>
-      <p class="muted">Choose a tale and bring your company. Adventures are on the way; for now, build your heroes.</p>
+      <p class="muted">Choose a tale and bring your company. Full adventures are on the way; the sandbox lets you explore generated dungeons now.</p>
       <div class="card-grid">
-        ${setting.adventures.map((a) => `
+        ${setting.adventures.map((a) => {
+    const playable = a.status === 'playable';
+    return `
           <article class="card adventure">
-            <div class="card-head"><h3>${esc(a.title)}</h3><span class="badge soon">Coming soon</span></div>
+            <div class="card-head"><h3>${esc(a.title)}</h3><span class="badge ${playable ? '' : 'soon'}">${playable ? 'Playable' : 'Coming soon'}</span></div>
             <p>${esc(a.blurb)}</p>
             <p class="muted small">Levels ${esc(a.levels)} · ${esc(a.length)}</p>
-            <button class="btn small" disabled>Begin</button>
-          </article>`).join('')}
+            ${playable ? `<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
+          </article>`;
+  }).join('')}
       </div>
     </section>`;
 }
@@ -500,6 +509,18 @@ function sheetView() {
     ${diceTray()}`;
 }
 
+// ---- Dungeon explorer -------------------------------------------------------
+
+/** Heroes that can walk the dungeon: your complete heroes first, then the ready-made ones. */
+function explorerHeroes() {
+  const mine = roster.list().filter((d) => isComplete(d, settingFor(d)));
+  const premade = setting.premades.map((p) => syncBaseFromAssignment(structuredClone(p)));
+  return [...mine, ...premade].map((d) => {
+    const c = deriveCharacter(d, settingFor(d));
+    return { id: d.id, name: c.name, speed: c.speed, label: `${c.name} (${c.race.name} ${c.cls.name}, ${c.speed} ft)` };
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
@@ -558,10 +579,16 @@ function logRoll(label, bonus) {
 const actions = {
   home() {
     if (state.view === 'wizard' && state.dirty && !confirm('Leave without saving this hero?')) return;
+    if (state.view === 'dungeon') state.tab = 'adventures';
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
   },
   tab(el) { state.tab = el.dataset.tab; render(); },
+  'enter-dungeon'() {
+    Object.assign(state, { view: 'dungeon' });
+    render();
+    window.scrollTo(0, 0);
+  },
   new() { openWizard(newDraft(setting.id)); },
   edit(el) {
     const d = roster.get(el.dataset.id);

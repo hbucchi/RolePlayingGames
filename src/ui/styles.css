@@ -239,3 +239,41 @@ select { width: auto; min-width: 72px; margin: 0; padding: 4px 8px; }
 .toast.bad { background: var(--bad); color: #fff; }
 /* In the wizard the nav bar is the sticky element; keep the dice log in the flow. */
 .step-body .dice-log { position: static; }
+
+/* ---- Dungeon explorer ---- */
+main:has(.dungeon-host) { max-width: 1400px; }
+.dg-toolbar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 12px 0; }
+.dg-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dg-seed { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+.dg-seed input { width: 6.5em; font: 1rem var(--font-body); padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.dg-check { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.dg-check input { accent-color: var(--accent); }
+.dg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .dg-layout { grid-template-columns: 1fr; } }
+.dg-viewport { overflow: auto; max-height: calc(100vh - 170px); background: #0d0a07; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
+@media (max-width: 900px) { .dg-viewport { max-height: 70vh; } }
+.dg-stage { position: relative; margin: 0 auto; }
+.dg-base, .dg-base svg, .dg-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.dg-overlay { cursor: crosshair; touch-action: manipulation; }
+.dg-reach { fill: #f0c75e; fill-opacity: .18; stroke: #f0c75e; stroke-opacity: .5; stroke-width: 2; }
+.dg-hover { fill: none; stroke: #fff; stroke-opacity: .55; stroke-width: 3; stroke-dasharray: 8 6; }
+.dg-target { fill: #f0c75e; fill-opacity: .35; stroke: #ffe08a; stroke-width: 4; }
+.dg-path { fill: none; stroke: #ffe08a; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 14; }
+.dg-cost { fill: #1a1208; font: 700 26px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #ffe08a; stroke-width: 6px; }
+.dg-token circle { fill: #8a2f1d; stroke: #f6e7c1; stroke-width: 5; filter: drop-shadow(0 4px 6px rgb(0 0 0 / .7)); }
+.dg-token text { fill: #f6e7c1; font: 700 30px Georgia, serif; text-anchor: middle; pointer-events: none; }
+.dg-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 16px 14px; box-shadow: var(--shadow); }
+.dg-panel h3 { margin-top: .9em; }
+.dg-panel select { width: 100%; }
+.dg-panel .field { margin: 10px 0 0; font-size: .95rem; }
+.dg-meter { margin: 10px 0 4px; }
+.dg-meter strong { font-family: var(--font-display); font-size: 1.4rem; }
+.dg-bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
+.dg-bar span { display: block; height: 100%; background: var(--gold); transition: width .2s; }
+.dg-info { min-height: 5.5em; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 6px; }
+.dg-rooms { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
+.dg-room { all: unset; box-sizing: border-box; display: flex; gap: 8px; align-items: baseline; width: 100%; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
+.dg-room:hover, .dg-room:focus-visible { background: var(--bg-2); }
+.dg-room .n { font-family: var(--font-display); font-weight: 700; min-width: 1.6em; color: var(--accent); }
+.dg-room .nm { flex: 1; }
+.dg-room .sz { font-size: .8rem; color: var(--muted); }

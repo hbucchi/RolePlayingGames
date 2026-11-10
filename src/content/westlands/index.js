@@ -13,6 +13,12 @@ export const westlands = {
   premades,
   adventures: [
     {
+      id: 'dungeon-sandbox',
+      title: 'Dungeon Sandbox',
+      blurb: 'Empty halls beneath the hills, freshly delved. Walk them square by square to learn how movement works before the monsters move in.',
+      levels: 'Any', length: 'Free exploration', status: 'playable',
+    },
+    {
       id: 'barrow-of-the-lost-king',
       title: 'The Barrow of the Lost King',
       blurb: 'Mists gather on the downs, and something old has woken beneath the standing stones.',
