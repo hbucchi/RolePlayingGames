@@ -17,6 +17,8 @@ import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
+import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
+import { play, isMuted, setMuted } from './audio.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -115,6 +117,7 @@ function renderInto(body) {
         <span class="brand-mark" aria-hidden="true">✦</span>
         <span><span class="brand-title">${esc(setting.name)}</span><span class="brand-sub">Hero Forge</span></span>
       </button>
+      <button class="sound-toggle" data-action="toggle-sound" aria-pressed="${!isMuted()}" title="${isMuted() ? 'Sound off' : 'Sound on'}">${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span></button>
       ${state.view === 'home' ? `
       <nav class="tabs" role="tablist">
         ${tabButton('heroes', 'Heroes')}${tabButton('adventures', 'Adventures')}${tabButton('bestiary', 'Bestiary')}
@@ -156,17 +159,27 @@ function homeView() {
     </section>`;
 }
 
+/** A framed portrait with the hero's chosen style. */
+function portraitHtml(look, size = 'md') {
+  return `<div class="portrait ${size}" style="--frame:${look.frameColor}"><img src="${esc(look.url)}" alt="" style="filter:${look.filter}" loading="lazy"></div>`;
+}
+
 function heroCard(d, source) {
   const s = settingFor(d);
   const c = deriveCharacter(d, s);
   const complete = isComplete(d, s);
   return `
     <article class="card hero-card">
-      <div class="card-head">
-        <h3>${esc(c.name || 'Unnamed hero')}</h3>
-        <span class="badge">Lv ${c.level}</span>
+      <div class="hero-card-top">
+        ${portraitHtml(heroLook(d), 'sm')}
+        <div>
+          <div class="card-head">
+            <h3>${esc(c.name || 'Unnamed hero')}</h3>
+            <span class="badge">Lv ${c.level}</span>
+          </div>
+          <p class="muted">${esc(c.race?.name ?? '?')} · ${esc(c.cls?.name ?? '?')}</p>
+        </div>
       </div>
-      <p class="muted">${esc(c.race?.name ?? '?')} · ${esc(c.cls?.name ?? '?')}</p>
       ${c.concept ? `<p class="concept">${esc(c.concept)}</p>` : ''}
       ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd>${c.maxHp}</dd></div><div><dt>AC</dt><dd>${c.ac}</dd></div>
         ${ABILITY_IDS.map((id) => `<div><dt>${ABILITIES[id].short}</dt><dd>${c.scores[id]}</dd></div>`).join('')}</dl>`
@@ -440,8 +453,46 @@ function reviewStep(d, s) {
   return `
     <h2>Review your hero</h2>
     <p class="muted">Everything below is calculated from your choices. Click any ability, save, skill or attack to try a roll.</p>
-    ${sheetHtml(deriveCharacter(d, s))}
+    ${appearanceEditor(d)}
+    ${sheetHtml(deriveCharacter(d, s), heroLook(d))}
     ${diceTray()}`;
+}
+
+/** Portrait, colours, style and voice: all choices layered on the generated paintings. */
+function appearanceEditor(d) {
+  const a = resolveAppearance(d);
+  const look = heroLook(d);
+  const own = Object.keys(PORTRAITS);
+  return `
+    <section class="look-editor" aria-label="Portrait and voice">
+      <div class="look-preview">${portraitHtml(look, 'lg')}</div>
+      <div class="look-controls">
+        <h3>Portrait &amp; voice</h3>
+        <label class="field small" for="look-portrait">Portrait
+          <select id="look-portrait" data-action="look-portrait">${own.map((k) => `<option value="${k}" ${k === a.portrait ? 'selected' : ''}>${esc(PORTRAITS[k])}</option>`).join('')}</select>
+        </label>
+        <div class="look-variants" role="group" aria-label="Variation">
+          ${Array.from({ length: PORTRAIT_VARIANTS }, (_, i) => i + 1).map((n) => `
+            <button class="look-variant ${n === a.variant ? 'sel' : ''}" data-action="look-variant" data-n="${n}" aria-pressed="${n === a.variant}" aria-label="Variation ${n}">
+              <img src="${esc(portraitUrl(a.portrait, n))}" alt="" style="filter:${appearanceFilter(a)}" loading="lazy">
+            </button>`).join('')}
+        </div>
+        <div class="look-row"><span class="look-label">Style</span>
+          <div class="chips">${Object.entries(STYLES).map(([k, v]) => `<button class="chip ${k === a.style ? 'sel' : ''}" data-action="look-style" data-id="${k}" aria-pressed="${k === a.style}">${esc(v.label)}</button>`).join('')}</div>
+        </div>
+        <label class="look-row" for="look-hue"><span class="look-label">Colour shift</span>
+          <input id="look-hue" type="range" min="-180" max="180" step="5" value="${a.hue}" data-look="hue" aria-label="Colour shift in degrees">
+          <span class="muted small look-hue-val">${a.hue}°</span>
+        </label>
+        <div class="look-row"><span class="look-label">Frame</span>
+          <div class="chips">${Object.entries(FRAMES).map(([k, v]) => `<button class="swatch ${k === a.frame ? 'sel' : ''}" style="--sw:${v}" data-action="look-frame" data-id="${k}" aria-pressed="${k === a.frame}" aria-label="${k} frame"></button>`).join('')}</div>
+        </div>
+        <div class="look-row"><span class="look-label">Battle voice</span>
+          <div class="chips">${Object.entries(VOICES).map(([k, v]) => `<button class="chip ${k === a.voice ? 'sel' : ''}" data-action="look-voice" data-id="${k}" aria-pressed="${k === a.voice}">${esc(v)}</button>`).join('')}
+            <button class="chip" data-action="look-hear">▶ Hear it</button></div>
+        </div>
+      </div>
+    </section>`;
 }
 
 // ---- Character sheet -------------------------------------------------------
@@ -450,10 +501,11 @@ function rollBtn(label, bonus, text) {
   return `<button class="roll-btn" data-action="check" data-label="${esc(label)}" data-bonus="${bonus}">${text}</button>`;
 }
 
-function sheetHtml(c) {
+function sheetHtml(c, look) {
   return `
     <article class="sheet">
       <header class="sheet-head">
+        ${look ? portraitHtml(look, 'md') : ''}
         <div>
           <h2>${esc(c.name)}</h2>
           <p class="muted">Level ${c.level} ${esc(c.race?.name)} ${esc(c.cls?.name)} · ${esc(c.background?.name ?? '')}</p>
@@ -528,7 +580,7 @@ function sheetView() {
         <button class="btn" data-action="export" data-id="${esc(draft.id)}">Export</button>`
     : `<button class="btn primary" data-action="adopt" data-id="${esc(draft.id)}">Adopt this hero</button>`}
     </div>
-    ${sheetHtml(c)}
+    ${sheetHtml(c, heroLook(draft))}
     ${diceTray()}`;
 }
 
@@ -543,6 +595,9 @@ function explorerHeroes() {
     return {
       id: d.id, name: c.name, speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, attacks: c.attacks,
       label: `${c.name} (${c.race.name} ${c.cls.name})`,
+      look: heroLook(d),
+      skills: Object.fromEntries(c.skills.map((sk) => [sk.id, sk.bonus])),
+      wis: c.mods.wis, int: c.mods.int,
     };
   });
 }
@@ -626,6 +681,20 @@ const actions = {
     try { await navigator.clipboard.writeText(el.dataset.prompt); el.textContent = 'Copied!'; } catch { el.textContent = 'Copy failed'; }
     setTimeout(() => { el.textContent = 'Copy image prompt'; }, 1500);
   },
+  'look-portrait'(el) { setLook({ portrait: el.value, variant: 1 }); },
+  'look-variant'(el) { setLook({ variant: Number(el.dataset.n) }); },
+  'look-style'(el) { setLook({ style: el.dataset.id }); },
+  'look-frame'(el) { setLook({ frame: el.dataset.id }); },
+  'look-voice'(el) { setLook({ voice: el.dataset.id }); play(`hero-${el.dataset.id}-attack`); },
+  'look-hear'() { const v = resolveAppearance(state.draft).voice; play(`hero-${v}-attack`); play(`hero-${v}-hurt`, { delay: 900 }); },
+  'toggle-sound'(el) {
+    setMuted(!isMuted());
+    // Update the button in place: re-rendering would reset a dungeon in progress.
+    el.setAttribute('aria-pressed', String(!isMuted()));
+    el.title = isMuted() ? 'Sound off' : 'Sound on';
+    el.innerHTML = `${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span>`;
+    if (!isMuted()) play('dice', { volume: 0.5 });
+  },
   'enter-dungeon'() {
     Object.assign(state, { view: 'dungeon' });
     render();
@@ -646,7 +715,7 @@ const actions = {
   adopt(el) {
     const d = findHero('premade', el.dataset.id);
     if (!d) return;
-    const copy = { ...d, id: makeId(), createdAt: new Date().toISOString() };
+    const copy = { ...d, id: makeId(), createdAt: new Date().toISOString(), appearance: resolveAppearance(d) };
     roster.save(copy);
     Object.assign(state, { view: 'sheet', sheet: { draft: copy, source: 'roster' } });
     notify(`${copy.name} has joined your company.`);
@@ -785,6 +854,23 @@ root.addEventListener('click', (e) => {
 root.addEventListener('change', (e) => {
   const el = e.target.closest('[data-action]');
   if (el?.matches('select, input')) actions[el.dataset.action]?.(el, e);
+});
+
+/** Change part of the hero's look; it is saved with the hero. */
+function setLook(patch) {
+  if (!state.draft) return;
+  state.draft.appearance = { ...resolveAppearance(state.draft), ...patch };
+  touch(); render();
+}
+
+/** The colour slider updates the previews live without a re-render, so dragging stays smooth. */
+root.addEventListener('input', (e) => {
+  if (e.target.dataset?.look !== 'hue' || !state.draft) return;
+  state.draft.appearance = { ...resolveAppearance(state.draft), hue: Number(e.target.value) };
+  state.dirty = true;
+  const f = appearanceFilter(state.draft.appearance);
+  root.querySelectorAll('.look-editor img, .sheet-head .portrait img').forEach((img) => { img.style.filter = f; });
+  const v = root.querySelector('.look-hue-val'); if (v) v.textContent = `${e.target.value}°`;
 });
 
 /** Bestiary filters re-render only the results list, so the search box keeps focus. */
