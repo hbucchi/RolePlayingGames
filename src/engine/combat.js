@@ -29,7 +29,11 @@ export function bestSight(a, b, opaque) {
   }
   return best;
 }
-/** Melee reach in squares: 5 ft = 1, 10 ft (big creatures, polearms) = 2. */
+/**
+ * Melee reach in squares. Every melee attack needs the attacker to touch its target: an adjacent
+ * square, diagonals included (the stat block's 10 ft reach is kept as `statReach` for show only).
+ * Anything farther away has to be a ranged attack: a bow, a thrown spear, a spell.
+ */
 export const reachOf = (e) => Math.max(1, ...e.weapons.filter((w) => w.melee).map((w) => w.reach ?? 1));
 
 // ---------------------------------------------------------------------------
@@ -75,14 +79,15 @@ export function weaponFromHeroAttack(a) {
   const thrown = props.find((p) => /^thrown /.test(p));
   const spec = (range ?? thrown)?.split(' ')[1];
   const [normal, long] = spec ? spec.split('/').map((n) => Number(n) / 5) : [0, 0];
-  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: props.includes('reach') ? 2 : 1 };
+  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: 1 };
 }
 
 export function weaponFromMonsterAction(action) {
   const at = action.attack;
   const [normal, long] = at.range ? at.range.split('/').map((n) => Number(n) / 5) : [0, 0];
   const main = at.damage[0];
-  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1), reach: Math.max(1, Math.round((at.reach ?? 5) / 5)) };
+  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1), reach: 1, statReach: Math.max(1, Math.round((at.reach ?? 5) / 5)),
+    spell: ['rs', 'ms'].includes(at.kind) };
 }
 
 export function hitChance(toHit, ac, mode = 'normal') {
@@ -143,7 +148,7 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   const sight = bestSight(attacker, target, opaque);
   if (!sight?.visible) return null;
   if (dist <= (weapon.reach ?? 1) && weapon.melee) {
-    // melee: within reach (adjacent, or 10 ft for long-armed creatures and polearms)
+    // melee: touching the target (adjacent, diagonals included)
   } else if (weapon.ranged && dist <= weapon.long) {
     usingRanged = true;
     const own = new Set([...cellsOf(attacker.pos, attacker.size ?? 1), ...cellsOf(target.pos, target.size ?? 1)].map((c) => cellKey(c.x, c.y)));

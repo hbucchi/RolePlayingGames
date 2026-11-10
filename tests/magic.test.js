@@ -144,7 +144,7 @@ test('creature sizes: blocks, distance between blocks, reach and big movers', as
   const ogre = createMonster(BESTIARY_BY_ID.ogre, 'o', { x: 2, y: 2 });
   assert.equal(entityDistance(ogre, { pos: { x: 4, y: 3 } }), 1);
   const giant = createMonster(BESTIARY_BY_ID['hill-giant'], 'g', { x: 2, y: 2 });
-  assert.equal(reachOf(giant), 2); // 10 ft reach
+  assert.equal(reachOf(giant), 1); // melee needs touch: adjacent squares only
   // A 2x2 creature cannot squeeze through a one-square gap.
   const map = createArenaMap(10, 8);
   for (let y = 1; y < 7; y++) if (y !== 3) paintTerrain(map, 5, y, 'wall');

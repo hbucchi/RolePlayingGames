@@ -892,15 +892,47 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const cry = (e, what) => voiceSound(voiceOf(e), what);
 
   /** Animate an arrow flying from one square to another. */
-  async function shootProjectile(from, to, color = null) {
-    const frames = reduceMotion ? 1 : 9;
-    for (let i = 1; i <= frames; i++) {
-      s.projectile = { from, to, t: i / frames, color };
-      drawOverlay();
-      await sleep(reduceMotion ? 0 : 26);
-    }
+  /**
+   * Something flies from one square to another: an arrow, a thrown spear or a bolt of magic.
+   * It travels at a steady, readable speed (about 8 squares a second, never quicker than
+   * 0.45 s nor slower than 1.4 s), leaving a fading trail so you can see where it came from.
+   * The map is drawn once; each animation frame only moves the projectile.
+   */
+  async function shootProjectile(from, to, color = null, shape = 'arrow') {
+    if (reduceMotion) return;
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const ms = Math.min(1400, Math.max(450, dist * 125));
+    s.projectile = { from, to, t: 0, color, shape };
+    drawOverlay();
+    const head = overlay.querySelector('.dg-proj-head'); const trail = overlay.querySelector('.dg-proj-trail');
+    const sz = S();
+    const x0 = (from.x + 0.5) * sz; const y0 = (from.y + 0.5) * sz; const x1 = (to.x + 0.5) * sz; const y1 = (to.y + 0.5) * sz;
+    const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
+    const t0 = performance.now();
+    await new Promise((done) => {
+      const step = (now) => {
+        const t = Math.min(1, (now - t0) / ms);
+        const x = x0 + (x1 - x0) * t; const y = y0 + (y1 - y0) * t;
+        head?.setAttribute('transform', `translate(${x} ${y}) rotate(${ang})`);
+        // The trail reaches back at most 2.5 squares behind the head.
+        const back = Math.max(0, t - (2.5 / Math.max(dist, 0.01)));
+        trail?.setAttribute('x1', x0 + (x1 - x0) * back); trail?.setAttribute('y1', y0 + (y1 - y0) * back);
+        trail?.setAttribute('x2', x); trail?.setAttribute('y2', y);
+        if (t < 1 && head?.isConnected) requestAnimationFrame(step); else done();
+      };
+      requestAnimationFrame(step);
+    });
     s.projectile = null;
   }
+
+  /** Magic thrown by monsters: its colour, the burst it makes and its sound, by damage type. */
+  const BOLT = {
+    fire: { color: '#ff8a3d', vfx: 'fire', sound: 'spell-fire' }, cold: { color: '#9fdcff', vfx: 'ice', sound: 'spell-arcane' },
+    lightning: { color: '#cfe6ff', vfx: 'lightning', sound: 'spell-thunder' }, thunder: { color: '#e6e0ff', vfx: 'thunder', sound: 'spell-thunder' },
+    poison: { color: '#9be564', vfx: 'poison', sound: 'spell-arcane' }, acid: { color: '#b9f55a', vfx: 'poison', sound: 'spell-arcane' },
+    radiant: { color: '#fff1a8', vfx: 'radiant', sound: 'spell-heal' },
+  };
+  const boltFor = (type) => BOLT[type] ?? { color: '#c9a8ff', vfx: 'arcane', sound: 'spell-arcane' };
 
   /** Lean the attacker toward its target for a moment. */
   async function lunge(attacker, target) {
@@ -964,7 +996,22 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     }
     // Wind-up: battle cry, then the weapon.
     if (attacker === s.hero || Math.random() < 0.6) play(cry(attacker, 'attack'), { volume: 0.75 });
-    if (ranged) { play('bow-shot', { volume: 0.8 }); await shootProjectile(centerOf(attacker.pos, attacker.size ?? 1), centerOf(target.pos, target.size ?? 1)); } else { await lunge(attacker, target); }
+    if (ranged) {
+      // Take aim for a moment, then loose: the shot is easy to follow from shooter to target.
+      const from = centerOf(attacker.pos, attacker.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
+      attacker.facing = facingToward(attacker.pos, target.pos);
+      s.aiming = attacker.id; drawOverlay(); await sleep(reduceMotion ? 0 : 280); s.aiming = null;
+      if (weapon.spell) {
+        const b = boltFor(weapon.type);
+        play(b.sound, { volume: 0.8 });
+        await shootProjectile(from, to, b.color);
+        showVfx(b.vfx, to, (target.size ?? 1) / 2, 500);
+      } else {
+        const stone = /rock|boulder|stone/i.test(weapon.name);
+        play(stone ? 'swing-miss' : 'bow-shot', { volume: 0.8 });
+        await shootProjectile(from, to, null, stone ? 'stone' : 'arrow');
+      }
+    } else { await lunge(attacker, target); }
 
     // Bless and inspiration add dice to the hero's attack roll.
     const boost = attacker === s.hero ? rollBoosts({ attack: true }) : { total: 0, text: '' };
@@ -976,7 +1023,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const whom = target === s.hero ? s.hero.name : target.name;
     const dice = r.d20s.length > 1 ? `d20 (${r.d20s.join(', ')} → ${r.d20})` : `d20 (${r.d20})`;
     const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2 AC' : null].filter(Boolean);
-    let line = `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
+    const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));
+    let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
     if (r.hit) {
       let dmg = r.damage; const bits = [];
       if (attacker === s.hero) {
@@ -1170,6 +1218,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const cls = `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}`;
     return `<g class="${cls}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<circle r="${R + 9}" class="tk-selring"/>` : ''}
+      ${s.aiming === e.id ? `<circle r="${R + 6}" class="tk-aim"/>` : ''}
       ${hero && e === s.hero && s.members.length > 1 ? `<circle r="${R + 8}" class="tk-activering"/>` : ''}
       <g transform="rotate(${facingAngle(e.facing)})">
         <path d="M ${R} 0 A ${R} ${R} 0 0 1 ${-R} 0" class="tk-backarc"/>
@@ -1319,11 +1368,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.hero) out += token(s.hero, { hero: true });
     // Arrow in flight
     if (s.projectile) {
-      const { from, to, t } = s.projectile;
+      const { from, to, t, color, shape } = s.projectile;
       const x0 = (from.x + 0.5) * sz; const y0 = (from.y + 0.5) * sz; const x1 = (to.x + 0.5) * sz; const y1 = (to.y + 0.5) * sz;
       const x = x0 + (x1 - x0) * t; const y = y0 + (y1 - y0) * t; const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
-      if (s.projectile.color) out += `<circle cx="${x}" cy="${y}" r="12" class="dg-bolt" style="fill:${s.projectile.color}"/>`;
-      else out += `<g transform="translate(${x} ${y}) rotate(${ang})" class="dg-arrow"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
+      out += `<line x1="${x0}" y1="${y0}" x2="${x}" y2="${y}" class="dg-proj-trail ${color ? 'magic' : ''}" style="${color ? `stroke:${color}` : ''}"/>`;
+      if (color) out += `<g class="dg-proj-head" transform="translate(${x} ${y}) rotate(${ang})"><circle r="20" class="dg-bolt-glow" style="fill:${color}"/><circle r="11" class="dg-bolt" style="fill:${color}"/><circle r="5" fill="#fff"/></g>`;
+      else if (shape === 'stone') out += `<g class="dg-proj-head" transform="translate(${x} ${y}) rotate(${ang})"><ellipse rx="15" ry="13" class="dg-stone"/><ellipse rx="5" ry="4" cx="-4" cy="-4" fill="#9a9389"/></g>`;
+      else out += `<g class="dg-proj-head dg-arrow" transform="translate(${x} ${y}) rotate(${ang})"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
     }
     for (const fx of s.effects) for (const c of fx.cells) {
       out += `<image href="assets/vfx/firewall-${((c.x * 7 + c.y * 3) % 4) + 1}.jpg" x="${c.x * sz - sz * 0.15}" y="${c.y * sz - sz * 0.35}" width="${sz * 1.3}" height="${sz * 1.3}" class="vfx vfx-persist" preserveAspectRatio="xMidYMid slice"/>`;

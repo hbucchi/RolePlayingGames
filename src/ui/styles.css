@@ -632,3 +632,12 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .ally-tag { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 999px; background: #2f6b39; color: #e9f6ea; vertical-align: middle; }
 .cond-line { color: #d9b45a; font-weight: 600; }
 .study.talk b + .muted b { color: var(--ink); }
+
+/* Ranged attacks in flight */
+.dg-proj-trail { stroke: #f6e7c1; stroke-width: 3; stroke-linecap: round; opacity: .45; stroke-dasharray: 2 10; }
+.dg-proj-trail.magic { stroke-width: 7; opacity: .55; stroke-dasharray: none; filter: blur(2px); }
+.dg-bolt-glow { opacity: .35; filter: blur(6px); }
+.tk-aim { fill: none; stroke: #ffcf6b; stroke-width: 4; opacity: .9; animation: aimpulse .28s ease-out; }
+@keyframes aimpulse { from { transform: scale(1.35); opacity: 0; } to { transform: scale(1); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .tk-aim { animation: none; } }
+.dg-stone { fill: #6f6a62; stroke: #2b2824; stroke-width: 3; }
