@@ -40,13 +40,21 @@ export function preload(keys) {
   }
 }
 
-/** Which voice a monster uses: small creatures shriek, big ones roar. */
-export function monsterVoice(size) {
-  return size === 'Tiny' || size === 'Small' || size === 'Medium' ? 'goblin' : 'boss';
+/**
+ * Which voice a monster uses. Spiders hiss and bats screech; other small creatures reuse the
+ * high goblin shrieks (a pit-runt is a goblin, after all), and big ones roar.
+ */
+export function monsterVoice(stat) {
+  if (!stat) return 'goblin';
+  if (/spider|ettercap|weaver/i.test(stat.id)) return 'spider';
+  if (/bat/.test(stat.id)) return 'bat';
+  return stat.size === 'Tiny' || stat.size === 'Small' || stat.size === 'Medium' ? 'goblin' : 'boss';
 }
 
 export const SOUND_KEYS = [
   'sword-hit', 'swing-miss', 'bow-shot', 'arrow-hit', 'crit', 'door-open', 'dice',
   'hero-low-attack', 'hero-low-hurt', 'hero-low-death', 'hero-high-attack', 'hero-high-hurt', 'hero-high-death',
   'goblin-attack', 'goblin-hurt', 'goblin-death', 'boss-roar', 'boss-hurt',
+  'spider-attack', 'spider-hurt', 'spider-death', 'bat-attack', 'bat-hurt', 'bat-death',
+  'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
 ];

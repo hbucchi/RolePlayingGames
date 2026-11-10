@@ -30,6 +30,7 @@ export const classes = [
       { name: 'Second Wind', text: 'Once per short rest, as a bonus action, regain 1d10 + your level in hit points.' },
     ],
     equipment: [A('Coat of mail', 16, 0), SHIELD, W('Longsword', '1d8', 'slashing', 'str'), W('Spear (thrown)', '1d6', 'piercing', 'str', { properties: ['thrown 20/60'] }), G('Traveller\'s pack')],
+    kit: ['chain-mail', 'shield', 'longsword', 'spear', 'traveller'],
   },
   {
     id: 'ranger',
@@ -48,6 +49,7 @@ export const classes = [
       { name: 'Wilderness Wanderer', text: 'Difficult terrain does not slow your group\'s travel, and you can never become lost except by magical means.' },
     ],
     equipment: [A('Leather jerkin', 11, null), W('Longbow', '1d8', 'piercing', 'dex', { properties: ['range 150/600'] }), W('Long knife', '1d6', 'piercing', 'dex', { finesse: true, properties: ['finesse'] }), G('Hooded cloak'), G('Traveller\'s pack')],
+    kit: ['leather', 'longbow', ['arrows', 20], 'long-knife', 'hooded-cloak', 'traveller'],
   },
   {
     id: 'burglar',
@@ -60,12 +62,14 @@ export const classes = [
     savingThrows: ['dex', 'int'],
     armorProficiencies: ['Light armour'],
     weaponProficiencies: ['Simple weapons', 'Short swords', 'Shortbows'],
+    toolProficiencies: ['thieves-tools'],
     skillChoices: { count: 4, from: ['acrobatics', 'athletics', 'deception', 'insight', 'intimidation', 'investigation', 'perception', 'performance', 'persuasion', 'sleight-of-hand', 'stealth'] },
     features: [
       { name: 'Sneak Attack', text: 'Once per turn, deal an extra 1d6 damage to a creature you hit with a finesse or ranged weapon if you have advantage, or an ally is next to it.' },
       { name: 'Burglar\'s Eye', text: 'You are proficient with thieves\' tools, and you notice hidden doors, traps and loose stones with a glance (advantage on checks to find them).' },
     ],
     equipment: [A('Leather jerkin', 11, null), W('Short sword', '1d6', 'piercing', 'dex', { finesse: true, properties: ['finesse', 'light'] }), W('Sling', '1d4', 'bludgeoning', 'dex', { properties: ['range 30/120'] }), G('Thieves\' tools'), G('Burglar\'s pack')],
+    kit: ['leather', 'shortsword', 'sling', ['sling-bullets', 20], 'thieves-tools', 'burglar'],
   },
   {
     id: 'loremaster',
@@ -84,6 +88,7 @@ export const classes = [
       { name: 'Ancient Lore', text: 'Add your Intelligence modifier a second time to checks about ancient history, ruins, runes and artefacts.' },
     ],
     equipment: [W('Quarterstaff', '1d6', 'bludgeoning', 'str'), W('Dagger', '1d4', 'piercing', 'dex', { finesse: true, properties: ['finesse', 'thrown 20/60'] }), G('Book of old lore'), G('Scholar\'s pack')],
+    kit: ['quarterstaff', 'dagger', 'book-of-lore', 'scholar'],
   },
   {
     id: 'minstrel',
@@ -102,6 +107,7 @@ export const classes = [
       { name: 'Welcome in Every Hall', text: 'Common folk and lords alike will offer you food and a place by the fire in exchange for a song.' },
     ],
     equipment: [A('Leather jerkin', 11, null), W('Short sword', '1d6', 'piercing', 'dex', { finesse: true, properties: ['finesse', 'light'] }), G('Harp or flute'), G('Entertainer\'s pack')],
+    kit: ['leather', 'shortsword', 'instrument', 'entertainer'],
   },
   {
     id: 'warden',
@@ -120,5 +126,6 @@ export const classes = [
       { name: 'Steadfast', text: 'You cannot be moved against your will while standing your ground, and allies within 10 feet have advantage on saves against fear.' },
     ],
     equipment: [A('Scale coat', 14, 2), SHIELD, W('Spear', '1d6', 'piercing', 'str', { properties: ['versatile 1d8'] }), G('Herbalism kit'), G('Traveller\'s pack')],
+    kit: ['scale-mail', 'shield', 'spear', 'herbalism-kit', 'healers-kit', ['bandage', 5], 'traveller'],
   },
 ];

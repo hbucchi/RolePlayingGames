@@ -23,7 +23,7 @@ const PREMADE = {
 const KINDRED = { 'men-west': 'kin-men-west', 'men-plains': 'kin-men-plains', elf: 'kin-elf', dwarf: 'kin-dwarf', halfling: 'kin-halfling' };
 
 /** Monster portraits by bestiary id (more to come). */
-export const MONSTER_PORTRAITS = { goblin: 'goblin' };
+export const MONSTER_PORTRAITS = { goblin: 'goblin', 'pit-runt': 'pit-runt', 'dark-wood-spiderling': 'spiderling', 'crag-bat': 'crag-bat' };
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
 
 /** Style presets are CSS filter chains applied on top of the painting. */

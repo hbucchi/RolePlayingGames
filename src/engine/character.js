@@ -9,6 +9,9 @@ import {
   abilityModifier, applyBonuses, pointBuyTotal, scoresFilledWith,
 } from './abilities.js';
 import { SKILLS, SKILLS_BY_ID } from './skills.js';
+import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
+import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
+import { addItem, makeItem, carriedWeight, carryCapacity } from './items.js';
 
 export const DRAFT_VERSION = 1;
 
@@ -41,7 +44,9 @@ export function newDraft(settingId) {
     abilityAssignment: scoresFilledWith(null), // ability -> pool index (roll / standard)
     baseAbilities: scoresFilledWith(null),
     skillChoices: [],
+    mode: 'standard', // 'standard': start at level 1 and earn XP; 'sandbox': pick any level
     level: 1,
+    xp: 0,
     createdAt: new Date().toISOString(),
     updatedAt: null,
   };
@@ -124,6 +129,7 @@ export function pruneSkillChoices(draft, setting) {
 const validators = {
   concept(d) {
     const name = d.name.trim();
+    if (!Number.isInteger(d.level ?? 1) || (d.level ?? 1) < 1 || (d.level ?? 1) > 20) return ['Level must be between 1 and 20.'];
     if (name.length < 2) return ['Give your hero a name (at least 2 characters).'];
     if (name.length > 40) return ['Names are limited to 40 characters.'];
     return [];
@@ -236,22 +242,21 @@ export function deriveCharacter(draft, setting) {
   // average (rounded up) + CON modifier. Kindred bonuses (e.g. dwarven toughness) add per level.
   const hitDie = cls?.hitDie ?? 8;
   const perLevelCon = mods.con + (race?.hpPerLevel ?? 0);
-  const maxHp = Math.max(1, hitDie + perLevelCon + (level - 1) * Math.max(1, hitDie / 2 + 1 + perLevelCon));
+  const baseHp = Math.max(1, hitDie + perLevelCon + (level - 1) * Math.max(1, hitDie / 2 + 1 + perLevelCon));
 
-  const equipment = [...(cls?.equipment ?? []), ...(bg?.equipment ?? [])];
-  const ac = armorClass(equipment, mods.dex);
-
-  const attacks = equipment.filter((e) => e.kind === 'weapon').map((w) => {
-    const ability = w.finesse ? (mods.str >= mods.dex ? 'str' : 'dex') : w.ability;
-    return {
-      name: w.name,
-      ability,
-      toHit: mods[ability] + pb,
-      damage: `${w.damage}${mods[ability] ? (mods[ability] > 0 ? `+${mods[ability]}` : `${mods[ability]}`) : ''}`,
-      damageType: w.damageType,
-      properties: w.properties ?? [],
-    };
-  });
+  // Gear: the hero's own inventory once saved; a preview of the starting kit while in the wizard.
+  const gear = draft.inventory ? draft : startingGear(cls, bg);
+  const g = gearStats(gear, { mods, scores, pb, weaponProfs: cls?.weaponProficiencies ?? [], armorProfs: cls?.armorProficiencies ?? [] });
+  for (const sk of skills) sk.bonus += g.skillBonus[sk.id] ?? 0;
+  for (const st of savingThrows) st.bonus += g.saveBonus;
+  const ac = g.ac;
+  // Encumbrance: carry more than STR x 15 lb and you slow down (a simplified 5e variant).
+  const load = carriedWeight(gear.inventory, gear.coins ?? draft.coins ?? 0);
+  const capacity = carryCapacity(scores.str);
+  if (load > capacity) g.notes.push(`Over-burdened (${load} / ${capacity} lb): speed −10 ft.`);
+  const attacks = g.attacks;
+  const maxHp = baseHp + g.hpBonus;
+  const equipment = gear.inventory.map((x) => ({ uid: x.uid, name: itemName(x), qty: x.qty ?? 1, equipped: Object.values(gear.equipped ?? {}).includes(x.uid) }));
 
   const perception = skills.find((s) => s.id === 'perception');
 
@@ -273,7 +278,14 @@ export function deriveCharacter(draft, setting) {
     maxHp,
     ac,
     initiative: mods.dex,
-    speed: race?.speed ?? 30,
+    speed: (race?.speed ?? 30) - g.speedPenalty - (load > capacity ? 10 : 0),
+    load, capacity,
+    // Thieves' tools checks use DEX, plus proficiency if trained (burglars are).
+    toolBonus: mods.dex + (cls?.toolProficiencies?.includes('thieves-tools') ? pb : 0),
+    xp: draft.xp ?? XP_FOR_LEVEL[level],
+    mode: draft.mode ?? 'standard',
+    coins: gear.coins ?? draft.coins ?? 0,
+    gearNotes: g.notes,
     passivePerception: 10 + perception.bonus,
     attacks,
     equipment,
@@ -291,3 +303,42 @@ export function deriveCharacter(draft, setting) {
 export function skillName(id) {
   return SKILLS_BY_ID[id]?.name ?? id;
 }
+
+// ---------------------------------------------------------------------------
+// Gear and experience
+// ---------------------------------------------------------------------------
+
+/**
+ * Give a hero its inventory if it has none yet (new heroes, and saves from before items
+ * existed). Sandbox heroes above level 1 also get the wealth and magic of a veteran.
+ */
+export function ensureGear(draft, setting) {
+  if (draft.inventory) { tidyEquipped(draft); return draft; }
+  const cls = setting.classes.find((c) => c.id === draft.classId) ?? null;
+  const bg = setting.backgrounds.find((b) => b.id === draft.backgroundId) ?? null;
+  const g = startingGear(cls, bg);
+  draft.inventory = g.inventory; draft.equipped = g.equipped; draft.coins = g.coins;
+  const level = draft.level ?? 1;
+  if (level > 1) {
+    draft.coins += startingWealth(level);
+    for (const m of startingMagic(level)) {
+      if (m.id) { addItem(draft.inventory, makeItem(m.id, m.qty ?? 1)); continue; }
+      const slot = m.base === 'weapon' ? (equippedIn(draft, 'mainHand') ? 'mainHand' : 'ranged') : 'body';
+      const inst = equippedIn(draft, slot);
+      if (inst) inst.bonus = m.bonus;
+    }
+  }
+  draft.xp ??= XP_FOR_LEVEL[level];
+  return draft;
+}
+
+/** Add experience. Returns { gained, from, to } so the UI can celebrate a level-up. */
+export function gainXp(draft, amount) {
+  const from = draft.level ?? 1;
+  draft.xp = (draft.xp ?? XP_FOR_LEVEL[from]) + Math.max(0, Math.floor(amount));
+  const to = Math.max(from, levelForXp(draft.xp));
+  draft.level = to;
+  return { gained: amount, from, to };
+}
+
+export { itemDef };

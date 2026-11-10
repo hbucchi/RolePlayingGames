@@ -1,0 +1,137 @@
+/**
+ * Inventory and paperdoll, shared by the character sheet and the dungeon. Pure rendering:
+ * it returns HTML with data-inv attributes; the host wires the clicks to inventory actions.
+ */
+import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/catalogue.js';
+import { SLOTS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor } from '../engine/items.js';
+
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+export const FILTERS = [
+  { id: 'all', name: 'All' },
+  { id: 'gear', name: 'Arms & armour', cats: ['weapon', 'armor', 'shield', 'ammo', 'clothing', 'jewelry'] },
+  { id: 'use', name: 'Consumables', cats: ['consumable'] },
+  { id: 'tools', name: 'Tools', cats: ['tool', 'trinket'] },
+  { id: 'res', name: 'Resources', cats: ['resource', 'gem'] },
+];
+
+const SLOT_GLYPH = { mainHand: '⚔', offHand: '⛉', ranged: '🏹', body: '🛡', cloak: '🧥', neck: '📿', ring: '💍' };
+
+/** A square item tile: the painted icon if we have one, else a glyph. */
+export function itemIcon(inst, size = 'md') {
+  const def = ITEMS_BY_ID[inst.id];
+  const rarity = itemRarity(inst);
+  return `<span class="item-icon ${size} r-${rarity} ${isMagic(inst) ? 'magic' : ''}">
+    ${def?.icon ? `<img src="${esc(def.icon)}" alt="" loading="lazy">` : `<span class="glyph" aria-hidden="true">${def?.glyph ?? '•'}</span>`}
+    ${(inst.qty ?? 1) > 1 ? `<span class="qty">${inst.qty}</span>` : ''}
+  </span>`;
+}
+
+export function coinsHtml(cp) {
+  const c = splitCoins(cp);
+  const coin = (k, n, label) => `<span class="coin ${k}" title="${label}"><img src="assets/items/${k === 'gp' ? 'gold' : k === 'sp' ? 'silver' : 'copper'}.jpg" alt="">${n}<small>${k}</small></span>`;
+  return `<span class="coins">${coin('gp', c.gp, 'gold pieces')}${coin('sp', c.sp, 'silver pieces')}${coin('cp', c.cp, 'copper pieces')}</span>`;
+}
+
+function statLine(inst) {
+  const def = ITEMS_BY_ID[inst.id];
+  const b = inst.bonus ?? def.bonus ?? 0;
+  if (def.weapon) {
+    const w = def.weapon;
+    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${w.range} ft` : ''}${w.thrown ? ` · thrown ${w.thrown} ft` : ''}`;
+  }
+  if (def.armor) return `AC ${def.armor.base + b}${def.armor.type === 'light' ? ' + DEX' : def.armor.type === 'medium' ? ' + DEX (max 2)' : ''} · ${def.armor.type}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
+  if (def.cat === 'shield') return `+${(def.acBonus ?? 2) + b} AC`;
+  if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;
+  if (def.charges) return `${inst.charges ?? def.charges} picks left`;
+  return '';
+}
+
+/**
+ * @param gear  { inventory, equipped, coins }
+ * @param o     { str, selected, filter, editable, combat }
+ */
+export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory' } = {}) {
+  const weight = carriedWeight(gear.inventory, gear.coins ?? 0);
+  const cap = carryCapacity(str);
+  const f = FILTERS.find((x) => x.id === filter) ?? FILTERS[0];
+  const list = gear.inventory.filter((x) => !f.cats || f.cats.includes(ITEMS_BY_ID[x.id]?.cat));
+  const sel = gear.inventory.find((x) => x.uid === selected) ?? null;
+
+  const doll = SLOTS.map((s) => {
+    const inst = gear.inventory.find((x) => x.uid === gear.equipped?.[s.id]);
+    return `<button class="slot ${inst ? 'filled' : ''} ${sel && inst?.uid === sel.uid ? 'sel' : ''}" data-inv="select" data-uid="${inst ? esc(inst.uid) : ''}" ${inst ? '' : 'disabled'} title="${esc(s.name)}${inst ? `: ${esc(itemName(inst))}` : ' (empty)'}">
+      ${inst ? itemIcon(inst, 'sm') : `<span class="slot-empty" aria-hidden="true">${SLOT_GLYPH[s.id]}</span>`}
+      <span class="slot-name">${esc(s.name)}</span>
+    </button>`;
+  }).join('');
+
+  const tiles = list.length ? list.map((x) => `
+    <button class="inv-tile ${x.uid === selected ? 'sel' : ''} ${isEquipped(gear, x.uid) ? 'worn' : ''}" data-inv="select" data-uid="${esc(x.uid)}" title="${esc(itemName(x))}">
+      ${itemIcon(x)}${isEquipped(gear, x.uid) ? '<span class="worn-tag">E</span>' : ''}
+    </button>`).join('') : '<p class="muted small">Nothing here.</p>';
+
+  let detail = '<p class="muted small">Select an item to see what it does.</p>';
+  if (sel) {
+    const def = ITEMS_BY_ID[sel.id];
+    const eq = isEquipped(gear, sel.uid);
+    const canEquip = !!def.slot;
+    const armourLocked = combat && (def.cat === 'armor');
+    const offOk = def.weapon && def.weapon.light && !def.weapon.ranged && !eq;
+    const r = itemRarity(sel);
+    detail = `
+      <div class="inv-detail-head">${itemIcon(sel, 'lg')}<div>
+        <h4 class="r-text-${r}">${esc(itemName(sel))}${(sel.qty ?? 1) > 1 ? ` <span class="muted">×${sel.qty}</span>` : ''}</h4>
+        <p class="small muted">${esc(RARITY_LABEL[r])} ${esc(CATEGORY_LABEL[def.cat] ?? def.cat)}${isMagic(sel) ? ' · magical' : ''}</p>
+        ${statLine(sel) ? `<p class="small"><b>${esc(statLine(sel))}</b></p>` : ''}
+      </div></div>
+      <p class="small">${esc(def.desc)}</p>
+      <p class="small muted">Weight ${def.weight * (sel.qty ?? 1)} lb · worth ${esc(fmtValue(itemValue(sel)))}</p>
+      ${editable ? `<div class="row wrap">
+        ${canEquip && !eq ? `<button class="btn small primary" data-inv="equip" data-uid="${esc(sel.uid)}" ${armourLocked ? 'disabled title="Putting on armour takes minutes: not during a fight."' : ''}>Equip</button>` : ''}
+        ${offOk && slotFor(sel, 'offHand') ? `<button class="btn small" data-inv="equip" data-slot="offHand" data-uid="${esc(sel.uid)}">Off hand</button>` : ''}
+        ${eq ? `<button class="btn small" data-inv="unequip" data-uid="${esc(sel.uid)}" ${armourLocked ? 'disabled title="Taking off armour takes minutes: not during a fight."' : ''}>Unequip</button>` : ''}
+        ${def.use ? `<button class="btn small primary" data-inv="use" data-uid="${esc(sel.uid)}">${def.use.kind === 'bandage' ? 'Bandage wounds' : def.use.kind === 'light' ? 'Raise the light' : 'Use'}${combat ? ' (action)' : ''}</button>` : ''}
+        <button class="btn small danger ghost" data-inv="drop" data-uid="${esc(sel.uid)}">Drop</button>
+      </div>` : ''}`;
+  }
+
+  return `<div class="inventory">
+    <div class="inv-top">
+      <h3>${esc(title)}</h3>
+      ${coinsHtml(gear.coins ?? 0)}
+      <div class="inv-weight ${weight > cap ? 'over' : ''}" title="Carrying capacity is your Strength score × 15 lb">
+        <span>${weight} / ${cap} lb</span><span class="bar"><span style="width:${Math.min(100, (weight / cap) * 100)}%"></span></span>
+      </div>
+    </div>
+    <div class="inv-body">
+      <div class="paperdoll" aria-label="Equipped">${doll}</div>
+      <div class="inv-bag">
+        <div class="chips" role="tablist">${FILTERS.map((x) => `<button class="chip ${x.id === f.id ? 'sel' : ''}" data-inv="filter" data-filter="${x.id}" aria-pressed="${x.id === f.id}">${esc(x.name)}</button>`).join('')}</div>
+        <div class="inv-grid">${tiles}</div>
+      </div>
+      <div class="inv-detail" aria-live="polite">${detail}</div>
+    </div>
+  </div>`;
+}
+
+export function fmtValue(cp) {
+  const c = splitCoins(cp);
+  if (c.gp) return `${c.gp.toLocaleString()} gp${c.sp ? ` ${c.sp} sp` : ''}`;
+  if (c.sp) return `${c.sp} sp${c.cp ? ` ${c.cp} cp` : ''}`;
+  return `${c.cp} cp`;
+}
+
+/** A compact list of loot (a body or chest) with take buttons. */
+export function lootHtml({ title, coins, items, closeAttr = 'data-dg="close-loot"' }) {
+  const empty = !coins && !items.length;
+  return `<div class="loot-card">
+    <div class="foe-head"><h3>${esc(title)}</h3><button class="btn icon small" ${closeAttr} aria-label="Close">✕</button></div>
+    ${empty ? '<p class="muted small">Nothing left to take.</p>' : `
+    <ul class="loot-list">
+      ${coins ? `<li><span class="item-icon sm"><img src="assets/items/gold.jpg" alt=""></span><span>${esc(fmtValue(coins))}</span><button class="btn small" data-dg="take" data-uid="coins">Take</button></li>` : ''}
+      ${items.map((x) => `<li>${itemIcon(x, 'sm')}<span class="r-text-${itemRarity(x)}">${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` ×${x.qty}` : ''}</span><button class="btn small" data-dg="take" data-uid="${esc(x.uid)}">Take</button></li>`).join('')}
+    </ul>
+    <button class="btn small primary" data-dg="take-all">Take everything</button>`}
+  </div>`;
+}

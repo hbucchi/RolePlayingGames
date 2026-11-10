@@ -17,6 +17,8 @@ npm test       # rules-engine tests
 
 ## What's in it
 
+- **Two ways to start:** *Standard* heroes begin at level 1 and earn their way up. *Sandbox* heroes pick
+  any level from 1 to 20 and get the hit points, wealth and magic gear of a veteran.
 - **Six-step creation wizard:** name & concept → kindred (race) → calling (class) → abilities →
   background & skills → review.
 - **Three ways to set ability scores:** roll 4d6 and drop the lowest (animated dice), the standard
@@ -32,9 +34,26 @@ npm test       # rules-engine tests
   from its seed number.
 - **Grid movement:** speed ÷ 5 ft = squares per turn. Supports the standard and the 5-10-5 diagonal rules,
   no corner-cutting, and Dash.
+- **Rewards:** foes give XP (5e table, levels 1-20, with level-up fanfare). Their bodies can be searched
+  for coins (gold, silver and copper, after the DMG individual-treasure tables) and items.
+- **Items (inspired by Ultima Online):** ~150 items: SRD weapons and armour, enchanted gear named by power
+  ("Longsword of Might / Power / Vanquishing", armour "of Defense / Hardening / Invulnerability"), named magic
+  items, potions, bandages, tools (thieves' tools, crowbar, rope, pickaxe...), and crafting resources: logs
+  from oak to goldenwood, ores from copper to mithral, hides, silk, herbs and gems.
+- **Drop tables:** each kind of creature carries different things (goblins: arrows, scimitars, ore;
+  spiders: silk and venom; wolves: pelts; undead: bones and grave goods). Magic is the rarest drop.
+- **Inventory:** paperdoll slots (main hand, off hand, ranged, armour, cloak, neck, ring), backpack with
+  filters, weight vs carrying capacity (STR × 15 lb), equip/unequip any time (armour not mid-fight), use
+  and drop. Bows use up arrows; you recover half after a fight.
+- **Dungeon skills:** pick locks (thieves' tools, DEX) or force them (Athletics, loud), search for traps and
+  secret doors (Investigation, plus passive Perception as you walk), disarm traps, bind wounds with
+  bandages (Medicine), drink potions. Chests, locked doors, traps and secret doors are seeded per dungeon.
+- **Leveled encounters:** each room's foes are picked from 31 Westlands creatures using the DMG encounter
+  budget for your level (level 1 meets pit-runts, spiderlings and crag bats; level 20 meets trolls and
+  Hooded Riders).
 
-- **Bestiary:** 353 creatures. That is the complete 5e SRD monster list (318) plus 35 original foes of the
-  Westlands, such as the Shadowflame Tyrant, the Ember-Wyrm, stone and cave trolls, Hooded Riders, cairn-wights,
+- **Bestiary:** 356 creatures. That is the complete 5e SRD monster list (318) plus 38 original foes of the
+  Westlands, such as the pit-runt, the crag bat, the Shadowflame Tyrant, the Ember-Wyrm, stone and cave trolls, Hooded Riders, cairn-wights,
   shadow-wolves and the Brood-Queen of the Dark Pass. Every creature has full stats, traits, actions,
   spells, legendary actions where relevant, a personality, an origin, tactics, habitats, and an
   image-ready **appearance** description. You can search and filter by type, challenge, source and
@@ -63,11 +82,16 @@ src/
     dice.js            unbiased RNG, dice notation ("4d6kh3", "1d20+5"), seeded RNG for tests
     abilities.js       scores, modifiers, standard array, point buy
     skills.js          the 18 skills
-    character.js       draft model, per-step validation, derived sheet (HP, AC, bonuses...)
+    character.js       draft model, per-step validation, derived sheet (HP, AC, bonuses...), gear, XP
+    items.js           inventory, stacking, coins, weight, equipping, AC and attacks from gear
+    loot.js            coin tables, drop rolls, magic items
+    progression.js     XP levels, encounter budgets, sandbox starting wealth
+    features.js        chests, traps, secret and locked doors, skill checks, leveled monster placement
     storage.js         roster persistence + import/export
   content/
     registry.js        list of installed settings
     westlands/         races, classes, backgrounds, premade heroes, adventure stubs
+    items/             item catalogue and per-creature loot tables
     bestiary/          monster data by creature type (+ westlands.js originals), dsl.js helpers
   ui/                  rendering + events (vanilla JS, no framework); dungeon-view.js = explorer
 assets/textures/       AI-generated, seamless floor / rock / door textures
@@ -94,6 +118,10 @@ To add a new world, create `src/content/<world>/` with the same shape as `westla
 | Armour Class | armour base + DEX mod (capped by armour type) + 2 with a shield; unarmoured = 10 + DEX |
 | Attack bonus | STR or DEX modifier + proficiency bonus |
 | Passive Perception | 10 + Perception bonus |
+| Skill check | d20 + bonus ≥ DC; P(success) = (21 − DC + bonus) / 20 |
+| Encounter difficulty | sum of monster XP × crowd multiplier (1: ×1, 2: ×1.5, 3-6: ×2) vs the level's thresholds |
+| Loot | each drop is an independent chance p; expected drops = Σp; P(≥1 magic in k kills) = 1 − (1 − p)^k |
+| Carrying capacity | STR score × 15 lb (50 coins = 1 lb) |
 
 ## Licences and credits
 

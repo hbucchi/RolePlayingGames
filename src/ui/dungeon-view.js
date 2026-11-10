@@ -18,7 +18,13 @@ import { monsterPortrait } from '../content/media.js';
 import { play, preload, monsterVoice, SOUND_KEYS } from './audio.js';
 import { formatModifier } from '../engine/abilities.js';
 import { sensesText } from '../engine/monsters.js';
-import { rollDie } from '../engine/dice.js';
+import { rollDie, roll } from '../engine/dice.js';
+import { placeFeatures, populateDungeon, skillCheck, checkChance } from '../engine/features.js';
+import { rollMonsterLoot, rollChestLoot } from '../engine/loot.js';
+import { makeItem as makeItemSafe, addItem, removeItem, countOf, consume, itemName, itemDef, equipItem, unequipSlot, isEquipped, findItem, formatCoins, itemRarity } from '../engine/items.js';
+import { xpProgress } from '../engine/progression.js';
+import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
+import { inventoryHtml, lootHtml, coinsHtml, itemIcon } from './inventory-view.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,12 +34,15 @@ const PAUSE_MS = reduceMotion ? 0 : 420;
 const pct = (p) => `${Math.round(p * 100)}%`;
 const signed = (n) => (n >= 0 ? `+${n}` : `${n}`);
 
+const FOE_POOL = DUNGEON_FOES.map((id) => BESTIARY_BY_ID[id]).filter(Boolean);
+
 /**
  * @param {HTMLElement} host
- * @param {{heroes: object[], initialSeed?: number}} opts
+ * @param {{heroes: {id:string,label:string}[], api: {load, derive, save}, initialSeed?: number}} opts
+ *   api.load(id) -> the hero's draft (with gear); api.derive(draft) -> combat stats;
+ *   api.save(draft) -> the saved draft (a ready-made hero is adopted on its first save).
  */
-export function mountDungeon(host, { heroes, initialSeed = 7 }) {
-  const goblinStat = BESTIARY_BY_ID.goblin;
+export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   const s = {
     seed: initialSeed, map: null, grid: true, revealAll: false, rule: 'standard', zoom: 0.5,
     heroId: heroes[0]?.id ?? null, hero: null, monsters: [],
@@ -42,6 +51,8 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     moveLeft: 0, actionUsed: false, dash: false, weaponIdx: 0,
     hover: null, busy: false, log: [], floats: [], reach: new Map(),
     selectedId: null, knowledge: {}, knownHp: new Set(), lunge: null, flash: new Set(), projectile: null, lastStudy: null,
+    draft: null, def: null, features: null, target: null, invOpen: false, invSel: null, invFilter: 'all',
+    ammoSpent: {}, delve: { xp: 0, coins: 0, items: 0, kills: 0 }, lastCheck: null, phialUsed: false,
   };
 
   host.innerHTML = `
@@ -76,16 +87,18 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
             <svg class="dg-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
           </div>
         </div>
-        <p class="dg-help muted small">Click a lit square to move · click a goblin to select it, click again to attack · drag to pan · scroll or pinch to zoom · Q / E turn your hero</p>
+        <p class="dg-help muted small">Click a lit square to move · click a foe to select it, click again to attack · click chests, doors, traps and bodies next to you · I opens your pack · Q / E turn · drag to pan, scroll to zoom</p>
       </div>
       <aside class="dg-panel">
         <section class="dg-herocard"></section>
         <section class="dg-target" aria-live="polite"></section>
+        <section class="dg-nearby"></section>
         <section class="dg-initiative"></section>
         <section class="dg-logbox"><h3>Battle log</h3><ol class="dg-log"></ol></section>
       </aside>
     </div>
-    <div class="dg-endscreen" hidden></div>`;
+    <div class="dg-endscreen" hidden></div>
+    <div class="dg-inv" hidden role="dialog" aria-label="Inventory"></div>`;
 
   const $ = (sel) => host.querySelector(sel);
   const viewport = $('.dg-viewport'); const stage = $('.dg-stage');
@@ -96,7 +109,43 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   // Setup
   // ---------------------------------------------------------------------------
 
-  function heroDef() { return heroes.find((h) => h.id === s.heroId) ?? heroes[0]; }
+  /** Load the chosen hero's saved draft (inventory, coins, XP) and derive its combat stats. */
+  function loadHero() {
+    const id = heroes.some((h) => h.id === s.heroId) ? s.heroId : heroes[0]?.id;
+    s.draft = id ? api.load(id) : null;
+    s.def = s.draft ? api.derive(s.draft) : null;
+  }
+
+  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot }));
+
+  /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
+  function persist() {
+    if (!s.draft) return;
+    const saved = api.save(s.draft);
+    if (saved && saved.id !== s.draft.id) {
+      const opt = host.querySelector(`#dg-hero option[value="${CSS.escape(s.draft.id)}"]`);
+      const h = heroes.find((x) => x.id === s.draft.id);
+      if (h) h.id = saved.id;
+      if (opt) { opt.value = saved.id; opt.textContent = opt.textContent.replace(' (ready-made)', ''); }
+      s.heroId = saved.id;
+      log(`${saved.name} joins your company, so their loot and experience are kept.`, 'info');
+    }
+    s.draft = saved ?? s.draft;
+  }
+
+  /** Re-derive stats after equipping, levelling up or carrying more; keeps position and wounds. */
+  function refreshHero() {
+    const prevMax = s.hero.maxHp;
+    s.def = api.derive(s.draft);
+    const d = s.def;
+    Object.assign(s.hero, {
+      maxHp: d.maxHp, ac: d.ac, dexMod: d.dexMod, speed: speedToSquares(d.speed, s.map.feetPerCell),
+      weapons: heroWeapons(d), look: d.look, voice: d.look?.voice ?? 'low', skills: d.skills ?? {},
+    });
+    if (d.maxHp > prevMax) s.hero.hp += d.maxHp - prevMax;
+    s.hero.hp = Math.min(s.hero.hp, s.hero.maxHp);
+    s.weaponIdx = Math.min(s.weaponIdx, Math.max(0, s.hero.weapons.length - 1));
+  }
 
   function newDungeon(seed) {
     s.seed = Math.max(1, Math.floor(seed) || 1);
@@ -110,8 +159,9 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   }
 
   function resetDelve() {
-    const h = heroDef();
-    const weapons = (h?.attacks ?? []).map(weaponFromHeroAttack);
+    loadHero();
+    const h = s.def;
+    const weapons = heroWeapons(h);
     s.hero = h ? {
       id: 'hero', name: h.name, pos: { x: s.map.entrance.x, y: s.map.entrance.y }, facing: 0,
       hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
@@ -119,13 +169,19 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {},
     } : null;
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
-    s.monsters = placeMonsters(s.map, goblinStat, s.seed);
+    // The dungeon's secrets are fixed by its number; its inhabitants are matched to the hero's level.
+    const level = h?.level ?? 1;
+    s.features = placeFeatures(s.map, s.seed, level);
+    const avoid = new Set(s.features.chests.map((c) => cellKey(c.x, c.y)));
+    s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid });
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
-    s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null;
+    s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
+    s.ammoSpent = {}; s.delve = { xp: 0, coins: 0, items: 0, kills: 0 }; s.phialUsed = false; s.invOpen = false;
     s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false;
-    $('.dg-endscreen').hidden = true;
+    $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true;
     startHeroTurn();
-    log(`${s.hero?.name ?? 'Your hero'} descends the stairs into dungeon #${s.seed}. ${s.monsters.length} goblins lurk somewhere below.`, 'info');
+    const kinds = [...new Set(s.monsters.map((m) => m.name))];
+    log(`${s.hero?.name ?? 'Your hero'} (level ${level}) descends the stairs into dungeon #${s.seed}. Somewhere below: ${s.monsters.length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, and who knows what traps.`, 'info');
     updateVision();
     redraw();
   }
@@ -139,9 +195,52 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   const occupied = (except) => new Set([s.hero, ...alive()].filter((e) => e && e !== except).map((e) => cellKey(e.pos.x, e.pos.y)));
   const canSee = (m) => s.revealAll || s.visible.has(cellKey(m.pos.x, m.pos.y));
 
+  // Squares nobody can walk through: undiscovered secret doors, locked doors, chests.
+  const isSecret = (k) => s.features?.secretDoors.has(k);
+  const isLocked = (k) => s.features?.locks.has(k);
+  function terrainBlocked() {
+    const b = new Set();
+    if (!s.features) return b;
+    for (const k of s.features.secretDoors) b.add(k);
+    for (const k of s.features.locks.keys()) b.add(k);
+    for (const c of s.features.chests) b.add(cellKey(c.x, c.y));
+    return b;
+  }
+  const chestAt = (x, y) => s.features?.chests.find((c) => c.x === x && c.y === y) ?? null;
+  const trapAt = (x, y) => s.features?.traps.find((t) => t.x === x && t.y === y) ?? null;
+  const corpseAt = (x, y) => s.monsters.find((m) => m.dead && m.pos.x === x && m.pos.y === y && m.loot && (m.loot.coins || m.loot.items.length)) ?? null;
+  const doorAt = (x, y) => s.map.doors.find((d) => d.x === x && d.y === y) ?? null;
+  const adjacent = (p) => chebyshev(s.hero.pos, p) <= 1;
+
+  /**
+   * Passive Perception: as you move, you notice hidden things whose DC is at most
+   * 10 + your Perception bonus, if they are close (traps within 3 squares, secret doors within 2).
+   */
+  function passiveNotice() {
+    const pp = 10 + (s.hero.skills.perception ?? 0);
+    const found = [];
+    for (const t of s.features.traps) {
+      if (t.found || t.sprung || !s.visible.has(cellKey(t.x, t.y)) || chebyshev(t, s.hero.pos) > 3) continue;
+      if (pp >= t.dc) { t.found = true; found.push(`a ${t.name}`); }
+    }
+    for (const k of [...s.features.secretDoors]) {
+      const [x, y] = k.split(',').map(Number);
+      if (chebyshev({ x, y }, s.hero.pos) > 2) continue;
+      if (pp >= secretDC()) { revealSecret(k); found.push('a secret door'); }
+    }
+    if (found.length) { log(`${s.hero.name}'s sharp eyes notice ${found.join(' and ')} (passive Perception ${pp}).`, 'good'); banner(`You notice ${found.join(' and ')}!`); }
+  }
+  const secretDC = () => 13 + Math.floor((s.def?.level ?? 1) / 3);
+  function revealSecret(k) {
+    s.features.secretDoors.delete(k);
+    const [x, y] = k.split(',').map(Number);
+    float({ x, y }, 'secret door!', 'good');
+  }
+
   /** Recompute what the hero sees; returns monsters that just noticed the hero. */
   function updateVision() {
     s.visible = visibleSquares(s.map, s.hero.pos, opaque());
+    if (s.features) passiveNotice();
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
     for (const m of alive()) {
@@ -161,7 +260,8 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   }
 
   function enterCombat(spotted) {
-    const names = spotted.length === 1 ? 'A goblin' : `${spotted.length} goblins`;
+    const kinds = [...new Set(spotted.map((m) => m.name.toLowerCase()))];
+    const names = spotted.length === 1 ? `A ${kinds[0]}` : `${spotted.length} foes (${kinds.join(', ')})`;
     const isNew = s.mode !== 'combat';
     if (isNew) {
       s.mode = 'combat'; s.round = 1;
@@ -187,6 +287,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     if (s.mode === 'combat' && !alive().some((m) => m.aware)) {
       s.mode = 'explore'; s.order = [];
       log('The fight is over. You can explore freely again.', 'good');
+      recoverAmmo();
       startHeroTurn();
       if (!alive().length) showEnd('victory');
     }
@@ -212,10 +313,12 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       if (slot.id === 'hero') break;
       const m = s.monsters.find((x) => x.id === slot.id);
       if (!m || m.dead || !m.aware) continue;
-      await monsterTurn(m);
+      const acted = await monsterTurn(m);
       if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+      // A hunter that can neither reach nor see you for two rounds loses interest.
+      if (!acted && !canSee(m)) { m.idle = (m.idle ?? 0) + 1; if (m.idle >= 2) { m.aware = false; m.idle = 0; log(`Somewhere in the dark, a ${m.name.toLowerCase()} gives up the hunt.`, 'info'); } } else m.idle = 0;
     }
-    s.order = s.order.filter((o) => o.id === 'hero' || !s.monsters.find((m) => m.id === o.id)?.dead);
+    s.order = s.order.filter((o) => { const m = s.monsters.find((x) => x.id === o.id); return o.id === 'hero' || (m && !m.dead && m.aware); });
     s.busy = false;
     startHeroTurn();
     banner(`Round ${s.round}: your turn`);
@@ -229,9 +332,11 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   async function monsterTurn(m) {
     m.reaction = true;
     banner(`${m.name}'s turn`);
-    const plan = planMonsterTurn({ m, hero: s.hero, map: s.map, opaque: opaque(), blocked: occupied(m) });
+    const plan = planMonsterTurn({ m, hero: s.hero, map: s.map, opaque: opaque(), blocked: new Set([...occupied(m), ...terrainBlocked()]) });
     let disengaged = false;
+    if (plan.length === 1 && plan[0].type === 'wait') return false;
     for (const step of plan) {
+      if (step.type === 'flee') { disengaged = !!m.nimble; if (canSee(m)) log(`${m.name} panics and flees!`, 'info'); }
       if (step.type === 'disengage') { disengaged = true; if (canSee(m)) log(`${m.name} slips away nimbly (Nimble Escape: Disengage).`, 'info'); }
       if (step.type === 'move') {
         for (const p of step.path.slice(1)) {
@@ -239,7 +344,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
           m.facing = facingToward(m.pos, p);
           m.pos = { x: p.x, y: p.y };
           openDoorAt(p);
-          if (wasAdjacent && chebyshev(m.pos, s.hero.pos) > 1 && !disengaged && s.hero.reaction) await heroOpportunityAttack(m);
+          if (wasAdjacent && chebyshev(m.pos, s.hero.pos) > 1 && !disengaged && !m.flyby && s.hero.reaction) await heroOpportunityAttack(m);
           if (m.dead) return;
           updateVision(); redraw(); await sleep(STEP_MS);
         }
@@ -251,6 +356,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       }
     }
     await sleep(PAUSE_MS / 2);
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -266,12 +372,19 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
 
   function heroReach() {
     if (!s.hero || s.busy || s.mode === 'defeat') return new Map();
-    const blocked = occupied(s.hero);
+    const blocked = new Set([...occupied(s.hero), ...terrainBlocked()]);
     if (!s.revealAll) {
       // You can only walk into squares you have discovered.
       for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) if (!s.revealed.has(cellKey(x, y))) blocked.add(cellKey(x, y));
     }
-    return reachableSquares(s.map, s.hero.pos, s.moveLeft, { diagonalRule: s.rule, blocked });
+    // Paths go around known traps when they can; squares only reachable across a trap are
+    // still offered, and crossing it takes an Acrobatics check.
+    const traps = (s.features?.traps ?? []).filter((t) => t.found && !t.disarmed && !t.sprung).map((t) => cellKey(t.x, t.y));
+    const all = reachableSquares(s.map, s.hero.pos, s.moveLeft, { diagonalRule: s.rule, blocked });
+    if (!traps.length) return all;
+    const safe = reachableSquares(s.map, s.hero.pos, s.moveLeft, { diagonalRule: s.rule, blocked: new Set([...blocked, ...traps]) });
+    for (const [k, c] of all) if (!safe.has(k)) safe.set(k, { ...c, risky: true });
+    return safe;
   }
 
   async function moveHero(target) {
@@ -286,6 +399,21 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       for (const m of threats) {
         if (chebyshev(m.pos, s.hero.pos) > 1) await monsterOpportunityAttack(m);
         if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+      }
+      const trap = trapAt(p.x, p.y);
+      let sprang = false;
+      if (trap && trap.found && !trap.disarmed && !trap.sprung) {
+        // Crossing a trap you know about: Acrobatics against its DC to step around the trigger.
+        const c = skillCheck(s.hero.skills.acrobatics ?? 0, trap.dc);
+        log(`${s.hero.name} edges past the ${trap.name}. ${checkText('Acrobatics', c)}. ${c.ok ? 'Safely across.' : 'A misstep!'}`, c.ok ? 'good' : 'bad');
+        if (!c.ok) sprang = true;
+      }
+      if (trap && (sprang || (!trap.found && !trap.disarmed && !trap.sprung))) {
+        await springTrap(trap);
+        if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+        s.moveLeft = s.mode === 'combat' ? Math.max(0, s.moveLeft - costAt(p)) : s.hero.speed;
+        updateVision(); s.busy = false; redraw();
+        return; // the trap stops you in your tracks
       }
       const spotted = updateVision();
       redraw(); await sleep(STEP_MS);
@@ -303,6 +431,23 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     keepInView(s.hero.pos);
   }
 
+  /** A hidden trap goes off: Dexterity saving throw for half damage. */
+  async function springTrap(t) {
+    t.found = true; t.sprung = true;
+    play('trap', { volume: 0.9 });
+    const dexSave = s.def.saves?.dex ?? s.hero.dexMod;
+    const save = skillCheck(dexSave, t.saveDc);
+    const dmg = roll(t.damage);
+    const taken = save.ok ? Math.floor(dmg.total / 2) : dmg.total;
+    s.hero.hp = Math.max(0, s.hero.hp - taken);
+    float(s.hero.pos, `−${taken}`, 'bad', !save.ok);
+    flashHit(s.hero);
+    if (taken) play(cry(s.hero, s.hero.hp > 0 ? 'hurt' : 'death'), { delay: 150 });
+    banner(t.text);
+    log(`${t.text} ${s.hero.name} springs a ${t.name}! DEX save: d20 (${save.d20}) ${signed(dexSave)} = ${save.total} vs DC ${t.saveDc}. ${save.ok ? 'Half damage' : 'Full damage'}: ${taken} ${t.type} [${dmg.rolls.join(', ')}].`, 'bad');
+    redraw(); await sleep(PAUSE_MS);
+  }
+
   // ---------------------------------------------------------------------------
   // Attacks
   // ---------------------------------------------------------------------------
@@ -318,13 +463,22 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     // Next to the target, prefer a melee weapon (shooting point-blank has disadvantage).
     if (adjacent) order.sort((a, b) => Number(b.melee) - Number(a.melee) || (a === sel ? -1 : 1));
     for (const w of order) {
+      if (!hasAmmo(w, target)) continue;
       const o = attackOptions(args(w));
       if (o) return { weapon: w, opts: o };
     }
     return null;
   }
 
+  /** Bows need arrows (slings need stones). Point-blank melee and thrown weapons need none. */
+  function hasAmmo(w, target) {
+    if (!w.ammo || !s.draft) return true;
+    if (w.melee && target && chebyshev(s.hero.pos, target.pos) <= 1) return true;
+    return countOf(s.draft.inventory, w.ammo) > 0;
+  }
+
   function whyNot(target) {
+    if (s.hero.weapons.some((w) => w.ammo && !hasAmmo(w, target)) && !s.hero.weapons.some((w) => w.melee) ) return 'Out of ammunition.';
     const d = chebyshev(s.hero.pos, target.pos);
     const maxRange = Math.max(0, ...s.hero.weapons.filter((w) => w.ranged).map((w) => w.long));
     if (!s.visible.has(cellKey(target.pos.x, target.pos.y))) return 'You can\'t see it.';
@@ -338,6 +492,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     let plan = heroAttackPlan(target);
     if (weaponIdx !== null) {
       const w = s.hero.weapons[weaponIdx];
+      if (!hasAmmo(w, target)) { banner(`No ${w.ammo.replace('-', ' ')} left for your ${w.name.toLowerCase()}.`); return; }
       const o = attackOptions({ attacker: s.hero, target, weapon: w, opaque: opaque(), occupied: occupied(), enemiesOf });
       plan = o ? { weapon: w, opts: o } : null;
     }
@@ -369,12 +524,12 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   }
 
   /** Voice family for sounds: the hero's chosen voice, or goblin / boss by monster size. */
-  const voiceOf = (e) => (e === s.hero ? `hero-${s.hero.voice}` : monsterVoice(BESTIARY_BY_ID[e.statId]?.size));
+  const voiceOf = (e) => (e === s.hero ? `hero-${s.hero.voice}` : monsterVoice(BESTIARY_BY_ID[e.statId]));
   const cry = (e, what) => {
     const v = voiceOf(e);
     if (v.startsWith('hero')) return `${v}-${what}`;
-    if (v === 'goblin') return `goblin-${what}`;
-    return what === 'attack' ? 'boss-roar' : 'boss-hurt';
+    if (v === 'boss') return what === 'attack' ? 'boss-roar' : 'boss-hurt';
+    return `${v}-${what}`;
   };
 
   /** Animate an arrow flying from one square to another. */
@@ -411,6 +566,10 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     if (!opts && reaction) opts = { ac: target.ac, mode: 'normal', adv: [], dis: [], cover: 'none', chance: 0 }; // reach was valid a moment ago
     if (!opts) return;
     const ranged = opts.ranged || (weapon.ranged && !weapon.melee);
+    if (attacker === s.hero && ranged && weapon.ammo) {
+      consume(s.draft.inventory, weapon.ammo, 1);
+      s.ammoSpent[weapon.ammo] = (s.ammoSpent[weapon.ammo] ?? 0) + 1;
+    }
     // Wind-up: battle cry, then the weapon.
     if (attacker === s.hero || Math.random() < 0.6) play(cry(attacker, 'attack'), { volume: 0.75 });
     if (ranged) { play('bow-shot', { volume: 0.8 }); await shootProjectile(attacker.pos, target.pos); } else { await lunge(attacker, target); }
@@ -438,12 +597,70 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     if (target !== s.hero && target.hp <= 0) {
       target.dead = true;
       play(cry(target, 'death'), { delay: 150 });
-      log(`${target.name} falls!`, 'good');
       if (s.selectedId === target.id) s.selectedId = null;
+      onKill(target);
     }
     if (target === s.hero && target.hp <= 0) play(cry(target, 'death'), { delay: 150 });
     redraw();
     await sleep(PAUSE_MS);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rewards: experience and loot
+  // ---------------------------------------------------------------------------
+
+  /** A foe falls: award its XP at once, and roll what it carried (searched later from its body). */
+  function onKill(m) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    m.loot = rollMonsterLoot(stat);
+    s.delve.kills++;
+    const n = m.loot.items.length + (m.loot.coins ? 1 : 0);
+    log(`${m.name} falls! +${stat.xp} XP.${n ? ' It carried something: search the body.' : ''}`, 'good');
+    awardXp(stat.xp, m.pos);
+  }
+
+  function awardXp(xp, pos) {
+    if (!xp || !s.draft) return;
+    const r = api.gainXp(s.draft, xp);
+    s.delve.xp += xp;
+    float(pos ?? s.hero.pos, `+${xp} XP`, 'xp');
+    refreshHero();
+    if (r.to > r.from) {
+      play('level-up', { delay: 500 });
+      banner(`Level ${r.to}! ${s.hero.name} grows stronger.`);
+      log(`LEVEL UP! ${s.hero.name} reaches level ${r.to}: ${s.hero.maxHp} hit points, proficiency bonus +${s.def.proficiencyBonus}.`, 'level');
+    }
+    persist();
+  }
+
+  /** Move loot from a body or chest into the pack. uid 'coins' takes the money; null takes everything. */
+  function takeLoot(src, uid = null) {
+    const loot = src.loot;
+    let got = [];
+    if ((uid === null || uid === 'coins') && loot.coins) {
+      s.draft.coins = (s.draft.coins ?? 0) + loot.coins; s.delve.coins += loot.coins;
+      got.push(formatCoins(loot.coins)); loot.coins = 0; play('coins', { volume: 0.8 });
+    }
+    for (const it of [...loot.items]) {
+      if (uid !== null && it.uid !== uid) continue;
+      addItem(s.draft.inventory, it);
+      loot.items = loot.items.filter((x) => x !== it);
+      s.delve.items++;
+      got.push(`${itemName(it)}${(it.qty ?? 1) > 1 ? ` ×${it.qty}` : ''}`);
+    }
+    if (!got.length) return;
+    if (uid !== 'coins') play('dice', { volume: 0.25 });
+    log(`${s.hero.name} takes ${got.join(', ')}.`, 'loot');
+    persist(); refreshHero(); redraw();
+  }
+
+  /** After a fight you can find about half of the arrows you shot (5e). */
+  function recoverAmmo() {
+    for (const [ammo, n] of Object.entries(s.ammoSpent)) {
+      const back = Math.floor(n / 2);
+      if (back) { addItem(s.draft.inventory, makeItemSafe(ammo, back)); log(`${s.hero.name} recovers ${back} of the ${n} ${ammo.replace('-', ' ')} shot.`, 'loot'); }
+    }
+    s.ammoSpent = {}; persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -474,8 +691,9 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     const el = $('.dg-endscreen');
     el.hidden = false;
     el.innerHTML = kind === 'victory'
-      ? `<div class="dg-endcard"><h2>Dungeon cleared</h2><p>Every goblin in dungeon #${s.seed} has fallen. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p><div class="row"><button class="btn primary" data-dg="random">Delve into a new dungeon</button><button class="btn ghost" data-dg="close-end">Keep exploring</button></div></div>`
-      : `<div class="dg-endcard"><h2>${esc(s.hero.name)} has fallen</h2><p>The goblins drag away the spoils. Rest, and try again.</p><div class="row"><button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button></div></div>`;
+      ? `<div class="dg-endcard"><h2>Dungeon cleared</h2><p>Every foe in dungeon #${s.seed} has fallen. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
+        <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="random">Delve into a new dungeon</button><button class="btn ghost" data-dg="close-end">Keep exploring</button></div></div>`
+      : `<div class="dg-endcard"><h2>${esc(s.hero.name)} has fallen</h2><p>The dark claims another hero... but legends are stubborn. Your experience and the loot you carried out are kept. Rest, and try again.</p><div class="row"><button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button></div></div>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -516,9 +734,17 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
   function drawDoors() {
     const sz = S(); let out = '';
     for (const d of s.map.doors) {
-      if (!s.revealAll && !s.revealed.has(cellKey(d.x, d.y))) continue;
-      const open = s.doors.get(cellKey(d.x, d.y));
+      const k = cellKey(d.x, d.y);
       const cx = (d.x + 0.5) * sz; const cy = (d.y + 0.5) * sz;
+      if (isSecret(k)) {
+        // An undiscovered secret door looks like solid rock (the narrator view shows it dashed).
+        out += `<rect x="${d.x * sz}" y="${d.y * sz}" width="${sz}" height="${sz}" class="secret-cover" style="fill:url(#dg-rock)"/>`;
+        if (s.revealAll) out += `<rect x="${d.x * sz + 6}" y="${d.y * sz + 6}" width="${sz - 12}" height="${sz - 12}" rx="6" class="secret-hint"/>`;
+        continue;
+      }
+      if (!s.revealAll && !s.revealed.has(k)) continue;
+      if (isLocked(k)) out += `<text x="${cx}" y="${cy - sz * 0.32}" class="lock-glyph">🔒</text>`;
+      const open = s.doors.get(k);
       // Door 'h' is walked through east-west: the slab stands north-south when closed.
       if (!open) {
         const vertical = d.orientation === 'h';
@@ -531,6 +757,36 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
         const x = vertical ? cx - sz * 0.47 : cx - sz * 0.47; const y = vertical ? cy - sz * 0.47 : cy - sz * 0.47;
         out += vertical ? `<rect x="${x}" y="${y}" width="${sz * 0.94}" height="${sz * 0.14}" rx="3" class="door-open"/>` : `<rect x="${x}" y="${y}" width="${sz * 0.14}" height="${sz * 0.94}" rx="3" class="door-open"/>`;
       }
+    }
+    return out;
+  }
+
+  /** Chests, known traps, and searchable bodies. */
+  function drawFeatures() {
+    const sz = S(); let out = '';
+    const shown = (x, y) => s.revealAll || s.revealed.has(cellKey(x, y));
+    for (const c of s.features.chests) {
+      if (!shown(c.x, c.y)) continue;
+      const x = c.x * sz; const y = c.y * sz; const empty = c.opened && !c.loot?.coins && !c.loot?.items.length;
+      out += `<g class="chest ${c.opened ? 'open' : ''} ${empty ? 'empty' : ''} ${s.target?.kind === 'chest' && s.target.id === c.id ? 'sel' : ''}" transform="translate(${x} ${y})">
+        <rect x="${sz * 0.14}" y="${sz * 0.36}" width="${sz * 0.72}" height="${sz * 0.44}" rx="5" class="chest-body"/>
+        ${c.opened ? `<rect x="${sz * 0.14}" y="${sz * 0.16}" width="${sz * 0.72}" height="${sz * 0.18}" rx="4" class="chest-lid"/>`
+    : `<path d="M ${sz * 0.14} ${sz * 0.4} Q ${sz * 0.5} ${sz * 0.1} ${sz * 0.86} ${sz * 0.4} Z" class="chest-lid"/>`}
+        <rect x="${sz * 0.14}" y="${sz * 0.5}" width="${sz * 0.72}" height="${sz * 0.07}" class="chest-band"/>
+        ${c.locked ? `<rect x="${sz * 0.44}" y="${sz * 0.46}" width="${sz * 0.12}" height="${sz * 0.16}" rx="2" class="chest-lock"/>` : ''}
+        ${!empty && c.opened ? `<circle cx="${sz * 0.5}" cy="${sz * 0.32}" r="${sz * 0.07}" class="chest-gold"/>` : ''}
+      </g>`;
+    }
+    for (const t of s.features.traps) {
+      if (!(t.found || s.revealAll) || !shown(t.x, t.y)) continue;
+      const cx = (t.x + 0.5) * sz; const cy = (t.y + 0.5) * sz; const r = sz * 0.3;
+      const cls = t.disarmed ? 'disarmed' : t.sprung ? 'sprung' : t.found ? 'armed' : 'hidden';
+      out += `<g class="trap ${cls} ${s.target?.kind === 'trap' && s.target.id === t.id ? 'sel' : ''}"><path d="M ${cx} ${cy - r} L ${cx + r} ${cy + r * 0.8} L ${cx - r} ${cy + r * 0.8} Z" class="trap-tri"/>
+        <text x="${cx}" y="${cy + r * 0.55}" class="trap-mark">${t.disarmed ? '✓' : t.sprung ? '✕' : '!'}</text></g>`;
+    }
+    for (const m of s.monsters) {
+      if (!m.dead || !m.loot || (!m.loot.coins && !m.loot.items.length) || !shown(m.pos.x, m.pos.y)) continue;
+      out += `<text x="${(m.pos.x + 0.78) * sz}" y="${(m.pos.y + 0.35) * sz}" class="loot-sack">💰</text>`;
     }
     return out;
   }
@@ -565,6 +821,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     // Reachable squares
     for (const c of s.reach.values()) if (c.cost > 0) out += `<rect x="${c.x * sz + 4}" y="${c.y * sz + 4}" width="${sz - 8}" height="${sz - 8}" rx="7" class="dg-reach"/>`;
     out += drawFog();
+    out += drawFeatures();
     // Hover: path preview, or attack preview on a monster
     const hov = s.hover;
     const foe = hov && alive().find((m) => m.pos.x === hov.x && m.pos.y === hov.y && canSee(m));
@@ -623,10 +880,18 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${s.moveLeft * ft} ft)` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
       <div class="hc-row"><span class="pip ${!s.actionUsed ? 'on' : ''}">Action</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}</span></div>
+      ${xpBar()}
+      <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
+      <div class="hc-actions">
+        <button class="btn small" data-dg="inventory" title="Open your pack (I)">🎒 Pack</button>
+        <button class="btn small" data-dg="bandage" ${countOf(s.draft?.inventory ?? [], 'bandage') && !s.busy ? '' : 'disabled'} title="Medicine check (DC 10): heal 1d6 + Medicine${s.mode === 'combat' ? '. Uses your action.' : ''}">🩹 Bandage <span class="muted">${countOf(s.draft?.inventory ?? [], 'bandage')}</span> <span class="muted">${signed(h.skills.medicine ?? 0)}</span></button>
+        <button class="btn small" data-dg="search" ${s.busy ? 'disabled' : ''} title="Investigation check against hidden traps and secret doors nearby${s.mode === 'combat' ? '. Uses your action.' : ''}">🔍 Search <span class="muted">${signed(h.skills.investigation ?? 0)}</span></button>
+      </div>
+      ${s.lastCheck ? `<p class="study-result ${s.lastCheck.ok ? 'ok' : ''}">${esc(s.lastCheck.text)}</p>` : ''}
       <h4>Weapons</h4>
       <div class="hc-weapons">${h.weapons.map((w, i) => `
         <button class="weapon ${i === s.weaponIdx ? 'sel' : ''}" data-dg="weapon" data-i="${i}" aria-pressed="${i === s.weaponIdx}">
-          <b>${esc(w.name)}</b><span>${signed(w.toHit)} to hit · ${esc(w.damage)} ${esc(w.type)}</span>
+          <b>${esc(w.name)}</b><span>${signed(w.toHit)} to hit · ${esc(w.damage)} ${esc(w.type)}${w.ammo ? ` · ${countOf(s.draft.inventory, w.ammo)} ${esc(w.ammo.replace('-', ' '))}` : ''}</span>
           <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `range ${w.normal * 5}/${w.long * 5} ft` : ''}</span>
         </button>`).join('')}</div>
       <div class="row wrap">
@@ -638,6 +903,8 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
         <select id="dg-rule" data-dg="rule">${Object.entries(DIAGONAL_RULES).map(([k, v]) => `<option value="${k}" ${k === s.rule ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
       </label>`;
     drawTargetInfo();
+    drawNearby();
+    if (s.invOpen) drawInventory();
     $('.dg-initiative').innerHTML = combat ? `<h3>Initiative</h3><ol class="init">${s.order.map((o) => {
       const e = o.id === 'hero' ? h : s.monsters.find((m) => m.id === o.id);
       if (!e || e.dead) return '';
@@ -645,6 +912,195 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     }).join('')}</ol>` : '';
     $('.dg-log').innerHTML = s.log.map((l) => `<li class="${l.kind}">${esc(l.text)}</li>`).join('');
     $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Skills: bandages, potions, searching, locks and traps
+  // ---------------------------------------------------------------------------
+
+  /** In combat most of these take your action; out of combat they just take a moment. */
+  function spendAction(what) {
+    if (s.busy) return false;
+    if (s.mode === 'combat') {
+      if (s.actionUsed) { banner(`${what} takes your action, and you have used it this turn.`); return false; }
+      s.actionUsed = true;
+    }
+    return true;
+  }
+  const checkText = (label, c) => `${label}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(c.bonus)} = ${c.total} vs DC ${c.dc}`;
+  const hasTools = () => (s.draft.inventory.find((x) => x.id === 'thieves-tools' && (x.charges ?? 1) > 0) ?? null);
+
+  function heal(amount, source) {
+    const before = s.hero.hp;
+    s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + Math.max(0, amount));
+    float(s.hero.pos, `+${s.hero.hp - before}`, 'heal');
+    return s.hero.hp - before;
+  }
+
+  /** Bandage (Ultima Online style healing): a Medicine check; success heals 1d6 + your Medicine bonus. */
+  function bandage() {
+    const inst = findItem(s.draft.inventory, 'bandage');
+    if (!inst) { banner('You have no bandages.'); return; }
+    if (s.hero.hp >= s.hero.maxHp) { banner('You are not wounded.'); return; }
+    if (!spendAction('Bandaging')) return;
+    const bonus = s.hero.skills.medicine ?? 0;
+    const kit = !!findItem(s.draft.inventory, 'healers-kit');
+    const c = skillCheck(bonus, 10, { mode: kit ? 'advantage' : 'normal' });
+    removeItem(s.draft.inventory, inst.uid, 1);
+    play('bandage', { volume: 0.8 });
+    if (c.ok) {
+      const r = roll('1d6');
+      const got = heal(r.total + Math.max(0, bonus), 'bandage');
+      log(`${s.hero.name} binds their wounds. ${checkText('Medicine', c)}${kit ? ' (healer\'s kit: advantage)' : ''}. Success: heals 1d6 (${r.total}) + ${Math.max(0, bonus)} = ${got} HP.`, 'heal');
+    } else {
+      log(`${s.hero.name} fumbles the bandage. ${checkText('Medicine', c)}. The bandage is wasted.`, 'info');
+      float(s.hero.pos, 'fumbled', 'muted');
+    }
+    s.lastCheck = { text: `${checkText('Medicine', c)}: ${c.ok ? 'healed' : 'wasted'}`, ok: c.ok };
+    persist(); redraw();
+  }
+
+  function useItem(uid) {
+    const inst = s.draft.inventory.find((x) => x.uid === uid);
+    const def = itemDef(inst);
+    if (!def?.use) return;
+    if (def.use.kind === 'bandage') { bandage(); return; }
+    if (def.use.kind === 'light') { raisePhial(); return; }
+    if (def.use.kind === 'heal') {
+      if (s.hero.hp >= s.hero.maxHp) { banner('You are not wounded.'); return; }
+      if (!spendAction(`Using ${def.name.toLowerCase()}`)) return;
+      const r = roll(def.use.dice);
+      removeItem(s.draft.inventory, uid, 1);
+      play(def.cat === 'consumable' && /potion/.test(def.id) ? 'potion' : 'bandage', { volume: 0.8 });
+      const got = heal(r.total);
+      log(`${s.hero.name} uses ${def.name.toLowerCase()}: ${def.use.dice} = ${r.total}, regains ${got} HP.`, 'heal');
+      persist(); redraw();
+    }
+  }
+
+  /** Search: an Investigation check against every hidden trap and secret door nearby. */
+  function search() {
+    if (!spendAction('Searching')) return;
+    const bonus = s.hero.skills.investigation ?? 0;
+    const c = skillCheck(bonus, 0, { mode: s.def.keenSearch ? 'advantage' : 'normal' });
+    play('dice', { volume: 0.6 });
+    const found = []; let missed = 0;
+    for (const t of s.features.traps) {
+      if (t.found || t.sprung || chebyshev(t, s.hero.pos) > 6 || !s.visible.has(cellKey(t.x, t.y))) continue;
+      if (c.total >= t.dc) { t.found = true; found.push(`a ${t.name}`); } else missed++;
+    }
+    for (const k of [...s.features.secretDoors]) {
+      const [x, y] = k.split(',').map(Number);
+      if (chebyshev({ x, y }, s.hero.pos) > 4) continue;
+      if (c.total >= secretDC()) { revealSecret(k); found.push('a secret door'); } else missed++;
+    }
+    const roll20 = `Investigation${s.def.keenSearch ? ' (Burglar\'s Eye: advantage)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)} = ${c.total}`;
+    log(`${s.hero.name} searches the area. ${roll20}. ${found.length ? `Found ${found.join(', ')}!` : 'Nothing found.'}`, found.length ? 'good' : 'info');
+    s.lastCheck = { text: `${roll20}: ${found.length ? `found ${found.join(', ')}` : 'nothing found here'}`, ok: !!found.length };
+    if (!found.length) banner(missed ? 'You find nothing... yet something feels off.' : 'You find nothing hidden here.');
+    redraw();
+  }
+
+  function raisePhial() {
+    if (s.phialUsed) { banner('The phial\'s light needs time to gather again (once per delve).'); return; }
+    s.phialUsed = true;
+    const found = [];
+    for (const t of s.features.traps) if (!t.found && s.visible.has(cellKey(t.x, t.y))) { t.found = true; found.push(t.name); }
+    for (const k of [...s.features.secretDoors]) { const [x, y] = k.split(',').map(Number); if (chebyshev({ x, y }, s.hero.pos) <= 8) { revealSecret(k); found.push('secret door'); } }
+    play('potion', { volume: 0.6 });
+    log(`Silver light pours from the phial! ${found.length ? `It reveals: ${found.join(', ')}.` : 'Nothing is hidden nearby.'}`, 'good');
+    redraw();
+  }
+
+  const lockLabel = (t) => (t.kind === 'chest' ? 'the chest' : 'the door');
+  function lockOf(t) {
+    if (t.kind === 'chest') { const c = s.features.chests.find((x) => x.id === t.id); return c?.locked ? { dc: c.dc, obj: c } : null; }
+    const l = s.features.locks.get(t.id); return l ? { dc: l.dc, obj: l } : null;
+  }
+  function unlock(t) {
+    if (t.kind === 'chest') s.features.chests.find((x) => x.id === t.id).locked = false;
+    else s.features.locks.delete(t.id);
+  }
+
+  /** Pick a lock: DEX check, plus proficiency if trained with thieves' tools. A bad failure snaps a pick. */
+  function pickLock(t) {
+    const lock = lockOf(t); if (!lock) return;
+    const tools = hasTools();
+    if (!tools) { banner('You need thieves\' tools (with picks left) to pick a lock.'); return; }
+    if (!spendAction('Picking a lock')) return;
+    const bonus = s.def.toolBonus;
+    const c = skillCheck(bonus, lock.dc);
+    play('lockpick', { volume: 0.8 });
+    let extra = '';
+    if (c.ok) unlock(t);
+    else if (c.margin <= -5) { tools.charges = (tools.charges ?? 10) - 1; extra = ` A pick snaps! (${tools.charges} left)`; }
+    const text = `${checkText('Thieves\' tools (DEX)', c)}. ${c.ok ? `The lock of ${lockLabel(t)} clicks open.` : 'The lock resists.'}${extra}`;
+    log(`${s.hero.name} picks the lock. ${text}`, c.ok ? 'good' : 'info');
+    s.lastCheck = { text, ok: c.ok };
+    persist(); redraw();
+  }
+
+  /** Force a lock: Strength (Athletics). A crowbar gives advantage. It is loud: nearby foes come to look. */
+  function forceLock(t) {
+    const lock = lockOf(t); if (!lock) return;
+    if (!spendAction('Forcing a lock')) return;
+    const bonus = s.hero.skills.athletics ?? 0;
+    const bar = !!findItem(s.draft.inventory, 'crowbar');
+    const c = skillCheck(bonus, lock.dc + 2, { mode: bar ? 'advantage' : 'normal' });
+    play(c.ok ? 'door-open' : 'swing-miss', { volume: 0.9 });
+    if (c.ok) unlock(t);
+    const text = `${checkText(`Athletics${bar ? ' (crowbar: advantage)' : ''}`, c)}. ${c.ok ? `${lockLabel(t)[0].toUpperCase()}${lockLabel(t).slice(1)} bursts open with a crash!` : 'It holds.'}`;
+    log(`${s.hero.name} tries to force ${lockLabel(t)}. ${text}`, c.ok ? 'good' : 'info');
+    s.lastCheck = { text, ok: c.ok };
+    makeNoise(8);
+    persist(); redraw();
+  }
+
+  /** Noise wakes foes within `radius` squares: they come looking for you. */
+  function makeNoise(radius) {
+    // Only foes with a way to reach you come running (a walk of up to ~4 turns).
+    const blocked = new Set([...terrainBlocked()]);
+    const near = alive().filter((m) => !m.aware && chebyshev(m.pos, s.hero.pos) <= radius);
+    const woken = near.filter((m) => [...reachableSquares(s.map, m.pos, m.speed * 4, { blocked }).values()].some((c) => chebyshev(c, s.hero.pos) <= 1));
+    if (!woken.length) return;
+    woken.forEach((m) => { m.aware = true; });
+    log('The noise echoes through the halls... something stirs.', 'warn');
+    banner('Something heard that!');
+    enterCombat(woken);
+  }
+
+  function disarm(trap) {
+    const tools = hasTools();
+    if (!tools) { banner('You need thieves\' tools to disarm a trap.'); return; }
+    if (!spendAction('Disarming a trap')) return;
+    const c = skillCheck(s.def.toolBonus, trap.dc);
+    play('lockpick', { volume: 0.7 });
+    if (c.ok) {
+      trap.disarmed = true;
+      log(`${s.hero.name} disarms the ${trap.name}. ${checkText('Thieves\' tools (DEX)', c)}.`, 'good');
+      s.lastCheck = { text: `${checkText('Thieves\' tools', c)}: disarmed`, ok: true };
+      awardXp(10 * (s.def.level ?? 1), trap);
+      s.target = null;
+    } else if (c.margin <= -5) {
+      log(`${s.hero.name} slips while disarming the ${trap.name}! ${checkText('Thieves\' tools (DEX)', c)}.`, 'bad');
+      trap.found = false; springTrap(trap); s.target = null;
+    } else {
+      log(`${s.hero.name} cannot work out the ${trap.name}'s mechanism. ${checkText('Thieves\' tools (DEX)', c)}.`, 'info');
+      s.lastCheck = { text: `${checkText('Thieves\' tools', c)}: not yet`, ok: false };
+    }
+    redraw();
+  }
+
+  function openChest(c) {
+    if (c.locked) { banner('The chest is locked.'); return; }
+    if (!c.opened) {
+      c.opened = true;
+      c.loot = rollChestLoot(s.def.level ?? 1);
+      play('chest-open', { volume: 0.9 });
+      log(`${s.hero.name} opens a chest.`, 'loot');
+    }
+    s.target = { kind: 'chest', id: c.id };
+    redraw();
   }
 
   // ---------------------------------------------------------------------------
@@ -738,7 +1194,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       </div>
       <h4>Attack</h4>
       <div class="row wrap">${weapons}</div>
-      ${!combat ? '<p class="small muted">Attacks are made on your turn in combat.</p>' : s.actionUsed ? '<p class="small muted">You have used your action this turn.</p>' : '<p class="small muted">Tip: click the selected goblin again to attack with your best weapon.</p>'}
+      ${!combat ? '<p class="small muted">Attacks are made on your turn in combat.</p>' : s.actionUsed ? '<p class="small muted">You have used your action this turn.</p>' : '<p class="small muted">Tip: click the selected foe again to attack with your best weapon.</p>'}
       <h4>Study it <span class="muted small">DC ${studyDC(stat)}${combat ? ' · uses your action' : ''}</span></h4>
       <div class="studies">${studies}</div>
       ${last}
@@ -751,12 +1207,91 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     return Math.sign(s.hero.pos.x - m.pos.x) * f.dx + Math.sign(s.hero.pos.y - m.pos.y) * f.dy <= -1;
   };
 
+  function xpBar() {
+    const d = s.def; if (!d) return '';
+    const p = xpProgress(d.xp, d.level);
+    return `<div class="hc-xp" title="${d.level >= 20 ? 'Maximum level' : `${p.needed - p.into} XP to level ${d.level + 1}`}">
+      <span class="lvl">Lv ${d.level}</span><span class="bar"><span style="width:${p.fraction * 100}%"></span></span>
+      <span class="small muted">${d.xp.toLocaleString()} XP</span></div>`;
+  }
+
+  /** Things within reach you can interact with: bodies, chests, locked doors, traps. */
+  function nearbyThings() {
+    if (!s.hero || !s.features) return [];
+    const list = [];
+    for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
+    for (const c of s.features.chests) if (adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
+    for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
+    for (const t of s.features.traps) if (t.found && !t.disarmed && !t.sprung && chebyshev(t, s.hero.pos) <= 1) list.push({ kind: 'trap', id: t.id, label: `${t.name[0].toUpperCase()}${t.name.slice(1)}`, glyph: '⚠' });
+    return list;
+  }
+
+  function drawNearby() {
+    const list = nearbyThings();
+    $('.dg-nearby').innerHTML = list.length ? `<h3>Within reach</h3><div class="nearby">${list.map((t) => `<button class="btn small ${s.target?.kind === t.kind && s.target.id === t.id ? 'primary' : ''}" data-dg="pick-target" data-kind="${t.kind}" data-id="${esc(t.id)}">${t.glyph} ${esc(t.label)}</button>`).join('')}</div>` : '';
+  }
+
+  /** Panel for a chest, locked door, trap or body. */
+  function interactPanel(t) {
+    const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
+    const near = (p) => chebyshev(s.hero.pos, p) <= 1;
+    const combatNote = s.mode === 'combat' ? ' · uses your action' : '';
+    const tools = hasTools();
+    const lockButtons = (lock) => `
+      <div class="studies">
+        <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the lock</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${lock.dc} · ${Math.round(checkChance(s.def.toolBonus, lock.dc) * 100)}%</span><span>${tools ? `Thieves' tools (${tools.charges ?? '∞'} picks)${combatNote}` : 'Needs thieves\' tools'}</span></button>
+        <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(s.hero.skills.athletics ?? 0)} vs DC ${lock.dc + 2}${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>Loud: nearby foes will hear${combatNote}</span></button>
+      </div>`;
+    if (t.kind === 'corpse') {
+      const m = s.monsters.find((x) => x.id === t.id);
+      if (!m) return '';
+      if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(m.name)}'s body</h3>${close}</div><p class="small muted">Move next to the body to search it.</p></div>`;
+      return lootHtml({ title: `${m.name}'s body`, coins: m.loot.coins, items: m.loot.items });
+    }
+    if (t.kind === 'chest') {
+      const c = s.features.chests.find((x) => x.id === t.id);
+      if (!c) return '';
+      if (!near(c)) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><p class="small muted">Move next to the chest to open it.</p></div>`;
+      if (c.locked) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked chest</h3>${close}</div><p class="small">A heavy iron-bound chest with a stout lock.</p>${lockButtons(c)}</div>`;
+      if (!c.opened) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><button class="btn small primary" data-dg="open-chest">Open it</button></div>`;
+      return lootHtml({ title: 'Chest', coins: c.loot.coins, items: c.loot.items });
+    }
+    if (t.kind === 'door') {
+      const lock = s.features.locks.get(t.id);
+      if (!lock) return '';
+      const [x, y] = t.id.split(',').map(Number);
+      if (!near({ x, y })) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small muted">Move next to the door to work on its lock.</p></div>`;
+      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small">An oak door bound in iron. It will not budge.</p>${lockButtons(lock)}</div>`;
+    }
+    if (t.kind === 'trap') {
+      const tr = s.features.traps.find((x) => x.id === t.id);
+      if (!tr) return '';
+      const state = tr.disarmed ? 'Disarmed: safe to cross.' : tr.sprung ? 'Already sprung.' : 'Armed. Your path will go around it.';
+      return `<div class="loot-card"><div class="foe-head"><h3>⚠ ${esc(tr.name[0].toUpperCase() + tr.name.slice(1))}</h3>${close}</div>
+        <p class="small">${state} Deals ${esc(tr.damage)} ${esc(tr.type)} (DEX save DC ${tr.saveDc} for half).</p>
+        ${!tr.disarmed && !tr.sprung ? (near(tr) ? `<div class="studies"><button class="study" data-dg="disarm" ${tools ? '' : 'disabled'}><b>Disarm it</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${tr.dc} · ${Math.round(checkChance(s.def.toolBonus, tr.dc) * 100)}%</span><span>${tools ? `Fail by 5 or more and it goes off!${combatNote}` : 'Needs thieves\' tools'}</span></button></div>` : '<p class="small muted">Move next to it to try disarming it.</p>') : ''}</div>`;
+    }
+    return '';
+  }
+
+  function drawInventory() {
+    const box = $('.dg-inv');
+    box.hidden = !s.invOpen;
+    if (!s.invOpen || !s.draft) return;
+    box.innerHTML = `<div class="dg-inv-card">
+      <button class="btn icon small dg-inv-close" data-inv="close" aria-label="Close inventory">✕</button>
+      ${inventoryHtml(s.draft, { str: s.def.str, selected: s.invSel, filter: s.invFilter, combat: s.mode === 'combat', title: `${s.hero.name}'s pack` })}
+      ${s.def.gearNotes?.length ? `<ul class="gear-notes small">${s.def.gearNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  }
+
   function drawTargetInfo() {
     const box = $('.dg-target');
     const sel = s.selectedId && s.monsters.find((m) => m.id === s.selectedId && !m.dead && canSee(m));
     if (sel) { box.innerHTML = foePanel(sel); return; }
+    if (s.target) { const html = interactPanel(s.target); if (html) { box.innerHTML = html; return; } s.target = null; }
     const hov = s.hover;
-    if (!hov || !s.hero) { box.innerHTML = '<p class="muted small">Click a goblin to see its portrait, attack it or study it. Hover over squares to check distances.</p>'; return; }
+    if (!hov || !s.hero) { box.innerHTML = '<p class="muted small">Click a foe to see its portrait, attack it or study it. Click chests, locked doors, traps and bodies next to you. Hover to check distances.</p>'; return; }
     const foe = alive().find((m) => m.pos.x === hov.x && m.pos.y === hov.y && canSee(m));
     if (foe) {
       const plan = heroAttackPlan(foe);
@@ -770,7 +1305,7 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     const knownSq = s.revealAll || s.revealed.has(cellKey(hov.x, hov.y));
     const c = s.reach.get(cellKey(hov.x, hov.y));
     box.innerHTML = knownSq ? `<p class="small"><b>Square ${hov.x}, ${hov.y}</b>${room ? ` · ${esc(room.name)}` : ''}${s.visible.has(cellKey(hov.x, hov.y)) ? ' · in sight' : ' · remembered'}</p>
-      ${c && c.cost > 0 ? `<p class="small">${c.cost} square${c.cost === 1 ? '' : 's'} away (${c.cost * s.map.feetPerCell} ft). Click to move.</p>` : ''}
+      ${c && c.cost > 0 ? `<p class="small">${c.cost} square${c.cost === 1 ? '' : 's'} away (${c.cost * s.map.feetPerCell} ft). Click to move.${c.risky ? ' <b>The only way crosses a known trap: you will need an Acrobatics check.</b>' : ''}</p>` : ''}
       ${c && c.cost === 0 ? `<p class="small">${esc(s.hero.name)} stands here, facing ${FACINGS[s.hero.facing].name}.</p>` : ''}` : '<p class="small muted">Unexplored darkness.</p>';
   }
 
@@ -872,9 +1407,56 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
       return;
     }
     if (s.selectedId) { s.selectedId = null; }
-    const t = s.reach.get(cellKey(c.x, c.y));
-    if (t && t.cost > 0) moveHero(t);
+    const k = cellKey(c.x, c.y);
+    const known = s.revealAll || s.revealed.has(k);
+    const body = corpseAt(c.x, c.y);
+    if (body && chebyshev(s.hero.pos, body.pos) <= 1) { s.target = { kind: 'corpse', id: body.id }; redraw(); return; }
+    const chest = known && chestAt(c.x, c.y);
+    if (chest) {
+      if (adjacent(chest) && !chest.locked && !chest.opened) { openChest(chest); return; }
+      s.target = { kind: 'chest', id: chest.id }; redraw(); return;
+    }
+    if (known && isLocked(k)) { s.target = { kind: 'door', id: k }; redraw(); return; }
+    const trap = trapAt(c.x, c.y);
+    if (trap && trap.found && !trap.disarmed && !trap.sprung) { s.target = { kind: 'trap', id: trap.id }; redraw(); return; }
+    const t = s.reach.get(k);
+    if (t && t.cost > 0) { s.target = null; moveHero(t); }
   }
+
+  function handleInventory(el) {
+    const uid = el.dataset.uid;
+    const inst = s.draft.inventory.find((x) => x.uid === uid);
+    switch (el.dataset.inv) {
+      case 'close': s.invOpen = false; $('.dg-inv').hidden = true; viewport.focus(); return;
+      case 'filter': s.invFilter = el.dataset.filter; break;
+      case 'select': s.invSel = uid || null; s.dropArm = null; break;
+      case 'equip': {
+        const r = equipItem(s.draft, uid, el.dataset.slot);
+        if (r.ok) { play('sword-hit', { volume: 0.25 }); log(`${s.hero.name}: ${r.message}`, 'info'); persist(); refreshHero(); } else banner(r.message);
+        break;
+      }
+      case 'unequip': {
+        const slot = Object.entries(s.draft.equipped ?? {}).find(([, u]) => u === uid)?.[0];
+        if (slot) { unequipSlot(s.draft, slot); log(`${s.hero.name} puts away the ${itemName(inst).toLowerCase()}.`, 'info'); persist(); refreshHero(); }
+        break;
+      }
+      case 'use': useItem(uid); break;
+      case 'drop':
+        if (s.dropArm !== uid) { s.dropArm = uid; banner(`Click Drop again to leave the ${itemName(inst).toLowerCase()} behind.`); return; }
+        if (isEquipped(s.draft, uid)) { const slot = Object.entries(s.draft.equipped).find(([, u]) => u === uid)[0]; unequipSlot(s.draft, slot); }
+        removeItem(s.draft.inventory, uid);
+        log(`${s.hero.name} drops the ${itemName(inst).toLowerCase()}.`, 'info');
+        s.invSel = null; s.dropArm = null; persist(); refreshHero();
+        break;
+      default:
+    }
+    redraw();
+  }
+
+  host.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-inv]');
+    if (el && !el.disabled && s.draft) handleInventory(el);
+  });
 
   // ---------------------------------------------------------------------------
   // Controls
@@ -911,6 +1493,20 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
         if (m) study(m, el.dataset.study);
         break;
       }
+      case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
+      case 'bandage': bandage(); break;
+      case 'search': search(); break;
+      case 'pick-target': s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
+      case 'close-loot': s.target = null; redraw(); break;
+      case 'open-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c); break; }
+      case 'pick-lock': if (s.target) pickLock(s.target); break;
+      case 'force-lock': if (s.target) forceLock(s.target); break;
+      case 'disarm': { const t = s.features.traps.find((x) => x.id === s.target?.id); if (t) disarm(t); break; }
+      case 'take': case 'take-all': {
+        const src = s.target?.kind === 'corpse' ? s.monsters.find((m) => m.id === s.target.id) : s.target?.kind === 'chest' ? s.features.chests.find((c) => c.id === s.target.id) : null;
+        if (src?.loot) takeLoot(src, el.dataset.dg === 'take-all' ? null : el.dataset.uid);
+        break;
+      }
       default:
     }
   });
@@ -937,7 +1533,9 @@ export function mountDungeon(host, { heroes, initialSeed = 7 }) {
     else if (e.key === 'e' || e.key === 'E') host.querySelector('[data-dg="turn-right"]')?.click();
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
-    else if (e.key === 'Escape' && s.selectedId) { s.selectedId = null; redraw(); }
+    else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === 'Escape' && s.invOpen) { s.invOpen = false; redraw(); }
+    else if (e.key === 'Escape' && (s.selectedId || s.target)) { s.selectedId = null; s.target = null; redraw(); }
   };
   window.addEventListener('keydown', onKey);
 

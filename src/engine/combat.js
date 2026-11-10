@@ -61,7 +61,7 @@ export function weaponFromMonsterAction(action) {
   const at = action.attack;
   const [normal, long] = at.range ? at.range.split('/').map((n) => Number(n) / 5) : [0, 0];
   const main = at.damage[0];
-  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: at.kind !== 'rw', ranged: at.kind === 'rw' || at.kind === 'mrw', normal, long, extra: at.damage.slice(1) };
+  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1) };
 }
 
 export function hitChance(toHit, ac, mode = 'normal') {
@@ -147,9 +147,11 @@ export function createMonster(stat, id, pos, facing = 4) {
   return {
     id, statId: stat.id, name: stat.name, pos, facing,
     hp: stat.hp, maxHp: stat.hp, ac: stat.ac, dexMod: stat.mods.dex,
-    speed: Math.floor((stat.speed.walk ?? 30) / 5),
+    speed: Math.floor(Math.max(stat.speed.walk ?? 30, stat.speed.fly ?? 0, stat.speed.climb ?? 0) / 5),
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),
+    flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
+    cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
   };
 }
 
@@ -198,6 +200,17 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
   const ranged = m.weapons.find((w) => w.ranged && !w.melee) ?? null;
   const dist = chebyshev(m.pos, hero.pos);
   const sees = (pos) => lineOfSight(pos, hero.pos, opaque).visible;
+
+  // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
+  if (m.cowardly && m.hp <= m.maxHp / 2) {
+    const reach = reachableSquares(map, m.pos, m.speed, { blocked });
+    const far = [...reach.values()].sort((a, b) => chebyshev(b, hero.pos) - chebyshev(a, hero.pos) || a.cost - b.cost)[0];
+    if (far && chebyshev(far, hero.pos) > dist) {
+      const steps = [{ type: 'flee' }, { type: 'move', path: far.path }];
+      if (ranged && chebyshev(far, hero.pos) <= ranged.long && sees(far)) steps.push({ type: 'attack', weapon: ranged });
+      return steps;
+    }
+  }
 
   if (dist <= 1) {
     const wounded = m.hp <= m.maxHp / 2;

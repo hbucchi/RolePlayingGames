@@ -8,8 +8,12 @@ import {
 } from '../engine/abilities.js';
 import {
   STEPS, abilityPool, deriveCharacter, grantedSkills, isComplete, newDraft, pruneSkillChoices,
-  resolveRace, setAbilityMethod, skillName, syncBaseFromAssignment, validateStep, makeId,
+  resolveRace, setAbilityMethod, skillName, syncBaseFromAssignment, validateStep, makeId, ensureGear, gainXp,
 } from '../engine/character.js';
+import { XP_FOR_LEVEL, xpProgress, startingWealth } from '../engine/progression.js';
+import { equipItem, unequipSlot, removeItem, isEquipped, itemName, formatCoins } from '../engine/items.js';
+import { ITEMS_BY_ID } from '../content/items/catalogue.js';
+import { inventoryHtml, coinsHtml } from './inventory-view.js';
 import { roll, rollAbilityScore, rollDie } from '../engine/dice.js';
 import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter } from '../engine/storage.js';
@@ -26,7 +30,9 @@ const root = document.getElementById('app');
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const state = {
-  view: 'home', // home | wizard | sheet | dungeon | monster
+  view: 'home', // home | start | wizard | sheet | dungeon | monster
+  start: { mode: 'standard', level: 5 },
+  inv: { selected: null, filter: 'all', dropArm: null },
   tab: 'heroes', // heroes | adventures | bestiary
   bestiary: defaultBestiaryFilters(),
   monsterId: null,
@@ -101,12 +107,13 @@ function render() {
   const key = focusKey(document.activeElement);
   const views = {
     wizard: wizardView,
+    start: startView,
     sheet: sheetView,
     dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
     monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
   };
   renderInto((views[state.view] ?? homeView)());
-  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes() });
+  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
 }
 
@@ -159,6 +166,48 @@ function homeView() {
     </section>`;
 }
 
+// ---- New hero: standard or sandbox -------------------------------------------
+
+function startView() {
+  const st = state.start;
+  const card = (mode, title, tag, points) => `
+    <button class="start-card ${st.mode === mode ? 'sel' : ''}" data-action="start-mode" data-id="${mode}" aria-pressed="${st.mode === mode}">
+      <span class="start-tag">${tag}</span>
+      <h2>${title}</h2>
+      <ul>${points.map((p) => `<li>${p}</li>`).join('')}</ul>
+    </button>`;
+  return `
+    <section class="start">
+      <h1>How will your tale begin?</h1>
+      <p class="muted">Choose how your new hero enters the Westlands. You can create as many heroes as you like, of either kind.</p>
+      <div class="start-grid">
+        ${card('standard', 'Standard adventure', 'Recommended', [
+    'Begin at <b>level 1</b> with your calling\'s starting kit and 10 gold.',
+    'Earn <b>experience</b> by defeating foes and disarming traps; level up as you go.',
+    'Every coin, potion and blade is found or earned.'])}
+        ${card('sandbox', 'Sandbox', 'Free play', [
+    'Pick <b>any level from 1 to 20</b> to try a build or a hard dungeon.',
+    'Start with the hit points, proficiency and wealth of a veteran at that level.',
+    'Higher levels bring magic gear: enchanted arms and healing potions.'])}
+      </div>
+      ${st.mode === 'sandbox' ? `
+      <div class="start-level">
+        <label class="field" for="start-level">Starting level: <b class="lvl-out">${st.level}</b>
+          <input id="start-level" type="range" min="1" max="20" value="${st.level}" data-action="start-level">
+        </label>
+        <p class="small muted">${levelBlurb(st.level)}</p>
+      </div>` : ''}
+      <div class="row"><button class="btn ghost" data-action="home">Cancel</button><span class="spacer"></span>
+        <button class="btn primary big" data-action="start-go">Create a ${st.mode === 'sandbox' ? `level ${st.level} sandbox` : 'level 1'} hero</button></div>
+    </section>`;
+}
+
+function levelBlurb(level) {
+  const pb = 2 + Math.floor((level - 1) / 4);
+  const tier = level <= 4 ? 'Local heroes: goblin warrens and haunted barrows.' : level <= 10 ? 'Heroes of the realm: orc war-bands, trolls and wights.' : level <= 16 ? 'Masters of the realm: great trolls and servants of the Shadow.' : 'Masters of the world: the darkest powers.';
+  return `Proficiency bonus +${pb} · ${XP_FOR_LEVEL[level].toLocaleString()} XP · about ${formatCoins(startingWealth(level))} to start. ${tier}`;
+}
+
 /** A framed portrait with the hero's chosen style. */
 function portraitHtml(look, size = 'md') {
   return `<div class="portrait ${size}" style="--frame:${look.frameColor}"><img src="${esc(look.url)}" alt="" style="filter:${look.filter}" loading="lazy"></div>`;
@@ -175,12 +224,13 @@ function heroCard(d, source) {
         <div>
           <div class="card-head">
             <h3>${esc(c.name || 'Unnamed hero')}</h3>
-            <span class="badge">Lv ${c.level}</span>
+            <span class="badge">Lv ${c.level}</span>${c.mode === 'sandbox' ? '<span class="badge soon">Sandbox</span>' : ''}
           </div>
           <p class="muted">${esc(c.race?.name ?? '?')} · ${esc(c.cls?.name ?? '?')}</p>
         </div>
       </div>
       ${c.concept ? `<p class="concept">${esc(c.concept)}</p>` : ''}
+      ${complete && d.inventory ? `<div class="card-xp">${xpBarHtml(c)}${coinsHtml(c.coins)}</div>` : ''}
       ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd>${c.maxHp}</dd></div><div><dt>AC</dt><dd>${c.ac}</dd></div>
         ${ABILITY_IDS.map((id) => `<div><dt>${ABILITIES[id].short}</dt><dd>${c.scores[id]}</dd></div>`).join('')}</dl>`
     : '<p class="warn">Incomplete</p>'}
@@ -256,7 +306,17 @@ function conceptStep(d) {
     </label>
     <label class="field">Concept <span class="muted">(optional)</span>
       <textarea data-field="concept" rows="3" maxlength="300" placeholder="e.g. A disgraced guard captain seeking to win back her honour.">${esc(d.concept)}</textarea>
-    </label>`;
+    </label>
+    <div class="mode-note">${d.mode === 'sandbox'
+    ? `<label class="field" for="wiz-level">Sandbox hero, level
+        <select id="wiz-level" data-action="set-level" ${d.inventory ? 'disabled title="The level of a saved hero changes through experience."' : ''}>${Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}" ${d.level === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label>
+       <p class="small muted">${levelBlurb(d.level ?? 1)}</p>`
+    : `<p class="small"><span class="badge">Standard</span> Begins at level 1 and grows through experience.</p>`}</div>`;
+}
+
+function xpBarHtml(c) {
+  const p = xpProgress(c.xp, c.level);
+  return `<div class="hc-xp" title="${c.level >= 20 ? 'Maximum level' : `${(p.needed - p.into).toLocaleString()} XP to level ${c.level + 1}`}"><span class="lvl">Lv ${c.level}</span><span class="bar"><span style="width:${p.fraction * 100}%"></span></span><span class="small muted">${c.xp.toLocaleString()} XP</span></div>`;
 }
 
 function choiceCard({ action, id, selected, title, tagline, meta }) {
@@ -542,8 +602,7 @@ function sheetHtml(c, look) {
               <td><button class="roll-btn" data-action="damage" data-label="${esc(a.name)} damage" data-notation="${esc(a.damage)}">${esc(a.damage)} ${esc(a.damageType)}</button></td></tr>`).join('')}
             </tbody>
           </table>
-          <h3>Equipment</h3>
-          <ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}</li>`).join('')}</ul>
+          ${c.gearNotes.length ? `<ul class="gear-notes small">${c.gearNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
           <h3>Languages</h3>
           <p>${esc(c.languages.join(', '))}</p>
           <h3>Training</h3>
@@ -581,26 +640,54 @@ function sheetView() {
     : `<button class="btn primary" data-action="adopt" data-id="${esc(draft.id)}">Adopt this hero</button>`}
     </div>
     ${sheetHtml(c, heroLook(draft))}
+    ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, title: 'Inventory' })}</section>`
+    : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
     ${diceTray()}`;
 }
 
 // ---- Dungeon explorer -------------------------------------------------------
 
-/** Heroes that can walk the dungeon: your complete heroes first, then the ready-made ones. */
+/** Heroes that can walk the dungeon: your complete heroes first, then ready-made ones you have not adopted. */
 function explorerHeroes() {
   const mine = roster.list().filter((d) => isComplete(d, settingFor(d)));
-  const premade = setting.premades.map((p) => syncBaseFromAssignment(structuredClone(p)));
-  return [...mine, ...premade].map((d) => {
+  const adopted = new Set(mine.map((d) => d.premadeOf).filter(Boolean));
+  const premade = setting.premades.filter((p) => !adopted.has(p.id)).map((p) => syncBaseFromAssignment(structuredClone(p)));
+  return [...mine.map((d) => ({ d, tag: '' })), ...premade.map((d) => ({ d, tag: ' (ready-made)' }))].map(({ d, tag }) => {
     const c = deriveCharacter(d, settingFor(d));
-    return {
-      id: d.id, name: c.name, speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, attacks: c.attacks,
-      label: `${c.name} (${c.race.name} ${c.cls.name})`,
-      look: heroLook(d),
-      skills: Object.fromEntries(c.skills.map((sk) => [sk.id, sk.bonus])),
-      wis: c.mods.wis, int: c.mods.int,
-    };
+    return { id: d.id, label: `${c.name}, level ${c.level} ${c.race.name} ${c.cls.name}${tag}` };
   });
 }
+
+/** What the dungeon needs from a hero: combat numbers derived from the saved choices and gear. */
+function dungeonStats(d) {
+  const c = deriveCharacter(d, settingFor(d));
+  return {
+    id: d.id, name: c.name, level: c.level, xp: c.xp, proficiencyBonus: c.proficiencyBonus,
+    speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, str: c.scores.str, attacks: c.attacks,
+    look: heroLook(d), skills: Object.fromEntries(c.skills.map((sk) => [sk.id, sk.bonus])),
+    saves: Object.fromEntries(c.savingThrows.map((st) => [st.ability, st.bonus])),
+    wis: c.mods.wis, int: c.mods.int, toolBonus: c.toolBonus, gearNotes: c.gearNotes,
+    keenSearch: c.features.some((f) => /Burglar's Eye/.test(f.name)), // advantage when searching
+  };
+}
+
+const heroApi = {
+  load(id) {
+    const d = roster.get(id) ?? findHero('premade', id);
+    return d ? ensureGear(structuredClone(d), settingFor(d)) : null;
+  },
+  derive: dungeonStats,
+  gainXp,
+  /** Save progress. A ready-made hero is adopted into the company the first time. */
+  save(d) {
+    d.adventured = true;
+    if (d.id.startsWith('premade-')) {
+      const copy = { ...d, id: makeId(), premadeOf: d.id, createdAt: new Date().toISOString(), appearance: resolveAppearance(d) };
+      return roster.save(copy);
+    }
+    return roster.save(d);
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -700,7 +787,21 @@ const actions = {
     render();
     window.scrollTo(0, 0);
   },
-  new() { openWizard(newDraft(setting.id)); },
+  new() { Object.assign(state, { view: 'start' }); render(); window.scrollTo(0, 0); },
+  'start-mode'(el) { state.start.mode = el.dataset.id; render(); },
+  'start-level'(el) { state.start.level = Number(el.value); render(); },
+  'start-go'() {
+    const d = newDraft(setting.id);
+    d.mode = state.start.mode;
+    d.level = d.mode === 'sandbox' ? state.start.level : 1;
+    d.xp = XP_FOR_LEVEL[d.level];
+    openWizard(d);
+  },
+  'set-level'(el) {
+    const d = state.draft;
+    if (!d || d.inventory) return;
+    d.level = Number(el.value); d.xp = XP_FOR_LEVEL[d.level]; touch(); render();
+  },
   edit(el) {
     const d = roster.get(el.dataset.id);
     if (d) openWizard(structuredClone(d), isComplete(d, settingFor(d)) ? STEPS.length - 1 : 0);
@@ -708,14 +809,15 @@ const actions = {
   view(el) {
     const d = findHero(el.dataset.source, el.dataset.id);
     if (!d) return;
-    Object.assign(state, { view: 'sheet', sheet: { draft: d, source: el.dataset.source }, diceLog: [] });
+    if (el.dataset.source === 'roster' && !d.inventory) roster.save(ensureGear(d, settingFor(d)));
+    Object.assign(state, { view: 'sheet', inv: { selected: null, filter: 'all', dropArm: null }, sheet: { draft: d, source: el.dataset.source }, diceLog: [] });
     render();
     window.scrollTo(0, 0);
   },
   adopt(el) {
     const d = findHero('premade', el.dataset.id);
     if (!d) return;
-    const copy = { ...d, id: makeId(), createdAt: new Date().toISOString(), appearance: resolveAppearance(d) };
+    const copy = ensureGear({ ...d, id: makeId(), premadeOf: d.id, createdAt: new Date().toISOString(), appearance: resolveAppearance(d) }, settingFor(d));
     roster.save(copy);
     Object.assign(state, { view: 'sheet', sheet: { draft: copy, source: 'roster' } });
     notify(`${copy.name} has joined your company.`);
@@ -759,6 +861,11 @@ const actions = {
     const errors = validateStep('review', d, settingFor(d));
     if (errors.length) { state.errors = errors; render(); return; }
     d.name = d.name.trim();
+    // A new hero (or one whose calling or background changed before adventuring) gets its starting kit.
+    const kit = `${d.classId}|${d.backgroundId}`;
+    if (d.inventory && d.kitFor && d.kitFor !== kit && !d.adventured) delete d.inventory;
+    d.kitFor = kit;
+    ensureGear(d, settingFor(d));
     const saved = roster.save(d);
     Object.assign(state, { view: 'sheet', sheet: { draft: saved, source: 'roster' }, draft: null, dirty: false, diceLog: [] });
     notify(`${saved.name} is ready for adventure.`);
@@ -849,6 +956,29 @@ root.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action]');
   if (!el || el.disabled || el.matches('select, input')) return;
   actions[el.dataset.action]?.(el, e);
+});
+
+/** Inventory on the character sheet: equip, unequip and drop between adventures. */
+root.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-inv]');
+  if (!el || el.disabled || state.view !== 'sheet' || state.sheet?.source !== 'roster') return;
+  const d = state.sheet.draft; const uid = el.dataset.uid;
+  const inst = d.inventory?.find((x) => x.uid === uid);
+  switch (el.dataset.inv) {
+    case 'filter': state.inv.filter = el.dataset.filter; break;
+    case 'select': state.inv.selected = uid || null; state.inv.dropArm = null; break;
+    case 'equip': { const r = equipItem(d, uid, el.dataset.slot); notify(r.message, r.ok ? 'ok' : 'bad'); break; }
+    case 'unequip': { const slot = Object.entries(d.equipped ?? {}).find(([, u]) => u === uid)?.[0]; if (slot) unequipSlot(d, slot); break; }
+    case 'use': notify(ITEMS_BY_ID[inst?.id]?.use?.kind === 'heal' || ITEMS_BY_ID[inst?.id]?.use?.kind === 'bandage' ? 'You are at full health between adventures. Use it in a dungeon.' : 'Use it in a dungeon.'); return;
+    case 'drop':
+      if (state.inv.dropArm !== uid) { state.inv.dropArm = uid; notify(`Click Drop again to throw away the ${itemName(inst).toLowerCase()}.`); return; }
+      if (isEquipped(d, uid)) unequipSlot(d, Object.entries(d.equipped).find(([, u]) => u === uid)[0]);
+      removeItem(d.inventory, uid); state.inv.selected = null; state.inv.dropArm = null;
+      break;
+    default:
+  }
+  state.sheet.draft = roster.save(d);
+  render();
 });
 
 root.addEventListener('change', (e) => {

@@ -432,3 +432,115 @@ main:has(.dungeon-host) { max-width: 1480px; }
 @media (min-width: 961px) {
   .dg-panel { position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow-y: auto; padding-right: 4px; }
 }
+
+/* ---- Rarity colours (item borders and names) ---------------------------- */
+:root { --r-common: #8b7d6b; --r-uncommon: #2f8a57; --r-rare: #2e5fa8; --r-very-rare: #7b3fb0; --r-legendary: #c47a12; --xp: #6a4fb3; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --r-common: #a99a86; --r-uncommon: #5fc48a; --r-rare: #6f9be6; --r-very-rare: #b88ae6; --r-legendary: #f0a940; --xp: #a58ef0; } }
+:root[data-theme="dark"] { --r-common: #a99a86; --r-uncommon: #5fc48a; --r-rare: #6f9be6; --r-very-rare: #b88ae6; --r-legendary: #f0a940; --xp: #a58ef0; }
+.r-text-common { color: var(--ink); } .r-text-uncommon { color: var(--r-uncommon); } .r-text-rare { color: var(--r-rare); }
+.r-text-very-rare { color: var(--r-very-rare); } .r-text-legendary { color: var(--r-legendary); }
+
+/* ---- Landing: standard or sandbox ---------------------------------------- */
+.start { max-width: 920px; margin: 0 auto; display: grid; gap: 16px; }
+.start h1 { margin-bottom: 0; }
+.start-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.start-card { text-align: left; font: inherit; color: var(--ink); background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 18px 20px; cursor: pointer; box-shadow: var(--shadow); display: grid; gap: 6px; align-content: start; }
+.start-card h2 { margin: 0; }
+.start-card ul { margin: 0; padding-left: 1.1em; }
+.start-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent), var(--shadow); }
+.start-tag { font: 600 .72rem var(--font-display); letter-spacing: .08em; text-transform: uppercase; color: var(--gold); }
+.start-level { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; }
+.start-level input[type=range] { width: 100%; accent-color: var(--accent); }
+.mode-note { margin-top: 14px; }
+
+/* ---- XP bar and coins ------------------------------------------------------ */
+.hc-xp { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; margin: 8px 0 4px; }
+.hc-xp .lvl { font: 700 .8rem var(--font-display); color: var(--xp); }
+.hc-xp .bar { height: 8px; border-radius: 99px; background: var(--bg-2); overflow: hidden; border: 1px solid var(--line); }
+.hc-xp .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--xp), color-mix(in srgb, var(--xp) 60%, white)); transition: width .4s; }
+.coins { display: inline-flex; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+.coin { display: inline-flex; align-items: center; gap: 3px; }
+.coin img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.coin small { color: var(--muted); font-weight: 400; }
+.card-xp { display: grid; gap: 4px; }
+.hc-purse { margin: 2px 0 6px; font-size: .9rem; }
+.hc-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.gear-notes { margin: 8px 0 0; padding-left: 1.1em; color: var(--bad); }
+
+/* ---- Item icons -------------------------------------------------------------- */
+.item-icon { position: relative; display: inline-grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 8px; overflow: hidden; background: #2a221a; border: 2px solid var(--r-common); }
+.item-icon.sm { width: 34px; height: 34px; border-width: 1.5px; border-radius: 6px; }
+.item-icon.lg { width: 72px; height: 72px; }
+.item-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.item-icon .glyph { font-size: 1.5em; line-height: 1; filter: saturate(.8); }
+.item-icon.sm .glyph { font-size: 1.05em; }
+.item-icon .qty { position: absolute; right: 2px; bottom: 0; font: 700 .72rem var(--font-body); color: #fff; text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.item-icon.r-uncommon { border-color: var(--r-uncommon); } .item-icon.r-rare { border-color: var(--r-rare); }
+.item-icon.r-very-rare { border-color: var(--r-very-rare); } .item-icon.r-legendary { border-color: var(--r-legendary); }
+.item-icon.magic { box-shadow: 0 0 8px 1px color-mix(in srgb, var(--r-rare) 70%, transparent); }
+.item-icon.magic::after { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 30% 20%, rgb(160 200 255 / .35), transparent 60%); pointer-events: none; }
+
+/* ---- Inventory / paperdoll ------------------------------------------------- */
+.inventory { display: grid; gap: 10px; }
+.inv-top { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.inv-top h3 { margin: 0; }
+.inv-weight { display: grid; gap: 2px; font-size: .85rem; min-width: 140px; }
+.inv-weight .bar { height: 6px; border-radius: 99px; background: var(--bg-2); overflow: hidden; }
+.inv-weight .bar > span { display: block; height: 100%; background: var(--good); }
+.inv-weight.over { color: var(--bad); } .inv-weight.over .bar > span { background: var(--bad); }
+.inv-body { display: grid; grid-template-columns: 170px minmax(0, 1fr) minmax(0, 260px); gap: 14px; align-items: start; }
+@media (max-width: 860px) { .inv-body { grid-template-columns: 1fr; } }
+.paperdoll { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+@media (max-width: 860px) { .paperdoll { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); } }
+.slot { display: grid; justify-items: center; gap: 2px; padding: 6px 4px; border: 1px dashed var(--line); border-radius: 8px; background: var(--bg); font: inherit; color: var(--ink); cursor: pointer; min-width: 0; }
+.slot.filled { border-style: solid; }
+.slot.sel, .inv-tile.sel { outline: 2px solid var(--accent); outline-offset: 1px; }
+.slot:disabled { cursor: default; opacity: .8; }
+.slot-empty { display: grid; place-items: center; width: 34px; height: 34px; opacity: .35; font-size: 1.1rem; }
+.slot-name { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; text-align: center; }
+.inv-bag { display: grid; gap: 8px; min-width: 0; }
+.inv-bag .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 6px; max-height: 340px; overflow-y: auto; padding: 2px; }
+.inv-tile { position: relative; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 9px; display: grid; place-items: center; }
+.inv-tile.worn .item-icon { box-shadow: 0 0 0 2px var(--gold); }
+.worn-tag { position: absolute; top: -2px; left: 0; font: 700 .62rem var(--font-display); background: var(--gold); color: #1a120c; border-radius: 4px; padding: 0 3px; }
+.inv-detail { background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+.inv-detail-head { display: flex; gap: 10px; align-items: center; }
+.inv-detail h4 { margin: 0; }
+.inv-detail p { margin: 6px 0; }
+.sheet-inv { margin-top: 16px; }
+
+/* Inventory as a dialog over the dungeon */
+.dg-inv { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; background: rgb(0 0 0 / .45); padding: 16px; }
+.dg-inv-card { position: relative; width: min(980px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; box-shadow: var(--shadow); }
+.dg-inv-close { position: absolute; top: 10px; right: 10px; }
+
+/* ---- Loot, nearby things ---------------------------------------------------- */
+.loot-card h3 { margin: 0; }
+.loot-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.loot-list li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: .92rem; }
+.nearby { display: flex; flex-wrap: wrap; gap: 6px; }
+.dg-nearby:empty { display: none; }
+
+/* ---- Map: chests, traps, locks, secret doors, loot -------------------------- */
+.chest-body { fill: #6b4423; stroke: #2a1a0c; stroke-width: 3; }
+.chest-lid { fill: #855530; stroke: #2a1a0c; stroke-width: 3; }
+.chest-band { fill: #b08a3e; }
+.chest-lock { fill: #d4b25a; stroke: #2a1a0c; stroke-width: 1.5; }
+.chest-gold { fill: #ffd257; filter: drop-shadow(0 0 4px #ffd257); }
+.chest.empty { opacity: .55; }
+.chest.sel .chest-body, .trap.sel .trap-tri { stroke: #ffe28a; stroke-width: 5; }
+.trap-tri { fill: rgb(200 40 30 / .85); stroke: #2a0c08; stroke-width: 3; }
+.trap.disarmed .trap-tri { fill: rgb(90 140 90 / .7); }
+.trap.sprung .trap-tri { fill: rgb(70 60 50 / .7); }
+.trap.hidden .trap-tri { fill: rgb(200 40 30 / .35); stroke-dasharray: 6 4; }
+.trap-mark { fill: #fff; font: 700 22px var(--font-body); text-anchor: middle; pointer-events: none; }
+.lock-glyph, .loot-sack { font-size: 20px; text-anchor: middle; pointer-events: none; }
+.secret-cover { stroke: #0d0a07; stroke-width: 2; }
+.secret-hint { fill: none; stroke: #ffe28a; stroke-width: 3; stroke-dasharray: 8 6; }
+.dg-float.xp { fill: #c9b3ff; stroke: #2b1d55; }
+.dg-float.heal { fill: #8ef0a2; stroke: #12331a; }
+.dg-log li.loot { color: var(--gold); }
+.dg-log li.heal { color: var(--good); }
+.dg-log li.level { color: var(--xp); font-weight: 700; }
+.dg-panel > section:empty { display: none; }
