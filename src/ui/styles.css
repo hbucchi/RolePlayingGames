@@ -622,3 +622,13 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .vfx-persist { animation: vfxflicker 1.1s ease-in-out infinite alternate; }
 @keyframes vfxflicker { from { opacity: .75; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .vfx-burst, .vfx-persist { animation: none; } }
+
+/* Allies, captives, bonds, blood */
+.tk-chain { stroke: #8d9399; stroke-width: 5; stroke-dasharray: 6 4; stroke-linecap: round; fill: none; filter: drop-shadow(0 1px 1px #000); }
+.tk-chain-ring { stroke-width: 4; }
+.tk-stone image { opacity: .92; }
+.tk-calm { opacity: .85; }
+.blood { opacity: .82; mix-blend-mode: multiply; pointer-events: none; }
+.ally-tag { font-size: .7rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 999px; background: #2f6b39; color: #e9f6ea; vertical-align: middle; }
+.cond-line { color: #d9b45a; font-weight: 600; }
+.study.talk b + .muted b { color: var(--ink); }

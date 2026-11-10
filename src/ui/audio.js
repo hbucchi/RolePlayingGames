@@ -48,6 +48,10 @@ export function monsterVoice(stat) {
   if (!stat) return 'goblin';
   if (/spider|ettercap|weaver/i.test(stat.id)) return 'spider';
   if (/bat/.test(stat.id)) return 'bat';
+  if (stat.id === 'shadowflame-tyrant' || /demon|balor/.test(stat.id)) return 'demon';
+  if (stat.type === 'dragon' || /dragon|drake|wyrm/.test(stat.id)) return 'dragon';
+  if (/wolf|worg|warg/.test(stat.id)) return 'wolf';
+  if (/orc|ogre/.test(stat.id)) return 'orc';
   return stat.size === 'Tiny' || stat.size === 'Small' || stat.size === 'Medium' ? 'goblin' : 'boss';
 }
 
@@ -58,4 +62,14 @@ export const SOUND_KEYS = [
   'spider-attack', 'spider-hurt', 'spider-death', 'bat-attack', 'bat-hurt', 'bat-death',
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
+  'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',
 ];
+
+/** The sound for a voice family doing something; some families share one sound for several moments. */
+export function voiceSound(voice, what) {
+  if (voice.startsWith('hero')) return `${voice}-${what}`;
+  if (voice === 'boss') return what === 'attack' ? 'boss-roar' : 'boss-hurt';
+  if (voice === 'demon') return what === 'attack' ? 'demon-roar' : 'boss-hurt';
+  if (voice === 'dragon') return what === 'attack' ? 'dragon-attack' : 'dragon-hurt';
+  return `${voice}-${what}`;
+}

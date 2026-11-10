@@ -32,6 +32,14 @@ export const MONSTER_PORTRAITS = {
     'herald-of-the-dark-tower', 'cave-troll', 'spirit-wolf-of-the-shadow', 'shadow-bred-war-troll', 'hooded-rider-of-the-shadow',
     'fallen-loremaster', 'dread-sovereign-of-the-hooded-riders',
   ].map((id) => [id, id])),
+  orc: 'orc', ogre: 'ogre', 'shadowflame-tyrant': 'shadowflame-tyrant', 'winter-wolf': 'winter-wolf',
+  'captive-princess': 'captive-princess',
+  // Dragons share a few paintings by colour and age.
+  'young-fire-drake': 'red-dragon', 'ember-wyrm': 'red-dragon', 'grey-ice-drake': 'white-dragon', pseudodragon: 'dragon-wyrmling',
+  ...Object.fromEntries(['black', 'blue', 'brass', 'bronze', 'copper', 'gold', 'green', 'red', 'silver', 'white'].flatMap((c) => {
+    const art = { white: 'white-dragon', silver: 'white-dragon', green: 'green-dragon', black: 'green-dragon', blue: 'white-dragon' }[c] ?? 'red-dragon';
+    return [[`wyrmling-${c}-dragon`, 'dragon-wyrmling'], [`young-${c}-dragon`, art], [`adult-${c}-dragon`, art], [`ancient-${c}-dragon`, art]];
+  })),
 };
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
 

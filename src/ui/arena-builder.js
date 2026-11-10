@@ -20,6 +20,10 @@ export function loadArenas() {
 function storeArenas(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch { return false; } }
 
 /** A fresh layout with a ring of grass and a pool, so a new arena is not a blank grey box. */
+/** Which side a placed creature fights on; bound creatures start chained where they stand. */
+const SIDES = { enemy: 'Enemy', ally: 'Ally (fights for you)', 'bound-captive': 'Captive, chained (free them!)', 'bound-enemy': 'Enemy, chained in place' };
+const SIDE_RING = { enemy: '#c94a3a', ally: '#5fbf6a', 'bound-captive': '#d4b35a', 'bound-enemy': '#c94a3a' };
+
 export function defaultArena(w = 20, h = 16) {
   const map = createArenaMap(w, h, 'cobbles');
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (x === 1 || y === 1 || x === w - 2 || y === h - 2) paintTerrain(map, x, y, 'grass');
@@ -35,7 +39,7 @@ export function defaultArena(w = 20, h = 16) {
 export function mountArenaBuilder(host, ctx) {
   const st = {
     setup: ctx.setup ?? defaultArena(), tool: 'paint', terrain: 'grass', heroPick: ctx.heroes[0]?.id ?? null,
-    foePick: 'goblin', foeFilter: '', painting: false, facing: 4,
+    foePick: 'goblin', foeFilter: '', side: 'enemy', painting: false, facing: 4,
   };
   const S = () => st.setup.map.cellSize;
   const save = () => ctx.onChange?.(st.setup);
@@ -54,7 +58,7 @@ export function mountArenaBuilder(host, ctx) {
       out += `<g class="ab-token foe"><rect x="${f.pos.x * sz + 3}" y="${f.pos.y * sz + 3}" width="${n * sz - 6}" height="${n * sz - 6}" rx="10" class="ab-foot"/>
         <clipPath id="abc-${f.uid}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
         ${img ? `<image href="${esc(img)}" x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#abc-${f.uid})" preserveAspectRatio="xMidYMid slice"/>` : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#5b2a22"/><text x="${cx}" y="${cy + 10}" class="ab-letter">${esc(stat.name[0])}</text>`}
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#c94a3a" stroke-width="5"/></g>`;
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${SIDE_RING[f.side ?? 'enemy']}" stroke-width="5" ${f.side?.startsWith('bound') ? 'stroke-dasharray="8 5"' : ''}/></g>`;
     }
     for (const h of st.setup.heroes) {
       const info = ctx.heroes.find((x) => x.id === h.id); if (!info) continue;
@@ -111,12 +115,13 @@ export function mountArenaBuilder(host, ctx) {
         <p class="small muted">Choose a hero, then click a square. Click a placed hero again to move them.</p>
       </section>
       <section class="panel">
-        <h3>3 · Place the enemies <span class="muted small">(${st.setup.foes.length})</span></h3>
+        <h3>3 · Place the creatures <span class="muted small">(${st.setup.foes.length})</span></h3>
         <input type="search" placeholder="Search all ${FIGHTERS.length} creatures…" data-ab-input="foe-filter" value="${esc(st.foeFilter)}">
         <select data-ab-input="foe" size="6" class="ab-foes">${foeOptions()}</select>
+        <label class="small">Side: <select data-ab-input="side">${Object.entries(SIDES).map(([k, v]) => `<option value="${k}" ${st.side === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
         <button class="btn small ${st.tool === 'foe' ? 'primary' : ''}" data-ab="foe-tool">Place this creature</button>
         <p class="small muted">Large creatures fill 2×2 squares, Huge 3×3, Gargantuan 4×4.</p>
-        ${st.setup.foes.length ? `<ul class="plain small ab-foe-list">${st.setup.foes.map((f) => `<li>${esc(BESTIARY_BY_ID[f.statId]?.name)} <span class="muted">(${f.pos.x}, ${f.pos.y})</span> <button class="linkish" data-ab="remove-foe" data-uid="${f.uid}">remove</button></li>`).join('')}</ul>` : ''}
+        ${st.setup.foes.length ? `<ul class="plain small ab-foe-list">${st.setup.foes.map((f) => `<li>${esc(BESTIARY_BY_ID[f.statId]?.name)}${f.side && f.side !== 'enemy' ? ` <i>(${SIDES[f.side].toLowerCase()})</i>` : ''} <span class="muted">(${f.pos.x}, ${f.pos.y})</span> <button class="linkish" data-ab="remove-foe" data-uid="${f.uid}">remove</button></li>`).join('')}</ul>` : ''}
         <button class="btn small ghost ${st.tool === 'erase' ? 'primary' : ''}" data-ab="erase-tool">✕ Remove tool (click a token)</button>
       </section>
       <section class="panel">
@@ -167,7 +172,7 @@ export function mountArenaBuilder(host, ctx) {
       const n = footprintOf(BESTIARY_BY_ID[st.foePick]);
       const cells = cellsOf(c, n);
       if (!cells.every((q) => standable(map, q.x, q.y) && !occupiedBy(q.x, q.y))) return ctx.notify?.(`A ${BESTIARY_BY_ID[st.foePick].name} needs ${n}×${n} clear squares here (its top-left corner goes where you click).`, 'bad');
-      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: 4 });
+      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: 4, side: st.side });
       redraw();
     }
   }
@@ -222,6 +227,7 @@ export function mountArenaBuilder(host, ctx) {
       st.setup = { ...defaultArena(w, h), name: st.setup.name, id: st.setup.id };
       redraw();
     }
+    if (k === 'side') { st.side = e.target.value; st.tool = 'foe'; drawPanel(); }
     if (k === 'foe') { st.foePick = e.target.value; st.tool = 'foe'; host.querySelector('.ab-tool').textContent = toolLabel(); drawPanel(); }
   });
   host.addEventListener('input', (e) => {

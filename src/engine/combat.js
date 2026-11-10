@@ -159,12 +159,57 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   if (isBehind(centerOf(attacker.pos, attacker.size ?? 1), target)) adv.push('attacking from behind');
   if (target.aware === false) adv.push('target unaware');
   const c = target.cond ?? {};
-  if (c.asleep || c.paralyzed || c.stun > 0) adv.push('target helpless');
-  else if (c.restrained) adv.push('target restrained');
-  if (attacker.cond?.mock) dis.push('shaken by mockery');
+  if (c.asleep || c.paralyzed || c.stun > 0 || c.petrified) adv.push(c.petrified ? 'target turned to stone' : 'target helpless');
+  else if (c.restrained || c.bound) adv.push(c.bound ? `target ${BOUND_TEXT[c.bound.to] ?? 'bound'}` : 'target restrained');
+  // Prone: easy to hit up close, hard to hit from afar.
+  if (c.prone) { if (usingRanged) dis.push('target prone (far)'); else adv.push('target prone'); }
+  const a = attacker.cond ?? {};
+  if (a.mock) dis.push('shaken by mockery');
+  if (a.prone) dis.push('attacking from the ground');
+  if (a.restrained || a.bound) dis.push('cannot move freely');
   const mode = rollMode(adv, dis);
   return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance: hitChance(weapon.toHit, ac, mode) };
 }
+
+// ---------------------------------------------------------------------------
+// Position effects: bound, petrified, prone, grappled
+// ---------------------------------------------------------------------------
+
+/** What a creature is bound to, in words. */
+export const BOUND_TEXT = { wall: 'chained to the wall', floor: 'shackled to the floor', post: 'tied to a post', web: 'stuck in a web', force: 'pinned by chains of force' };
+
+/**
+ * Conditions that keep a creature where it is. In 5e terms: bound (restrained in place),
+ * grappled and restrained have speed 0; petrified creatures cannot act at all.
+ */
+export const immobile = (e) => !!(e.cond && (e.cond.bound || e.cond.grappled || e.cond.restrained || e.cond.petrified || e.cond.paralyzed || e.cond.asleep));
+
+/** A short list of the conditions on a creature, for the UI. */
+export function conditionLabels(e) {
+  const c = e.cond ?? {}; const out = [];
+  if (c.bound) out.push(BOUND_TEXT[c.bound.to] ?? 'bound');
+  if (c.petrified) out.push('turned to stone');
+  if (c.prone) out.push('prone');
+  if (c.grappled) out.push('grappled');
+  if (c.restrained) out.push('restrained');
+  if (c.paralyzed) out.push('paralysed');
+  if (c.asleep) out.push('asleep');
+  if (c.stun > 0) out.push('stunned');
+  if (c.flee > 0) out.push('frightened');
+  if (c.mock) out.push('mocked');
+  if (c.taunt) out.push('taunted');
+  return out;
+}
+
+/** Shove and grapple: Athletics against the target's better of Athletics and Acrobatics. */
+export function escapeBonus(stat) {
+  const ath = stat.skills?.athletics ?? stat.mods?.str ?? 0;
+  const acr = stat.skills?.acrobatics ?? stat.mods?.dex ?? 0;
+  return Math.max(ath, acr);
+}
+const SIZE_RANK = { Tiny: 0, Small: 1, Medium: 2, Large: 3, Huge: 4, Gargantuan: 5 };
+/** You can shove or grapple a creature at most one size larger than you (heroes are Medium or Small). */
+export const canWrestle = (stat, heroSize = 'Medium') => (SIZE_RANK[stat.size] ?? 2) <= (SIZE_RANK[heroSize] ?? 2) + 1;
 
 // ---------------------------------------------------------------------------
 // Monsters
