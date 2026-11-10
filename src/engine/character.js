@@ -1,0 +1,293 @@
+/**
+ * Character model: a "draft" stores only the player's choices; everything else
+ * (final scores, HP, AC, skill bonuses...) is derived from those choices plus the
+ * setting's content. Storing choices, not results, means rules fixes or content
+ * updates automatically flow into saved characters.
+ */
+import {
+  ABILITY_IDS, ABILITY_METHODS, POINT_BUY, STANDARD_ARRAY,
+  abilityModifier, applyBonuses, pointBuyTotal, scoresFilledWith,
+} from './abilities.js';
+import { SKILLS, SKILLS_BY_ID } from './skills.js';
+
+export const DRAFT_VERSION = 1;
+
+export const STEPS = [
+  { id: 'concept', title: 'Name & Concept' },
+  { id: 'race', title: 'Kindred' },
+  { id: 'class', title: 'Calling' },
+  { id: 'abilities', title: 'Abilities' },
+  { id: 'skills', title: 'Background & Skills' },
+  { id: 'review', title: 'Review' },
+];
+
+export function makeId() {
+  return globalThis.crypto?.randomUUID?.() ?? `c-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function newDraft(settingId) {
+  return {
+    version: DRAFT_VERSION,
+    id: makeId(),
+    settingId,
+    name: '',
+    concept: '',
+    raceId: null,
+    subraceId: null,
+    classId: null,
+    backgroundId: null,
+    abilityMethod: 'roll',
+    abilityRolls: Array(6).fill(null), // each: result of rollAbilityScore()
+    abilityAssignment: scoresFilledWith(null), // ability -> pool index (roll / standard)
+    baseAbilities: scoresFilledWith(null),
+    skillChoices: [],
+    level: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: null,
+  };
+}
+
+/** Proficiency bonus: +2 at levels 1-4, rising by 1 every 4 levels (max +6 at 17-20). */
+export function proficiencyBonus(level) {
+  return 2 + Math.floor((Math.max(1, Math.min(20, level)) - 1) / 4);
+}
+
+/** The values available to place, for pool-based methods. */
+export function abilityPool(draft) {
+  if (draft.abilityMethod === 'standard') return [...STANDARD_ARRAY];
+  if (draft.abilityMethod === 'roll') return draft.abilityRolls.map((r) => (r ? r.total : null));
+  return [];
+}
+
+/** Rebuild baseAbilities from the pool + assignment (roll / standard methods). */
+export function syncBaseFromAssignment(draft) {
+  const pool = abilityPool(draft);
+  for (const id of ABILITY_IDS) {
+    const idx = draft.abilityAssignment[id];
+    draft.baseAbilities[id] = idx === null || idx === undefined ? null : pool[idx] ?? null;
+  }
+  return draft;
+}
+
+export function setAbilityMethod(draft, method) {
+  if (!ABILITY_METHODS[method]) throw new Error(`Unknown method ${method}`);
+  draft.abilityMethod = method;
+  draft.abilityAssignment = scoresFilledWith(null);
+  draft.baseAbilities = method === 'pointbuy' ? scoresFilledWith(POINT_BUY.min) : scoresFilledWith(null);
+  return draft;
+}
+
+/** Merge a race with its chosen subrace into a single effective race. */
+export function resolveRace(setting, raceId, subraceId) {
+  const race = setting.races.find((r) => r.id === raceId);
+  if (!race) return null;
+  const sub = race.subraces?.find((s) => s.id === subraceId) ?? null;
+  const bonuses = { ...race.abilityBonuses };
+  for (const [k, v] of Object.entries(sub?.abilityBonuses ?? {})) bonuses[k] = (bonuses[k] ?? 0) + v;
+  return {
+    id: race.id,
+    name: sub ? sub.name : race.name,
+    race,
+    subrace: sub,
+    abilityBonuses: bonuses,
+    speed: sub?.speed ?? race.speed,
+    size: race.size,
+    traits: [...race.traits, ...(sub?.traits ?? [])],
+    skillProficiencies: [...(race.skillProficiencies ?? []), ...(sub?.skillProficiencies ?? [])],
+    languages: [...race.languages, ...(sub?.languages ?? [])],
+    hpPerLevel: (race.hpPerLevel ?? 0) + (sub?.hpPerLevel ?? 0),
+  };
+}
+
+/** Skills granted automatically by kindred and background (not chosen from the class list). */
+export function grantedSkills(draft, setting) {
+  const race = resolveRace(setting, draft.raceId, draft.subraceId);
+  const bg = setting.backgrounds.find((b) => b.id === draft.backgroundId);
+  return [...new Set([...(race?.skillProficiencies ?? []), ...(bg?.skills ?? [])])];
+}
+
+/** Drop chosen skills that became invalid (e.g. now granted by a new background). */
+export function pruneSkillChoices(draft, setting) {
+  const cls = setting.classes.find((c) => c.id === draft.classId);
+  const granted = new Set(grantedSkills(draft, setting));
+  const allowed = new Set(cls?.skillChoices.from ?? []);
+  draft.skillChoices = [...new Set(draft.skillChoices)]
+    .filter((s) => allowed.has(s) && !granted.has(s))
+    .slice(0, cls?.skillChoices.count ?? 0);
+  return draft;
+}
+
+// ---------------------------------------------------------------------------
+// Validation: one function per wizard step, each returns a list of messages.
+// ---------------------------------------------------------------------------
+
+const validators = {
+  concept(d) {
+    const name = d.name.trim();
+    if (name.length < 2) return ['Give your hero a name (at least 2 characters).'];
+    if (name.length > 40) return ['Names are limited to 40 characters.'];
+    return [];
+  },
+  race(d, s) {
+    const race = s.races.find((r) => r.id === d.raceId);
+    if (!race) return ['Choose a kindred.'];
+    if (race.subraces?.length && !race.subraces.some((x) => x.id === d.subraceId)) {
+      return [`Choose which people of the ${race.name} you hail from.`];
+    }
+    return [];
+  },
+  class(d, s) {
+    return s.classes.some((c) => c.id === d.classId) ? [] : ['Choose a calling.'];
+  },
+  abilities(d) {
+    const errors = [];
+    if (d.abilityMethod === 'roll' && d.abilityRolls.some((r) => !r)) errors.push('Roll all six ability scores.');
+    if (d.abilityMethod === 'roll' || d.abilityMethod === 'standard') {
+      const used = ABILITY_IDS.map((id) => d.abilityAssignment[id]).filter((i) => i !== null && i !== undefined);
+      if (used.length < 6) errors.push('Place a score in every ability.');
+      if (new Set(used).size !== used.length) errors.push('Each score can only be placed once.');
+    }
+    if (d.abilityMethod === 'pointbuy') {
+      const ok = ABILITY_IDS.every((id) => Number.isInteger(d.baseAbilities[id])
+        && d.baseAbilities[id] >= POINT_BUY.min && d.baseAbilities[id] <= POINT_BUY.max);
+      if (!ok) errors.push(`Point-buy scores must be between ${POINT_BUY.min} and ${POINT_BUY.max}.`);
+      else if (pointBuyTotal(d.baseAbilities) > POINT_BUY.budget) errors.push(`You have spent more than ${POINT_BUY.budget} points.`);
+    }
+    if (!errors.length && !ABILITY_IDS.every((id) => Number.isInteger(d.baseAbilities[id]))) {
+      errors.push('Every ability needs a score.');
+    }
+    return errors;
+  },
+  skills(d, s) {
+    const errors = [];
+    if (!s.backgrounds.some((b) => b.id === d.backgroundId)) errors.push('Choose a background.');
+    const cls = s.classes.find((c) => c.id === d.classId);
+    if (cls) {
+      const granted = new Set(grantedSkills(d, s));
+      const valid = d.skillChoices.filter((x) => cls.skillChoices.from.includes(x) && !granted.has(x));
+      if (new Set(valid).size !== cls.skillChoices.count) {
+        errors.push(`Choose exactly ${cls.skillChoices.count} skills from your calling (${valid.length} chosen).`);
+      }
+    }
+    return errors;
+  },
+  review(d, s) {
+    return STEPS.slice(0, -1).flatMap((st) => validators[st.id](d, s));
+  },
+};
+
+export function validateStep(stepId, draft, setting) {
+  return validators[stepId](draft, setting);
+}
+
+export function isComplete(draft, setting) {
+  return validateStep('review', draft, setting).length === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Derivation: turn choices into a playable character sheet.
+// ---------------------------------------------------------------------------
+
+/**
+ * Armor Class.
+ *  - No armour: 10 + DEX modifier.
+ *  - Armour: its base value + DEX modifier, capped for medium armour (dexCap 2), none for heavy (dexCap 0).
+ *  - A shield adds +2 on top.
+ */
+export function armorClass(equipment, dexMod) {
+  const armor = equipment.find((e) => e.kind === 'armor');
+  const shield = equipment.find((e) => e.kind === 'shield');
+  let ac = 10 + dexMod;
+  if (armor) {
+    const dex = armor.armor.dexCap === null || armor.armor.dexCap === undefined ? dexMod : Math.min(dexMod, armor.armor.dexCap);
+    ac = armor.armor.base + dex;
+  }
+  return ac + (shield ? shield.acBonus ?? 2 : 0);
+}
+
+export function deriveCharacter(draft, setting) {
+  const race = resolveRace(setting, draft.raceId, draft.subraceId);
+  const cls = setting.classes.find((c) => c.id === draft.classId) ?? null;
+  const bg = setting.backgrounds.find((b) => b.id === draft.backgroundId) ?? null;
+  const level = draft.level ?? 1;
+  const pb = proficiencyBonus(level);
+
+  const base = Object.fromEntries(ABILITY_IDS.map((id) => [id, draft.baseAbilities[id] ?? 10]));
+  const scores = applyBonuses(base, race?.abilityBonuses);
+  const mods = Object.fromEntries(ABILITY_IDS.map((id) => [id, abilityModifier(scores[id])]));
+
+  const profSkills = new Set([...grantedSkills(draft, setting), ...draft.skillChoices]);
+  const skills = SKILLS.map((sk) => ({
+    ...sk,
+    proficient: profSkills.has(sk.id),
+    source: race?.skillProficiencies.includes(sk.id) ? 'kindred'
+      : bg?.skills.includes(sk.id) ? 'background'
+        : draft.skillChoices.includes(sk.id) ? 'calling' : null,
+    bonus: mods[sk.ability] + (profSkills.has(sk.id) ? pb : 0),
+  }));
+
+  const savingThrows = ABILITY_IDS.map((id) => ({
+    ability: id,
+    proficient: !!cls?.savingThrows.includes(id),
+    bonus: mods[id] + (cls?.savingThrows.includes(id) ? pb : 0),
+  }));
+
+  // Level 1 HP: the hit die's maximum + CON modifier. Each later level adds the die's
+  // average (rounded up) + CON modifier. Kindred bonuses (e.g. dwarven toughness) add per level.
+  const hitDie = cls?.hitDie ?? 8;
+  const perLevelCon = mods.con + (race?.hpPerLevel ?? 0);
+  const maxHp = Math.max(1, hitDie + perLevelCon + (level - 1) * Math.max(1, hitDie / 2 + 1 + perLevelCon));
+
+  const equipment = [...(cls?.equipment ?? []), ...(bg?.equipment ?? [])];
+  const ac = armorClass(equipment, mods.dex);
+
+  const attacks = equipment.filter((e) => e.kind === 'weapon').map((w) => {
+    const ability = w.finesse ? (mods.str >= mods.dex ? 'str' : 'dex') : w.ability;
+    return {
+      name: w.name,
+      ability,
+      toHit: mods[ability] + pb,
+      damage: `${w.damage}${mods[ability] ? (mods[ability] > 0 ? `+${mods[ability]}` : `${mods[ability]}`) : ''}`,
+      damageType: w.damageType,
+      properties: w.properties ?? [],
+    };
+  });
+
+  const perception = skills.find((s) => s.id === 'perception');
+
+  return {
+    id: draft.id,
+    name: draft.name.trim(),
+    concept: draft.concept.trim(),
+    level,
+    race,
+    cls,
+    background: bg,
+    proficiencyBonus: pb,
+    base,
+    scores,
+    mods,
+    savingThrows,
+    skills,
+    hitDie,
+    maxHp,
+    ac,
+    initiative: mods.dex,
+    speed: race?.speed ?? 30,
+    passivePerception: 10 + perception.bonus,
+    attacks,
+    equipment,
+    languages: [...new Set(race?.languages ?? [])],
+    features: [
+      ...(race?.traits ?? []).map((t) => ({ ...t, source: race.name })),
+      ...(cls?.features ?? []).map((f) => ({ ...f, source: cls.name })),
+      ...(bg ? [{ ...bg.feature, source: bg.name }] : []),
+    ],
+    armorProficiencies: cls?.armorProficiencies ?? [],
+    weaponProficiencies: cls?.weaponProficiencies ?? [],
+  };
+}
+
+export function skillName(id) {
+  return SKILLS_BY_ID[id]?.name ?? id;
+}

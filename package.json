@@ -1,0 +1,12 @@
+{
+  "name": "role-playing-games",
+  "version": "0.1.0",
+  "description": "A tabletop-style RPG in the browser: build heroes, pick adventures, play on demand.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": { "node": ">=20" }
+}
