@@ -31,6 +31,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
@@ -240,43 +241,103 @@ select { width: auto; min-width: 72px; margin: 0; padding: 4px 8px; }
 /* In the wizard the nav bar is the sticky element; keep the dice log in the flow. */
 .step-body .dice-log { position: static; }
 
-/* ---- Dungeon explorer ---- */
-main:has(.dungeon-host) { max-width: 1400px; }
-.dg-toolbar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 12px 0; }
+/* ---- Dungeon delve ---- */
+main:has(.dungeon-host) { max-width: 1480px; }
+.dungeon-host { position: relative; }
+.dg-topbar { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 12px 0; }
 .dg-group { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
-.dg-seed { display: flex; align-items: center; gap: 4px; font-weight: 600; }
-.dg-seed input { width: 6.5em; font: 1rem var(--font-body); padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.dg-group select { max-width: 100%; }
+.dg-seed { font-weight: 600; }
+.dg-group input[type="number"] { width: 6.5em; font: 1rem var(--font-body); padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.dg-zoom { min-width: 3.4em; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
 .dg-check { display: flex; gap: 4px; align-items: center; cursor: pointer; }
 .dg-check input { accent-color: var(--accent); }
-.dg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
-@media (max-width: 900px) { .dg-layout { grid-template-columns: 1fr; } }
-.dg-viewport { overflow: auto; max-height: calc(100vh - 170px); background: #0d0a07; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); }
-@media (max-width: 900px) { .dg-viewport { max-height: 70vh; } }
+.dg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
+@media (max-width: 960px) { .dg-layout { grid-template-columns: 1fr; } }
+.dg-mapwrap { position: relative; min-width: 0; }
+.dg-viewport { overflow: auto; height: min(78vh, 900px); background: #08070a; border-radius: var(--radius); border: 1px solid var(--line); box-shadow: var(--shadow); touch-action: none; cursor: pointer; overscroll-behavior: contain; }
+.dg-viewport.panning { cursor: grabbing; }
+@media (max-width: 960px) { .dg-viewport { height: 62vh; } }
 .dg-stage { position: relative; margin: 0 auto; }
 .dg-base, .dg-base svg, .dg-overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.dg-overlay { cursor: crosshair; touch-action: manipulation; }
-.dg-reach { fill: #f0c75e; fill-opacity: .18; stroke: #f0c75e; stroke-opacity: .5; stroke-width: 2; }
-.dg-hover { fill: none; stroke: #fff; stroke-opacity: .55; stroke-width: 3; stroke-dasharray: 8 6; }
-.dg-target { fill: #f0c75e; fill-opacity: .35; stroke: #ffe08a; stroke-width: 4; }
+.dg-overlay { pointer-events: none; }
+.dg-help { margin: 6px 2px; }
+.dg-banner { position: absolute; z-index: 3; left: 50%; top: 12px; transform: translate(-50%, -8px); opacity: 0; pointer-events: none; padding: 6px 16px; border-radius: 99px; background: var(--ink); color: var(--bg); font-weight: 600; transition: opacity .2s, transform .2s; }
+.dg-banner.show { opacity: .95; transform: translate(-50%, 0); }
+
+/* map overlay */
+.fog-dark { fill: #050407; }
+.fog-dim { fill: #050407; fill-opacity: .55; }
+.door-closed { fill: #6b4423; stroke: #1c0f06; stroke-width: 4; }
+.door-plank { stroke: #3a220f; stroke-width: 3; }
+.door-open { fill: #5a3a1e; stroke: #1c0f06; stroke-width: 3; opacity: .9; }
+.dg-reach { fill: #f0c75e; fill-opacity: .16; stroke: #f0c75e; stroke-opacity: .55; stroke-width: 2; }
+.dg-hover { fill: none; stroke: #fff; stroke-opacity: .5; stroke-width: 3; stroke-dasharray: 8 6; }
+.dg-target-sq { fill: #f0c75e; fill-opacity: .32; stroke: #ffe08a; stroke-width: 4; }
 .dg-path { fill: none; stroke: #ffe08a; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 2 14; }
 .dg-cost { fill: #1a1208; font: 700 26px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #ffe08a; stroke-width: 6px; }
-.dg-token circle { fill: #8a2f1d; stroke: #f6e7c1; stroke-width: 5; filter: drop-shadow(0 4px 6px rgb(0 0 0 / .7)); }
-.dg-token text { fill: #f6e7c1; font: 700 30px Georgia, serif; text-anchor: middle; pointer-events: none; }
-.dg-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 16px 14px; box-shadow: var(--shadow); }
-.dg-panel h3 { margin-top: .9em; }
-.dg-panel select { width: 100%; }
+.dg-attack { fill: #e0412a; fill-opacity: .18; stroke: #ff6b4f; stroke-width: 5; }
+.dg-noattack { fill: none; stroke: #aaa; stroke-width: 4; stroke-dasharray: 6 6; }
+.dg-aim { stroke: #ff6b4f; stroke-width: 4; stroke-dasharray: 10 8; opacity: .8; }
+
+/* tokens: bright front half + arrow = where it faces; dark half = its back */
+.tk .tk-back { fill: #1d1a17; }
+.tk .tk-ring { fill: none; stroke-width: 4; }
+.tk-hero .tk-front { fill: #e9c46a; }
+.tk-hero .tk-nose { fill: #f6e7c1; stroke: #1d1a17; stroke-width: 2; }
+.tk-hero .tk-ring { stroke: #f6e7c1; }
+.tk-foe .tk-front { fill: #7da35a; }
+.tk-foe .tk-nose { fill: #c94a3a; stroke: #1d1a17; stroke-width: 2; }
+.tk-foe .tk-ring { stroke: #c94a3a; }
+.tk-foe.tk-bloodied .tk-front { fill: #a7795a; }
+.tk { filter: drop-shadow(0 4px 5px rgb(0 0 0 / .7)); }
+.tk-letter { fill: #fff; font: 700 26px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #1d1a17; stroke-width: 5px; }
+.tk-hpbg { fill: #1d1a17; }
+.tk-hp { fill: #6fcf62; }
+.tk-hp.low { fill: #e0412a; }
+.tk-dead { fill: #c9b9a0; font: 700 34px Georgia, serif; text-anchor: middle; opacity: .65; }
+.dg-float { font: 700 30px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #000; stroke-width: 6px; animation: floatUp 1.3s ease-out forwards; }
+.dg-float.good { fill: #ffd166; } .dg-float.bad { fill: #ff6b4f; } .dg-float.muted { fill: #ddd; }
+.dg-float.big { font-size: 44px; }
+@keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .dg-float { animation: none; } }
+
+/* side panel */
+.dg-panel { display: grid; gap: 12px; min-width: 0; }
+.dg-panel > section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; box-shadow: var(--shadow); min-width: 0; }
+.dg-panel h3 { margin: 0 0 4px; }
+.dg-panel h4 { margin: 10px 0 4px; }
 .dg-panel .field { margin: 10px 0 0; font-size: .95rem; }
-.dg-meter { margin: 10px 0 4px; }
-.dg-meter strong { font-family: var(--font-display); font-size: 1.4rem; }
-.dg-bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
-.dg-bar span { display: block; height: 100%; background: var(--gold); transition: width .2s; }
-.dg-info { min-height: 5.5em; border-top: 1px solid var(--line); margin-top: 12px; padding-top: 6px; }
-.dg-rooms { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; }
-.dg-room { all: unset; box-sizing: border-box; display: flex; gap: 8px; align-items: baseline; width: 100%; padding: 3px 6px; border-radius: 6px; cursor: pointer; }
-.dg-room:hover, .dg-room:focus-visible { background: var(--bg-2); }
-.dg-room .n { font-family: var(--font-display); font-weight: 700; min-width: 1.6em; color: var(--accent); }
-.dg-room .nm { flex: 1; }
-.dg-room .sz { font-size: .8rem; color: var(--muted); }
+.dg-panel select { width: 100%; }
+.hc-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.hc-compass { display: flex; align-items: center; gap: 4px; }
+.hc-dial { width: 40px; height: 40px; }
+.hc-dial-ring { fill: var(--bg-2); stroke: var(--line); stroke-width: 2; }
+.hc-dial-front { fill: var(--accent); }
+.hc-dial-back { fill: var(--muted); opacity: .5; }
+.hc-facing { margin: 4px 0 8px; }
+.hc-stat { display: flex; justify-content: space-between; font-size: .95rem; margin-top: 6px; }
+.hc-bar { height: 8px; background: var(--bg-2); border-radius: 99px; overflow: hidden; margin-top: 3px; }
+.hc-bar span { display: block; height: 100%; background: var(--good); transition: width .25s; }
+.hc-bar span.low { background: var(--bad); }
+.hc-bar.move span { background: var(--gold); }
+.hc-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.pip { font-size: .8rem; font-weight: 600; padding: 2px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); text-decoration: line-through; }
+.pip.on { border-color: var(--good); color: var(--good); text-decoration: none; }
+.hc-weapons { display: grid; gap: 6px; }
+.weapon { display: grid; gap: 1px; text-align: left; font: inherit; font-size: .88rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.weapon.sel { border: 2px solid var(--accent); padding: 5px 9px; }
+.dg-target .hit { margin: 4px 0; font-size: 1.05rem; }
+.dg-target .hit b { font-family: var(--font-display); font-size: 1.5rem; color: var(--accent); }
+.init { list-style: none; padding: 0; margin: 0; }
+.init li { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.init li b { font-variant-numeric: tabular-nums; min-width: 2ch; }
+.init li.me { font-weight: 700; color: var(--accent); }
+.dg-log { list-style: none; padding: 0; margin: 0; max-height: 260px; overflow-y: auto; font-size: .86rem; }
+.dg-log li { padding: 4px 0; border-top: 1px dashed var(--line); }
+.dg-log li.good { color: var(--good); } .dg-log li.bad { color: var(--bad); } .dg-log li.warn { color: var(--gold); font-weight: 600; }
+.dg-endscreen { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgb(0 0 0 / .55); padding: 16px; }
+.dg-endcard { background: var(--card); border: 2px solid var(--gold); border-radius: var(--radius); padding: 12px 24px 18px; max-width: 460px; box-shadow: var(--shadow); }
 
 /* ---- Bestiary ---- */
 .bestiary-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }

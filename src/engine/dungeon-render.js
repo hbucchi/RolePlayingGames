@@ -104,9 +104,10 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  * @param {boolean} [o.grid=true]      draw the movement grid
  * @param {boolean} [o.labels=true]    room numbers and entrance
  * @param {boolean} [o.coords=true]    column/row numbers in the rock border
+ * @param {boolean} [o.doors=true]     draw doors (the game draws them itself, open or closed)
  */
 export function renderDungeonSVG(map, o = {}) {
-  const { textures = DEFAULT_TEXTURES, grid = true, labels = true, coords = true, idPrefix = 'dg' } = o;
+  const { textures = DEFAULT_TEXTURES, grid = true, labels = true, coords = true, doors = true, idPrefix = 'dg' } = o;
   const S = map.cellSize;
   const W = map.width * S; const H = map.height * S;
   const id = (n) => `${idPrefix}-${n}`;
@@ -154,7 +155,7 @@ export function renderDungeonSVG(map, o = {}) {
     <path d="${gridLines(map, S)}" stroke="#fff" stroke-opacity=".07" stroke-width="1.5" fill="none" transform="translate(1.5 1.5)"/>` : ''}
   </g>
   <path d="${wallD}" stroke="#0d0a07" stroke-width="8" stroke-linecap="square" fill="none"/>
-  ${map.doors.map((d) => doorSvg(d, S, textures?.door)).join('')}
+  ${doors ? map.doors.map((d) => doorSvg(d, S, textures?.door)).join('') : ''}
   ${labels && map.entrance ? stairsSvg(map.entrance, S) : ''}
   ${roomLabels}
   ${coordText}

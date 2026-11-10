@@ -540,7 +540,10 @@ function explorerHeroes() {
   const premade = setting.premades.map((p) => syncBaseFromAssignment(structuredClone(p)));
   return [...mine, ...premade].map((d) => {
     const c = deriveCharacter(d, settingFor(d));
-    return { id: d.id, name: c.name, speed: c.speed, label: `${c.name} (${c.race.name} ${c.cls.name}, ${c.speed} ft)` };
+    return {
+      id: d.id, name: c.name, speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, attacks: c.attacks,
+      label: `${c.name} (${c.race.name} ${c.cls.name})`,
+    };
   });
 }
 
