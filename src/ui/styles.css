@@ -641,3 +641,11 @@ main:has(.dungeon-host) { max-width: 1480px; }
 @keyframes aimpulse { from { transform: scale(1.35); opacity: 0; } to { transform: scale(1); opacity: .9; } }
 @media (prefers-reduced-motion: reduce) { .tk-aim { animation: none; } }
 .dg-stone { fill: #6f6a62; stroke: #2b2824; stroke-width: 3; }
+
+/* Ground changed by magic */
+.ground-ice { opacity: .62; mix-blend-mode: screen; pointer-events: none; }
+.ground-rubble { opacity: .8; mix-blend-mode: multiply; pointer-events: none; }
+.vfx-embers { opacity: .55; }
+.vfx-cloud { opacity: .5; }
+.vfx-aura { opacity: .38; pointer-events: none; }
+.sb-portrait { width: 100%; max-width: 320px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; margin-bottom: 8px; }

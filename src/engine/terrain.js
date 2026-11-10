@@ -25,7 +25,10 @@ export const TERRAIN_IDS = Object.keys(TERRAINS);
 /** Movement cost multiplier for entering a square (1 normal, 2 difficult, Infinity impassable). */
 export function terrainCost(map, x, y) {
   const id = map.terrain?.[y]?.[x];
-  return id ? TERRAINS[id]?.cost ?? 1 : 1;
+  const base = id ? TERRAINS[id]?.cost ?? 1 : 1;
+  // Ground changed for a while by magic (ice, rubble): map.temp holds "x,y" -> cost.
+  const temp = map.temp?.get(`${x},${y}`) ?? 1;
+  return Math.max(base, temp);
 }
 
 /**

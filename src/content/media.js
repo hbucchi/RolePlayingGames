@@ -32,7 +32,7 @@ export const MONSTER_PORTRAITS = {
     'herald-of-the-dark-tower', 'cave-troll', 'spirit-wolf-of-the-shadow', 'shadow-bred-war-troll', 'hooded-rider-of-the-shadow',
     'fallen-loremaster', 'dread-sovereign-of-the-hooded-riders',
   ].map((id) => [id, id])),
-  orc: 'orc', ogre: 'ogre', 'shadowflame-tyrant': 'shadowflame-tyrant', 'winter-wolf': 'winter-wolf',
+  orc: 'orc', ogre: 'ogre', 'shadowflame-tyrant': 'shadowflame-tyrant', balor: 'shadowflame-tyrant', 'winter-wolf': 'winter-wolf',
   'captive-princess': 'captive-princess',
   // Dragons share a few paintings by colour and age.
   'young-fire-drake': 'red-dragon', 'ember-wyrm': 'red-dragon', 'grey-ice-drake': 'white-dragon', pseudodragon: 'dragon-wyrmling',

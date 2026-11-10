@@ -35,6 +35,7 @@ import {
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { TALKS, PATIENCE, talkOptions, resolveOf, insightOf, contestChance, rollTalk } from '../engine/talk.js';
 import { seededRng } from '../engine/dice.js';
+import { areaCells, canUse, spend, rollRecharge, powerRange, GROUND } from '../engine/monster-magic.js';
 import { inventoryHtml, lootHtml, coinsHtml, itemIcon } from './inventory-view.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -284,7 +285,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         s.monsters.push(m);
       });
     }
-    s.sneak = null; s.longRested = false; s.effects = []; s.vfx = []; s.blood = [];
+    s.sneak = null; s.longRested = false; s.effects = []; s.vfx = []; s.blood = []; s.map.temp = new Map(); s.areaFx = null;
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
     s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
     s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.invOpen = false;
@@ -446,6 +447,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.actionUsed = false; s.dash = false; s.bonusUsed = false; s.attacksLeft = 0; s.sneakUsed = false; s.disengaged = false;
     if (s.hero) {
       s.hero.reaction = true;
+      if (s.hero.cond?.prone && s.mode === 'combat') { delete s.hero.cond.prone; s.moveLeft = Math.floor(s.moveLeft / 2); log(`${s.hero.name} gets back up (half movement).`, 'info'); }
+      if (s.mode === 'combat') for (const fx of s.effects) if (fx.dice && inEffect(s.hero, fx)) log(burnIn(s.hero, fx), 'bad');
       if (s.buffs.shield) { delete s.buffs.shield; }
       // Song of Heroes: temporary hit points equal to your spellcasting modifier each turn.
       if (s.buffs.heroism) s.hero.tempHp = Math.max(s.hero.tempHp ?? 0, s.def?.caster?.mod ?? 1);
@@ -509,6 +512,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   async function endHeroTurn() {
     if (s.mode !== 'combat' || s.busy) return;
+    heroEndOfTurnSaves();
     await runMonsterTurns();
   }
 
@@ -527,7 +531,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         i = 0; s.round++;
         for (const fx of s.effects) fx.rounds--;
         const gone = s.effects.filter((fx) => fx.rounds <= 0);
-        if (gone.length) { s.effects = s.effects.filter((fx) => fx.rounds > 0); log('The wall of fire gutters out.', 'info'); }
+        if (gone.length) {
+          s.effects = s.effects.filter((fx) => fx.rounds > 0); syncGround();
+          const kinds = [...new Set(gone.map((fx) => fx.kind))];
+          log(kinds.map((k) => ({ firewall: 'The wall of fire gutters out.', fire: 'The burning ground dies down to embers.', ice: 'The ice melts away.', rubble: 'The dust settles; the broken ground is passable again.', poison: 'The poison cloud thins and is gone.' }[k] ?? '')).join(' '), 'info');
+        }
       }
       const slot = s.order[i];
       if (slot.hero) {
@@ -537,7 +545,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       }
       const m = s.monsters.find((x) => x.id === slot.id);
       if (!m || m.dead || (!m.aware && m.side !== 'ally') || m.calm) continue;
-      for (const fx of s.effects) if (inEffect(m, fx)) { log(burnIn(m, fx), 'good'); await sleep(PAUSE_MS / 2); }
+      for (const fx of s.effects) if (inEffect(m, fx)) { const t = burnIn(m, fx); if (t) { log(t, 'good'); await sleep(PAUSE_MS / 2); } }
       if (m.dead) continue;
       tickAllyTime(m);
       if (await conditionSkip(m)) { endOfTurnSaves(m); continue; }
@@ -577,6 +585,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   async function monsterTurn(m, target = s.hero, { moveOnly = false } = {}) {
     m.reaction = true; m.burnedThisTurn = false;
     banner(`${m.name}'s turn`);
+    await startOfMonsterTurn(m);
+    if (m.dead) return true;
+    if (!moveOnly && target && target.hp > 0) {
+      const power = choosePower(m, target);
+      if (power) { await castPower(m, power, target); await sleep(PAUSE_MS / 2); return true; }
+    }
     // Prone: standing up costs half its movement. Bound, grappled or restrained: it cannot move at all.
     let speed = m.speed;
     if (m.cond?.prone) { delete m.cond.prone; speed = Math.floor(speed / 2); if (canSee(m)) log(`${m.name} gets back to its feet.`, 'info'); }
@@ -595,7 +609,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           m.facing = facingToward(m.pos, p);
           m.pos = { x: p.x, y: p.y };
           openDoorAt(p);
-          for (const fx of s.effects) if (inEffect(m, fx) && !m.burnedThisTurn) { m.burnedThisTurn = true; log(burnIn(m, fx), 'good'); }
+          for (const fx of s.effects) if (fx.dice && inEffect(m, fx) && !m.burnedThisTurn) { m.burnedThisTurn = true; const t = burnIn(m, fx); if (t) log(t, 'good'); }
           if (m.dead) return true;
           if (!m.side && wasAdjacent && edist(m, s.hero) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await heroOpportunityAttack(m);
           if (m.dead) return;
@@ -610,6 +624,189 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     }
     await sleep(PAUSE_MS / 2);
     return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Magic changes the ground for a while: fire burns, ice and rubble slow, poison chokes
+  // ---------------------------------------------------------------------------
+
+  /** Recompute which squares are slow to cross because of lingering magic. */
+  function syncGround() {
+    s.map.temp = new Map();
+    for (const fx of s.effects) {
+      const cost = GROUND[fx.kind]?.cost ?? 1;
+      if (cost > 1) for (const c of fx.cells) s.map.temp.set(cellKey(c.x, c.y), Math.max(cost, s.map.temp.get(cellKey(c.x, c.y)) ?? 1));
+    }
+    s.reach = heroReach();
+  }
+  function addGround(kind, cells, rounds, { dc = 12, owner = null } = {}) {
+    if (!cells.length || !rounds) return;
+    const g = GROUND[kind] ?? {};
+    s.effects.push({ id: `${kind}-${Math.random().toString(36).slice(2, 7)}`, kind, cells: cells.filter((c) => isFloor(c.x, c.y)), rounds, dc, dice: g.dice ?? null, save: g.save ?? null, damageType: g.type ?? null, owner });
+    syncGround();
+  }
+
+  /** A hero's own saving throw (switching to that hero for a moment). */
+  function saveOf(e, ability, dc) {
+    if (!e.isHero) return monsterRoll(e, ability, dc);
+    const back = s.active; activate(memberIndex(e));
+    const c = heroCheck(s.def.saves?.[ability] ?? 0, dc, { save: true });
+    const evasion = !!s.def.evasion && ability === 'dex';
+    activate(back);
+    return { ok: c.ok, total: c.total, dc, evasion };
+  }
+  function hurt(e, n) {
+    if (!(n > 0)) return 0;
+    if (e.isHero) { const back = s.active; activate(memberIndex(e)); damageHero(n); activate(back); } else { n = damageMonster(e, n); finishIfDead(e); }
+    float(e.pos, `−${n}`, e.isHero || e.side ? 'bad' : 'good'); flashHit(e);
+    return n;
+  }
+  /** Conditions a monster's magic puts on a hero or anyone else. */
+  function riderOn(e, rider, dc) {
+    const c = e.cond ??= {};
+    if (rider === 'flee') { if (e.isHero) c.frightened = { dc, save: 'wis' }; else c.flee = 2; }
+    if (rider === 'restrain') c.restrained = dc;
+    if (rider === 'mock') c.mock = true;
+    if (rider === 'prone') c.prone = true;
+  }
+  /** End of a hero's turn: a save to shake off fear or bonds. */
+  function heroEndOfTurnSaves() {
+    const c = s.hero?.cond; if (!c) return;
+    if (c.frightened) { const sv = saveOf(s.hero, 'wis', c.frightened.dc); if (sv.ok) { delete c.frightened; log(`${s.hero.name} masters the fear (WIS save ${sv.total} vs DC ${sv.dc}).`, 'good'); } }
+    if (c.restrained) { const sv = saveOf(s.hero, 'str', c.restrained); if (sv.ok) { delete c.restrained; log(`${s.hero.name} breaks free (STR save ${sv.total} vs DC ${sv.dc}).`, 'good'); } }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Monster magic: spells, breath weapons, roars, fiery auras
+  // ---------------------------------------------------------------------------
+
+  const inBounds = (x, y) => isFloor(x, y) || (s.map.tiles[y]?.[x] === TILE.DOOR && s.doors.get(cellKey(x, y)));
+  /** Everyone standing in some squares (heroes, allies, other monsters), except `not`. */
+  function creaturesIn(cells, not) {
+    const keys = new Set(cells.map((c) => cellKey(c.x, c.y)));
+    return [...partyAlive(), ...alive()].filter((e) => e !== not && cellsOf(e.pos, e.size ?? 1).some((c) => keys.has(cellKey(c.x, c.y))));
+  }
+  const avgDice = (d) => { const m = /(\d+)d(\d+)([+-]\d+)?/.exec(d ?? ''); return m ? Number(m[1]) * (Number(m[2]) + 1) / 2 + Number(m[3] ?? 0) : 0; };
+  /** The squares a power would cover, aimed at a target; cut off by walls (line of sight from the caster). */
+  function powerCells(m, p, target) {
+    const aim = p.shape === 'radius' ? centerOf(target.pos, target.size ?? 1) : centerOf(target.pos, target.size ?? 1);
+    const at = { x: Math.round(aim.x), y: Math.round(aim.y) };
+    const from = centerOf(m.pos, m.size ?? 1);
+    const origin = p.shape === 'radius' ? at : { x: Math.round(from.x), y: Math.round(from.y) };
+    return areaCells(p, m, at, inBounds).filter((c) => lineOfSight(origin, c, opaque()).visible || (c.x === origin.x && c.y === origin.y));
+  }
+  /**
+   * Pick a power for this turn, or null to fight with weapons. Breath weapons are used whenever
+   * they are ready and would catch an enemy; spellcasters prefer magic (especially from afar),
+   * choosing what does the most expected harm to enemies without burning their own side.
+   */
+  function choosePower(m, target) {
+    if (!m.powers?.length || m.cond?.flee > 0 || m.cond?.petrified) return null;
+    const enemies = new Set(enemiesOf(m));
+    const sees = lineOfSight(m.pos, target.pos, opaque()).visible;
+    if (!sees) return null;
+    const d = edist(m, target);
+    let best = null;
+    for (const p of m.powers) {
+      if (!canUse(p, m.uses)) continue;
+      if (d > powerRange(p) + (p.shape === 'radius' ? 0 : 0)) continue;
+      let score;
+      if (p.kind === 'area') {
+        const hit = creaturesIn(powerCells(m, p, target), m);
+        const foesHit = hit.filter((e) => enemies.has(e)).length; const friendsHit = hit.length - foesHit;
+        if (!foesHit || friendsHit > (p.breath ? foesHit : 0)) continue;
+        score = foesHit * (p.dice ? avgDice(p.dice) * (p.half ? 0.75 : 0.6) : 6) - friendsHit * 5;
+      } else if (p.kind === 'wall') score = avgDice(p.dice) * 1.5;
+      else if (p.kind === 'darts') score = p.count * avgDice(p.dice);
+      else score = p.dice ? avgDice(p.dice) * 0.6 : 5;
+      if (p.level > 0) score += 2; // spend the good stuff
+      if (!best || score > best.score) best = { p, score };
+    }
+    if (!best) return null;
+    if (best.p.recharge) return best.p;
+    const melee = m.weapons.some((w) => w.melee) && d <= 1;
+    // Up close a caster still prefers its weapon now and then; from afar it casts most of the time.
+    const want = melee ? 0.45 : 0.85;
+    return Math.random() < want ? best.p : null;
+  }
+
+  async function castPower(m, p, target) {
+    spend(p, m.uses);
+    const look = boltFor(p.type);
+    m.facing = facingToward(m.pos, target.pos);
+    banner(`${m.name}: ${p.name}!`);
+    s.aiming = m.id; drawOverlay(); await sleep(reduceMotion ? 0 : 420); s.aiming = null;
+    play(p.breath ? cry(m, 'attack') : look.sound, { volume: 0.85 });
+    const from = centerOf(m.pos, m.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
+    const verb = p.spell ? 'casts' : 'uses';
+    if (p.kind === 'bolt') {
+      await doAttack(m, target, { name: p.name, toHit: p.toHit, damage: p.dice, type: p.type, ranged: true, melee: false, normal: p.range, long: p.range, spell: true });
+      return;
+    }
+    if (p.kind === 'darts') {
+      const bits = [];
+      for (let i = 0; i < p.count && target.hp > 0; i++) { await shootProjectile(from, to, look.color); const r = roll(p.dice); bits.push(hurt(target, r.total)); }
+      showVfx('arcane', to, (target.size ?? 1) / 2, 400);
+      log(`${m.name} casts ${p.name}: ${bits.length} darts strike ${target.name} for ${bits.join(' + ')} = ${bits.reduce((a, b) => a + b, 0)} force damage.`, 'bad');
+      return;
+    }
+    if (p.kind === 'save') {
+      await shootProjectile(from, to, look.color);
+      showVfx(look.vfx, to, (target.size ?? 1) / 2, 500);
+      const sv = saveOf(target, p.save, p.dc);
+      const r = p.dice ? roll(p.dice) : null;
+      const dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
+      hurt(target, dmg);
+      if (!sv.ok && p.rider) riderOn(target, p.rider, p.dc);
+      log(`${m.name} ${verb} ${p.name} on ${target.name}: ${p.save.toUpperCase()} save ${sv.total} vs DC ${p.dc} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type} damage` : ''}${!sv.ok && p.rider ? ` (${riderText[p.rider === 'flee' ? 'flee' : p.rider] ?? p.rider})` : ''}.`, target.isHero || target.side ? 'bad' : 'info');
+      return;
+    }
+    if (p.kind === 'wall') {
+      const c = centerOf(target.pos, target.size ?? 1);
+      const across = Math.abs(c.x - from.x) >= Math.abs(c.y - from.y);
+      const cx = Math.round(c.x); const cy = Math.round(c.y); const half = Math.floor(p.length / 2); const cells = [];
+      for (let i = -half; i <= half; i++) { const q = across ? { x: cx, y: cy + i } : { x: cx + i, y: cy }; if (isFloor(q.x, q.y)) cells.push(q); }
+      await shootProjectile(from, c, look.color);
+      s.effects.push({ id: `wall-${m.id}`, kind: 'firewall', cells, rounds: p.lingerRounds ?? 10, dc: p.dc, dice: p.dice, save: p.save, damageType: p.type, owner: m.id });
+      syncGround();
+      await showVfx('fire', c, half, 500);
+      const lines = creaturesIn(cells, m).map((e) => burnIn(e, s.effects[s.effects.length - 1])).filter(Boolean);
+      log(`${m.name} casts ${p.name}: a roaring line of flame, ${cells.length} squares long, for ${p.lingerRounds ?? 10} rounds.${lines.length ? ` ${lines.join('; ')}.` : ''}`, 'bad');
+      return;
+    }
+    // Area: a cone, a line, a burst or a ring. Everyone inside makes the save.
+    const cells = powerCells(m, p, target);
+    if (p.shape === 'radius') await shootProjectile(from, to, look.color);
+    s.areaFx = { cells, kind: look.vfx }; drawOverlay();
+    await sleep(reduceMotion ? 100 : 700);
+    s.areaFx = null;
+    const r = p.dice ? roll(p.dice) : null;
+    const lines = [];
+    for (const e of creaturesIn(cells, m)) {
+      const sv = saveOf(e, p.save, p.dc);
+      let dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
+      if (sv.evasion && r) dmg = sv.ok ? 0 : Math.floor(r.total / 2);
+      dmg = hurt(e, dmg);
+      if (!sv.ok && p.rider) riderOn(e, p.rider, p.dc);
+      lines.push(`${e.name}: ${p.save.toUpperCase()} ${sv.total} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type}` : ''}${!sv.ok && p.rider ? ` (${p.rider === 'flee' ? 'frightened' : p.rider === 'restrain' ? 'restrained' : p.rider})` : ''}`);
+    }
+    if (p.linger) addGround(p.linger, cells, p.lingerRounds ?? 2, { dc: p.dc, owner: m.id });
+    log(`${m.name} ${verb} ${p.name}${r ? ` (${p.dice} = ${r.total})` : ''}! ${lines.join('; ') || 'It catches no one'}.${p.linger ? ` ${GROUND[p.linger].label[0].toUpperCase()}${GROUND[p.linger].label.slice(1)} for ${p.lingerRounds ?? 2} rounds.` : ''}`, 'bad');
+    redraw();
+  }
+
+  /** Start of its turn: recharge rolls, and a fiery aura scorching everyone close by. */
+  async function startOfMonsterTurn(m) {
+    if (m.powers?.length) for (const p of rollRecharge(m.powers, m.uses, (n) => rollDie(n) - 1)) if (canSee(m)) log(`${m.name}'s ${p.name} is ready again.`, 'warn');
+    if (m.aura) {
+      const near = [...partyAlive(), ...alive()].filter((e) => e !== m && blockDistance(m.pos, m.size ?? 1, e.pos, e.size ?? 1) <= m.aura.size);
+      if (near.length) {
+        showVfx(boltFor(m.aura.type).vfx, centerOf(m.pos, m.size ?? 1), (m.size ?? 1) / 2 + m.aura.size, 500);
+        const r = roll(m.aura.dice);
+        log(`${m.name}'s ${m.aura.name} scorches ${near.map((e) => `${e.name} (${hurt(e, r.total)})`).join(', ')}: ${m.aura.dice} = ${r.total} ${m.aura.type}.`, 'bad');
+        await sleep(PAUSE_MS / 2);
+      }
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -702,9 +899,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     // Paths go around known traps when they can; squares only reachable across a trap are
     // still offered, and crossing it takes an Acrobatics check.
     const traps = (s.features?.traps ?? []).filter((t) => t.found && !t.disarmed && !t.sprung).map((t) => cellKey(t.x, t.y));
-    const all = reachableSquares(s.map, s.hero.pos, s.moveLeft, { diagonalRule: s.rule, blocked });
+    const budget = immobile(s.hero) ? 0 : s.moveLeft;
+    const all = reachableSquares(s.map, s.hero.pos, budget, { diagonalRule: s.rule, blocked });
     if (!traps.length) return all;
-    const safe = reachableSquares(s.map, s.hero.pos, s.moveLeft, { diagonalRule: s.rule, blocked: new Set([...blocked, ...traps]) });
+    const safe = reachableSquares(s.map, s.hero.pos, budget, { diagonalRule: s.rule, blocked: new Set([...blocked, ...traps]) });
     for (const [k, c] of all) if (!safe.has(k)) safe.set(k, { ...c, risky: true });
     return safe;
   }
@@ -738,7 +936,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         }
       }
       openDoorAt(p);
-      for (const fx of s.effects) if (inEffect(s.hero, fx)) { log(burnIn(s.hero, fx), 'bad'); if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; } }
+      for (const fx of s.effects) if (fx.dice && inEffect(s.hero, fx)) { log(burnIn(s.hero, fx), 'bad'); if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; } }
       for (const m of threats) {
         if (edist(m, s.hero) > reachOf(m)) await monsterOpportunityAttack(m);
         if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; }
@@ -1219,6 +1417,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     return `<g class="${cls}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<circle r="${R + 9}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<circle r="${R + 6}" class="tk-aim"/>` : ''}
+      ${e.aura && !e.dead ? `<image href="assets/vfx/${boltFor(e.aura.type).vfx}-${(Math.floor(Date.now() / 400) % 4) + 1}.jpg" x="${-(R + sz * e.aura.size * 0.6)}" y="${-(R + sz * e.aura.size * 0.6)}" width="${2 * (R + sz * e.aura.size * 0.6)}" height="${2 * (R + sz * e.aura.size * 0.6)}" class="vfx vfx-aura" preserveAspectRatio="xMidYMid slice"/>` : ''}
       ${hero && e === s.hero && s.members.length > 1 ? `<circle r="${R + 8}" class="tk-activering"/>` : ''}
       <g transform="rotate(${facingAngle(e.facing)})">
         <path d="M ${R} 0 A ${R} ${R} 0 0 1 ${-R} 0" class="tk-backarc"/>
@@ -1337,6 +1536,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       <radialGradient id="blood-grad"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
       <mask id="blood-mask" maskContentUnits="objectBoundingBox"><ellipse cx="0.5" cy="0.5" rx="0.5" ry="0.36" fill="url(#blood-grad)"/><ellipse cx="0.62" cy="0.42" rx="0.22" ry="0.3" fill="url(#blood-grad)"/></mask></defs>`;
     out += drawBlood();
+    for (const fx of s.effects) {
+      if (fx.kind !== 'ice' && fx.kind !== 'rubble') continue;
+      for (const c of fx.cells) {
+        if (!s.revealAll && !s.revealed.has(cellKey(c.x, c.y))) continue;
+        const n = ((c.x * 7 + c.y * 3) % 4) + 1;
+        out += fx.kind === 'ice'
+          ? `<image href="assets/terrain/snow-${n}.jpg" x="${c.x * sz}" y="${c.y * sz}" width="${sz}" height="${sz}" class="ground-ice" preserveAspectRatio="xMidYMid slice"/>`
+          : `<image href="assets/textures/rock-bedrock.jpg" x="${c.x * sz - sz * 0.1}" y="${c.y * sz - sz * 0.1}" width="${sz * 1.2}" height="${sz * 1.2}" mask="url(#blood-mask)" class="ground-rubble" transform="rotate(${(c.x * 53 + c.y * 31) % 360} ${(c.x + 0.5) * sz} ${(c.y + 0.5) * sz})" preserveAspectRatio="xMidYMid slice"/>`;
+      }
+    }
     out += drawDoors();
     // Reachable squares
     for (const c of s.reach.values()) if (c.cost > 0) out += `<rect x="${c.x * sz + 4}" y="${c.y * sz + 4}" width="${sz - 8}" height="${sz - 8}" rx="7" class="dg-reach"/>`;
@@ -1377,7 +1586,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       else out += `<g class="dg-proj-head dg-arrow" transform="translate(${x} ${y}) rotate(${ang})"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
     }
     for (const fx of s.effects) for (const c of fx.cells) {
-      out += `<image href="assets/vfx/firewall-${((c.x * 7 + c.y * 3) % 4) + 1}.jpg" x="${c.x * sz - sz * 0.15}" y="${c.y * sz - sz * 0.35}" width="${sz * 1.3}" height="${sz * 1.3}" class="vfx vfx-persist" preserveAspectRatio="xMidYMid slice"/>`;
+      const n = ((c.x * 7 + c.y * 3) % 4) + 1;
+      if (fx.kind === 'firewall') out += `<image href="assets/vfx/firewall-${n}.jpg" x="${c.x * sz - sz * 0.15}" y="${c.y * sz - sz * 0.35}" width="${sz * 1.3}" height="${sz * 1.3}" class="vfx vfx-persist" preserveAspectRatio="xMidYMid slice"/>`;
+      else if (fx.kind === 'fire') out += `<image href="assets/vfx/fire-${n}.jpg" x="${c.x * sz - sz * 0.1}" y="${c.y * sz - sz * 0.1}" width="${sz * 1.2}" height="${sz * 1.2}" class="vfx vfx-persist vfx-embers" preserveAspectRatio="xMidYMid slice"/>`;
+      else if (fx.kind === 'poison') out += `<image href="assets/vfx/poison-${n}.jpg" x="${c.x * sz - sz * 0.2}" y="${c.y * sz - sz * 0.2}" width="${sz * 1.4}" height="${sz * 1.4}" class="vfx vfx-persist vfx-cloud" preserveAspectRatio="xMidYMid slice"/>`;
+    }
+    if (s.areaFx) for (const c of s.areaFx.cells) {
+      out += `<image href="assets/vfx/${s.areaFx.kind}-${((c.x * 5 + c.y * 3) % 4) + 1}.jpg" x="${c.x * sz - sz * 0.2}" y="${c.y * sz - sz * 0.2}" width="${sz * 1.4}" height="${sz * 1.4}" class="vfx vfx-burst" preserveAspectRatio="xMidYMid slice"/>`;
     }
     for (const v of s.vfx) {
       const span = (2 * v.r + 1.4) * sz;
@@ -2084,6 +2299,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           damageHero(dmg); float(s.hero.pos, `−${dmg}`, 'bad');
           lines.push(`${s.hero.name} is caught in the blast! ${checkText(`${e.save.toUpperCase()} save`, c)}: ${dmg} damage`);
         }
+        // Fire scorches the floor, cold leaves ice, thunder cracks the stone: for a few rounds.
+        if (e.linger && e.shape) {
+          const f = FACINGS[s.hero.facing];
+          const aim = e.shape === 'radius' ? { x: Math.round(center.x), y: Math.round(center.y) } : { x: s.hero.pos.x + f.dx * e.size, y: s.hero.pos.y + f.dy * e.size };
+          const origin = e.shape === 'radius' ? aim : s.hero.pos;
+          const cells = areaCells({ shape: e.shape, size: e.size }, s.hero, aim, inBounds).filter((c) => lineOfSight(origin, c, opaque()).visible || (c.x === origin.x && c.y === origin.y));
+          addGround(e.linger, cells, e.lingerRounds ?? 2, { dc, owner: 'hero' });
+          lines.push(`${GROUND[e.linger].label} for ${e.lingerRounds ?? 2} round${(e.lingerRounds ?? 2) > 1 ? 's' : ''}`);
+        }
         log(`${s.hero.name} uses ${label}${dmgRoll ? ` (${dice} = ${dmgRoll.total})` : ''}. ${lines.join('; ') || 'It catches no one'}.`, 'good');
         break;
       }
@@ -2098,6 +2322,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   /** A creature caught in a lasting effect: save for half damage. Returns a log fragment. */
   function burnIn(m, fx) {
+    if (!fx.dice) return null;
     const isHero = !!m.isHero;
     let sv;
     if (isHero) { const back = s.active; activate(memberIndex(m)); sv = heroCheck(s.def.saves?.[fx.save] ?? 0, fx.dc, { save: true }); activate(back); } else sv = monsterRoll(m, fx.save, fx.dc);
@@ -2105,7 +2330,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const dmg = sv.ok ? Math.floor(r.total / 2) : r.total;
     if (isHero) { const back = s.active; activate(memberIndex(m)); damageHero(dmg); activate(back); } else { damageMonster(m, dmg); finishIfDead(m); }
     float(m.pos, `−${dmg}`, isHero ? 'bad' : 'good'); flashHit(m);
-    return `${m.name} burns: ${fx.save.toUpperCase()} save ${sv.total} vs DC ${fx.dc}, ${dmg} ${fx.damageType}`;
+    return `${m.name} ${fx.damageType === 'poison' ? 'chokes in the cloud' : 'burns'}: ${fx.save.toUpperCase()} save ${sv.total} vs DC ${fx.dc}, ${dmg} ${fx.damageType}`;
   }
   const inEffect = (e, fx) => cellsOf(e.pos, e.size ?? 1).some((q) => fx.cells.some((w) => w.x === q.x && w.y === q.y));
 
@@ -2428,7 +2653,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       awardXp(skillXp(Math.max(5, tb + 10), s.def.level), m.pos);
     } else { line += ' It does not budge.'; play('swing-miss', { volume: 0.6 }); }
     log(line, ok ? 'good' : 'info');
-    for (const fx of s.effects) if (inEffect(m, fx)) log(burnIn(m, fx), 'good');
+    for (const fx of s.effects) if (fx.dice && inEffect(m, fx)) log(burnIn(m, fx), 'good');
     finishIfDead(m);
     s.target = null;
     provoke([m]);

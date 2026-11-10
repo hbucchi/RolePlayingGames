@@ -10,6 +10,7 @@
  */
 import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
+import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
 import { lineOfSight, coverBetween } from './vision.js';
 import { footprintOf, cellsOf, blockDistance, centerOf } from './size.js';
 
@@ -172,6 +173,7 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   if (a.mock) dis.push('shaken by mockery');
   if (a.prone) dis.push('attacking from the ground');
   if (a.restrained || a.bound) dis.push('cannot move freely');
+  if (a.frightened) dis.push('frightened');
   const mode = rollMode(adv, dis);
   return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance: hitChance(weapon.toHit, ac, mode) };
 }
@@ -231,6 +233,7 @@ export function createMonster(stat, id, pos, facing = 4) {
     flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
     size: footprintOf(stat),
     cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
+    ...(() => { const powers = monsterPowers(stat); return { powers, uses: freshMonsterUses(stat, powers), aura: parseAura(stat.traits) }; })(),
   };
 }
 

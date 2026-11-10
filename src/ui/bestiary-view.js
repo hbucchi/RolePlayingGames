@@ -2,6 +2,7 @@
 import { ABILITIES, ABILITY_IDS, formatModifier } from '../engine/abilities.js';
 import { CREATURE_TYPES, filterMonsters, sensesText } from '../engine/monsters.js';
 import { BESTIARY } from '../content/bestiary/index.js';
+import { monsterPortrait } from '../content/media.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -145,7 +146,7 @@ export function monsterView(m) {
         <p class="sb-source muted small">Source: ${esc(m.source)}${m.source === 'SRD 5.1' ? ' (game mechanics, CC-BY-4.0); description original' : ''}</p>
       </article>
       <aside class="lore-panel">
-        <section><h3>Appearance</h3><p>${esc(m.appearance)}</p></section>
+        <section><h3>Appearance</h3>${monsterPortrait(m.id) ? `<img class="sb-portrait" src="${esc(monsterPortrait(m.id))}" alt="Painting of ${esc(m.name.toLowerCase())}" loading="lazy">` : ''}<p>${esc(m.appearance)}</p></section>
         <section><h3>Personality</h3><p>${esc(m.lore.personality)}</p></section>
         <section><h3>Origin</h3><p>${esc(m.lore.origin)}</p></section>
         <section><h3>Tactics</h3><p>${esc(m.lore.tactics)}</p></section>
