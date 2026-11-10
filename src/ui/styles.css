@@ -277,3 +277,39 @@ main:has(.dungeon-host) { max-width: 1400px; }
 .dg-room .n { font-family: var(--font-display); font-weight: 700; min-width: 1.6em; color: var(--accent); }
 .dg-room .nm { flex: 1; }
 .dg-room .sz { font-size: .8rem; color: var(--muted); }
+
+/* ---- Bestiary ---- */
+.bestiary-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.bestiary-filters input[type="search"] { flex: 1 1 220px; font: 1rem var(--font-body); padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+.bestiary-filters select { width: auto; }
+.monster-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.monster-card { display: flex; flex-direction: column; gap: 4px; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.monster-card:hover { border-color: var(--gold); }
+.monster-card.original { border-left: 4px solid var(--accent); }
+.mc-name { font-family: var(--font-display); font-weight: 700; }
+.mc-type { color: var(--muted); font-style: italic; font-size: .95rem; }
+.mc-look { font-size: .88rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.mc-foot { display: flex; gap: 10px; flex-wrap: wrap; font-size: .82rem; color: var(--muted); margin-top: auto; padding-top: 4px; }
+
+.monster-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .monster-layout { grid-template-columns: 1fr; } }
+.statblock { background: var(--card); border: 1px solid var(--line); border-top: 4px solid var(--accent); border-bottom: 4px solid var(--accent); border-radius: 4px; padding: 6px 18px 12px; box-shadow: var(--shadow); }
+.statblock h2 { color: var(--accent); font-size: 1.7rem; margin: .4em 0 0; }
+.statblock h3 { color: var(--accent); border-bottom: 1px solid var(--accent); padding-bottom: 2px; margin: 1em 0 .4em; font-size: 1.1rem; }
+.statblock p { margin: .25em 0; }
+.statblock b { color: var(--accent); }
+.sb-meta { font-style: italic; color: var(--muted); }
+.sb-rule { height: 3px; margin: 8px 0; background: linear-gradient(90deg, var(--accent), transparent); }
+.sb-abilities { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; text-align: center; }
+.sb-ab { all: unset; cursor: pointer; display: grid; padding: 4px 0; border-radius: 6px; }
+.sb-ab:hover, .sb-ab:focus-visible { background: var(--bg-2); }
+.sb-ab span { font-size: .92rem; }
+@media (max-width: 480px) { .sb-abilities { grid-template-columns: repeat(3, 1fr); } }
+.spell-list { margin: 2px 0 6px; padding-left: 20px; }
+.sb-action { margin: .5em 0 !important; }
+.roll-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; vertical-align: middle; }
+.roll-chip { font: 600 .8rem var(--font-body); padding: 1px 8px; border-radius: 99px; border: 1px solid var(--gold); background: transparent; color: var(--ink); cursor: pointer; }
+.roll-chip:hover { background: var(--bg-2); }
+.lore-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 18px 12px; box-shadow: var(--shadow); }
+.lore-panel h3 { font-size: 1rem; color: var(--gold); margin-bottom: .2em; }
+.sb-source { margin-top: 12px !important; }

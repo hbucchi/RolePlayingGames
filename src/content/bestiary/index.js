@@ -15,6 +15,7 @@ import { monstrosities } from './monstrosities.js';
 import { fiends } from './fiends.js';
 import { giants } from './giants.js';
 import { elementals, celestials, constructs, fey, oozes, plants, aberrations } from './others.js';
+import { westlandsFoes } from './westlands.js';
 
 const RAW = [
   ...humanoids,
@@ -31,6 +32,7 @@ const RAW = [
   ...oozes,
   ...plants,
   ...aberrations,
+  ...westlandsFoes,
 ];
 
 export const BESTIARY = RAW.map(buildMonster).sort((a, b) => a.name.localeCompare(b.name));

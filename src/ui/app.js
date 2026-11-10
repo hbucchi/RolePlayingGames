@@ -15,6 +15,8 @@ import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter } from '../engine/storage.js';
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
+import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
+import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -22,8 +24,10 @@ const root = document.getElementById('app');
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const state = {
-  view: 'home', // home | wizard | sheet | dungeon
-  tab: 'heroes', // heroes | adventures
+  view: 'home', // home | wizard | sheet | dungeon | monster
+  tab: 'heroes', // heroes | adventures | bestiary
+  bestiary: defaultBestiaryFilters(),
+  monsterId: null,
   draft: null,
   step: 0,
   errors: [],
@@ -80,7 +84,12 @@ function focusKey(el) {
 
 function render() {
   const key = focusKey(document.activeElement);
-  const views = { wizard: wizardView, sheet: sheetView, dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>' };
+  const views = {
+    wizard: wizardView,
+    sheet: sheetView,
+    dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
+    monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
+  };
   renderInto((views[state.view] ?? homeView)());
   if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes() });
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
@@ -95,7 +104,7 @@ function renderInto(body) {
       </button>
       ${state.view === 'home' ? `
       <nav class="tabs" role="tablist">
-        ${tabButton('heroes', 'Heroes')}${tabButton('adventures', 'Adventures')}
+        ${tabButton('heroes', 'Heroes')}${tabButton('adventures', 'Adventures')}${tabButton('bestiary', 'Bestiary')}
       </nav>` : ''}
     </header>
     <main>${body}</main>
@@ -109,6 +118,7 @@ const tabButton = (id, label) => `<button role="tab" aria-selected="${state.tab 
 
 function homeView() {
   if (state.tab === 'adventures') return adventuresView();
+  if (state.tab === 'bestiary') return bestiaryView(state.bestiary);
   const heroes = roster.list();
   return `
     <section class="hero-banner">
@@ -584,6 +594,22 @@ const actions = {
     render();
   },
   tab(el) { state.tab = el.dataset.tab; render(); },
+  'view-monster'(el) {
+    if (!BESTIARY_BY_ID[el.dataset.id]) return;
+    state.listScroll = window.scrollY;
+    Object.assign(state, { view: 'monster', monsterId: el.dataset.id, diceLog: [] });
+    render();
+    window.scrollTo(0, 0);
+  },
+  'bestiary-back'() {
+    Object.assign(state, { view: 'home', tab: 'bestiary', diceLog: [] });
+    render();
+    window.scrollTo(0, state.listScroll ?? 0);
+  },
+  async 'copy-prompt'(el) {
+    try { await navigator.clipboard.writeText(el.dataset.prompt); el.textContent = 'Copied!'; } catch { el.textContent = 'Copy failed'; }
+    setTimeout(() => { el.textContent = 'Copy image prompt'; }, 1500);
+  },
   'enter-dungeon'() {
     Object.assign(state, { view: 'dungeon' });
     render();
@@ -741,6 +767,16 @@ root.addEventListener('change', (e) => {
   const el = e.target.closest('[data-action]');
   if (el?.matches('select, input')) actions[el.dataset.action]?.(el, e);
 });
+
+/** Bestiary filters re-render only the results list, so the search box keeps focus. */
+function updateBestiaryFilter(el) {
+  const key = el.dataset.filter;
+  state.bestiary[key] = el.type === 'checkbox' ? el.checked : el.value;
+  const box = root.querySelector('#bestiary-results');
+  if (box) box.innerHTML = bestiaryResults(state.bestiary);
+}
+root.addEventListener('input', (e) => { if (e.target.dataset?.filter) updateBestiaryFilter(e.target); });
+root.addEventListener('change', (e) => { if (e.target.dataset?.filter && e.target.type !== 'search') updateBestiaryFilter(e.target); });
 
 // Text fields update the draft without re-rendering, so typing keeps focus.
 root.addEventListener('input', (e) => {

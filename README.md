@@ -33,6 +33,13 @@ npm test       # rules-engine tests
 - **Grid movement:** speed ÷ 5 ft = squares per turn. Supports the standard and the 5-10-5 diagonal rules,
   no corner-cutting, and Dash.
 
+- **Bestiary:** 353 creatures. That is the complete 5e SRD monster list (318) plus 35 original foes of the
+  Westlands, such as the Shadowflame Tyrant, the Ember-Wyrm, stone and cave trolls, Hooded Riders, cairn-wights,
+  shadow-wolves and the Brood-Queen of the Dark Pass. Every creature has full stats, traits, actions,
+  spells, legendary actions where relevant, a personality, an origin, tactics, habitats, and an
+  image-ready **appearance** description. You can search and filter by type, challenge, source and
+  "fits the Westlands", click any attack to roll it, and copy an image prompt.
+
 ### Exporting a dungeon board
 
 ```bash
@@ -52,6 +59,7 @@ src/
     dungeon.js         room placement, MST + A* corridors, doors, connectivity checks
     dungeon-render.js  grid data -> layered SVG board (textures, walls, grid, doors, labels)
     movement.js        Dijkstra reachability, diagonal rules, paths
+    monsters.js        CR table (XP, proficiency), stat-block text, validation, filtering
     dice.js            unbiased RNG, dice notation ("4d6kh3", "1d20+5"), seeded RNG for tests
     abilities.js       scores, modifiers, standard array, point buy
     skills.js          the 18 skills
@@ -60,6 +68,7 @@ src/
   content/
     registry.js        list of installed settings
     westlands/         races, classes, backgrounds, premade heroes, adventure stubs
+    bestiary/          monster data by creature type (+ westlands.js originals), dsl.js helpers
   ui/                  rendering + events (vanilla JS, no framework); dungeon-view.js = explorer
 assets/textures/       AI-generated, seamless floor / rock / door textures
 assets/dungeons/       exported boards
@@ -85,3 +94,12 @@ To add a new world, create `src/content/<world>/` with the same shape as `westla
 | Armour Class | armour base + DEX mod (capped by armour type) + 2 with a shield; unarmoured = 10 + DEX |
 | Attack bonus | STR or DEX modifier + proficiency bonus |
 | Passive Perception | 10 + Perception bonus |
+
+## Licences and credits
+
+- Game mechanics of creatures marked "SRD 5.1" come from the *System Reference Document 5.1* by
+  Wizards of the Coast LLC, available at https://dnd.wizards.com/resources/systems-reference-document,
+  and licensed under the Creative Commons Attribution 4.0 International licence (CC-BY-4.0).
+  Descriptive text in this project (personalities, origins, tactics, appearances) is original.
+- *Tales of the Westlands* and its creatures are original works inspired by the themes of
+  J.R.R. Tolkien's Middle-earth; no text or named characters from his books are used.
