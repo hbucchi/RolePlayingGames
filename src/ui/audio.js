@@ -57,4 +57,5 @@ export const SOUND_KEYS = [
   'goblin-attack', 'goblin-hurt', 'goblin-death', 'boss-roar', 'boss-hurt',
   'spider-attack', 'spider-hurt', 'spider-death', 'bat-attack', 'bat-hurt', 'bat-death',
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
+  'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
 ];

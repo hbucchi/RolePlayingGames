@@ -34,6 +34,7 @@ export const classes = [
   },
   {
     id: 'ranger',
+    spellcasting: { ability: 'wis', type: 'half' },
     name: 'Ranger',
     tagline: 'Wilderness wanderer and hunter of the Shadow\'s creatures.',
     description: 'Rangers patrol the empty lands, reading tracks, guarding the borders of quiet countries whose people never know they are protected.',
@@ -73,6 +74,7 @@ export const classes = [
   },
   {
     id: 'loremaster',
+    spellcasting: { ability: 'int', type: 'full' },
     name: 'Loremaster',
     tagline: 'Keeper of old words, whose knowledge is a kind of power.',
     description: 'Loremasters study forgotten tongues and the deep history of the world. A few learn words of command that bend fire, light and will.',
@@ -92,6 +94,7 @@ export const classes = [
   },
   {
     id: 'minstrel',
+    spellcasting: { ability: 'cha', type: 'full' },
     name: 'Minstrel',
     tagline: 'Songs of the elder days that lift weary hearts.',
     description: 'Minstrels carry the memory of peoples in their songs. Their music heartens allies, unsettles foes and opens the doors of great halls.',
@@ -111,6 +114,7 @@ export const classes = [
   },
   {
     id: 'warden',
+    spellcasting: { ability: 'wis', type: 'half' },
     name: 'Warden',
     tagline: 'Healer and protector, steadfast as an old oak.',
     description: 'Wardens tend the wounded and guard the helpless. They know the herbs that drive back the cold of evil wounds, and they do not give ground.',

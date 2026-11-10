@@ -87,13 +87,14 @@ export function critNotation(notation) {
  * Resolve one attack roll and its damage.
  * @returns {{d20s:number[], d20:number, total:number, hit:boolean, crit:boolean, damage:number, damageRoll:object|null, mode:string, ac:number}}
  */
-export function resolveAttack({ weapon, ac, mode = 'normal', rng = cryptoRandomInt }) {
+export function resolveAttack({ weapon, ac, mode = 'normal', rng = cryptoRandomInt, autoCrit = false }) {
   const d20s = [rng(20) + 1];
   if (mode !== 'normal') d20s.push(rng(20) + 1);
   const d20 = mode === 'advantage' ? Math.max(...d20s) : mode === 'disadvantage' ? Math.min(...d20s) : d20s[0];
   const total = d20 + weapon.toHit;
-  const crit = d20 === 20;
+  let crit = d20 === 20;
   const hit = d20 !== 1 && (crit || total >= ac);
+  if (hit && autoCrit) crit = true; // e.g. a melee hit on a paralysed creature
   let damage = 0; let damageRoll = null; const extras = [];
   if (hit) {
     damageRoll = roll(crit ? critNotation(weapon.damage) : weapon.damage, rng);
@@ -134,6 +135,10 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   if (!lineOfSight(attacker.pos, target.pos, opaque).visible) return null;
   if (isBehind(attacker.pos, target)) adv.push('attacking from behind');
   if (target.aware === false) adv.push('target unaware');
+  const c = target.cond ?? {};
+  if (c.asleep || c.paralyzed || c.stun > 0) adv.push('target helpless');
+  else if (c.restrained) adv.push('target restrained');
+  if (attacker.cond?.mock) dis.push('shaken by mockery');
   const mode = rollMode(adv, dis);
   return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance: hitChance(weapon.toHit, ac, mode) };
 }
@@ -202,7 +207,7 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
   const sees = (pos) => lineOfSight(pos, hero.pos, opaque).visible;
 
   // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
-  if (m.cowardly && m.hp <= m.maxHp / 2) {
+  if ((m.cowardly && m.hp <= m.maxHp / 2) || m.cond?.flee > 0) {
     const reach = reachableSquares(map, m.pos, m.speed, { blocked });
     const far = [...reach.values()].sort((a, b) => chebyshev(b, hero.pos) - chebyshev(a, hero.pos) || a.cost - b.cost)[0];
     if (far && chebyshev(far, hero.pos) > dist) {

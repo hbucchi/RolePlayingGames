@@ -24,6 +24,11 @@ import { placeFeatures, populateDungeon, skillCheck, checkChance } from '../engi
 import { rollMonsterLoot, rollChestLoot } from '../engine/loot.js';
 import { makeItem as makeItemSafe, addItem, removeItem, countOf, consume, itemName, itemDef, equipItem, unequipSlot, isEquipped, findItem, formatCoins, itemRarity } from '../engine/items.js';
 import { xpProgress } from '../engine/progression.js';
+import { lineOfSight } from '../engine/vision.js';
+import {
+  freshResources, lowestSlot, spellDice, spellCount, addDice, sneakAttackDice, inspirationDie, monsterSave, concentrationDC,
+  skillXp, shortRest, longRest, wanderingCheck, arcaneRecovery, slotsFor,
+} from '../engine/magic.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { inventoryHtml, lootHtml, coinsHtml, itemIcon } from './inventory-view.js';
 
@@ -54,6 +59,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     selectedId: null, knowledge: {}, knownHp: new Set(), lunge: null, flash: new Set(), projectile: null, lastStudy: null,
     draft: null, def: null, features: null, target: null, invOpen: false, invSel: null, invFilter: 'all',
     ammoSpent: {}, delve: { xp: 0, coins: 0, items: 0, kills: 0 }, lastCheck: null, phialUsed: false,
+    res: null, buffs: {}, bonusUsed: false, attacksLeft: 0, sneakUsed: false, disengaged: false, sneak: null, pending: null, blast: null, longRested: false,
   };
 
   host.innerHTML = `
@@ -118,7 +124,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     s.def = s.draft ? api.derive(s.draft) : null;
   }
 
-  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot }));
+  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, finesse: (a.properties ?? []).includes('finesse') }));
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
@@ -146,6 +152,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     });
     if (d.maxHp > prevMax) s.hero.hp += d.maxHp - prevMax;
     s.hero.hp = Math.min(s.hero.hp, s.hero.maxHp);
+    if (s.res && s.res.level !== d.level) growResources();
+    refreshAC();
     s.weaponIdx = Math.min(s.weaponIdx, Math.max(0, s.hero.weapons.length - 1));
   }
 
@@ -177,6 +185,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     } : null;
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
     if (carry && s.hero) s.hero.hp = Math.min(s.hero.maxHp, carry.hp);
+    // Spell slots, ability uses and hit dice last for the whole delve and come back with rests.
+    s.res = carry?.res ?? (h ? { ...freshResources(magicHero()), level: h.level } : null);
+    s.buffs = carry?.buffs ?? {}; s.sneak = null; s.pending = null; s.longRested = false;
+    if (s.hero) { s.hero.tempHp = 0; refreshAC(); }
     // The dungeon's secrets are fixed by its number; its inhabitants are matched to the hero's level,
     // and every two floors deeper the danger rises as if the hero were a level higher.
     const level = Math.min(20, (h?.level ?? 1) + Math.floor(((s.depth ?? 1) - 1) / 2));
@@ -231,13 +243,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const pp = 10 + (s.hero.skills.perception ?? 0);
     const found = [];
     for (const t of s.features.traps) {
-      if (t.found || t.sprung || !s.visible.has(cellKey(t.x, t.y)) || chebyshev(t, s.hero.pos) > 3) continue;
-      if (pp >= t.dc) { t.found = true; found.push(`a ${t.name}`); }
+      if (t.found || t.sprung || !s.visible.has(cellKey(t.x, t.y)) || chebyshev(t, s.hero.pos) > 2) continue;
+      // Only the very watchful spot a trap without looking for it: passive Perception must beat its DC by 5.
+      if (pp >= t.dc + 5) { t.found = true; found.push(`a ${t.name}`); }
     }
     for (const k of [...s.features.secretDoors]) {
       const [x, y] = k.split(',').map(Number);
       if (chebyshev({ x, y }, s.hero.pos) > 2) continue;
-      if (pp >= secretDC()) { revealSecret(k); found.push('a secret door'); }
+      if (pp >= secretDC() + 5) { revealSecret(k); found.push('a secret door'); }
     }
     if (found.length) { log(`${s.hero.name}'s sharp eyes notice ${found.join(' and ')} (passive Perception ${pp}).`, 'good'); banner(`You notice ${found.join(' and ')}!`); }
   }
@@ -259,7 +272,20 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
     for (const m of alive()) {
-      if (!m.aware && s.visible.has(cellKey(m.pos.x, m.pos.y))) { m.aware = true; spotted.push(m); }
+      if (m.aware || !s.visible.has(cellKey(m.pos.x, m.pos.y)) || m.cond?.asleep) continue;
+      if (s.sneak) {
+        // Stealth vs passive Perception: if your roll beats it, the creature does not notice you.
+        if (m.unnoticed) continue;
+        const pp = BESTIARY_BY_ID[m.statId].passivePerception;
+        if (pp < s.sneak.total) {
+          m.unnoticed = true;
+          log(`The ${m.name.toLowerCase()} has not noticed you (its passive Perception ${pp} vs your Stealth ${s.sneak.total}).`, 'good');
+          if (!m.sneakXp) { m.sneakXp = true; awardXp(skillXp(pp, s.def.level), m.pos); }
+          continue;
+        }
+        log(`The ${m.name.toLowerCase()} notices you despite your care (passive Perception ${pp} vs Stealth ${s.sneak.total}).`, 'warn');
+      }
+      m.aware = true; spotted.push(m);
     }
     return spotted;
   }
@@ -270,8 +296,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   function startHeroTurn() {
     s.moveLeft = s.hero ? s.hero.speed : 0;
-    s.actionUsed = false; s.dash = false;
-    if (s.hero) s.hero.reaction = true;
+    s.actionUsed = false; s.dash = false; s.bonusUsed = false; s.attacksLeft = 0; s.sneakUsed = false; s.disengaged = false;
+    if (s.hero) {
+      s.hero.reaction = true;
+      if (s.buffs.shield) { delete s.buffs.shield; }
+      // Song of Heroes: temporary hit points equal to your spellcasting modifier each turn.
+      if (s.buffs.heroism) s.hero.tempHp = Math.max(s.hero.tempHp ?? 0, s.def?.caster?.mod ?? 1);
+      refreshAC();
+    }
   }
 
   function enterCombat(spotted) {
@@ -281,6 +313,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (isNew) {
       s.mode = 'combat'; s.round = 1;
       setMood('combat');
+      if (s.sneak) { s.sneak = null; }
       const heroInit = rollInitiative(s.hero.dexMod);
       s.order = [{ id: 'hero', init: heroInit.total, roll: heroInit.d20 }];
       log(`${names} spotted! Roll for initiative. ${s.hero.name}: d20 (${heroInit.d20}) ${signed(s.hero.dexMod)} = ${heroInit.total}.`, 'warn');
@@ -330,7 +363,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       if (slot.id === 'hero') break;
       const m = s.monsters.find((x) => x.id === slot.id);
       if (!m || m.dead || !m.aware) continue;
+      if (await conditionSkip(m)) continue;
       const acted = await monsterTurn(m);
+      if (m.cond?.flee > 0) m.cond.flee--;
+      if (m.cond?.restrained) { const sv = monsterRoll(m, 'str', m.cond.restrained); if (sv.ok) { delete m.cond.restrained; log(`${m.name} tears free of the thorns.`, 'info'); } }
       if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
       // A hunter that can neither reach nor see you for two rounds loses interest.
       if (!acted && !canSee(m)) { m.idle = (m.idle ?? 0) + 1; if (m.idle >= 2) { m.aware = false; m.idle = 0; log(`Somewhere in the dark, a ${m.name.toLowerCase()} gives up the hunt.`, 'info'); } } else m.idle = 0;
@@ -355,13 +391,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     for (const step of plan) {
       if (step.type === 'flee') { disengaged = !!m.nimble; if (canSee(m)) log(`${m.name} panics and flees!`, 'info'); }
       if (step.type === 'disengage') { disengaged = true; if (canSee(m)) log(`${m.name} slips away nimbly (Nimble Escape: Disengage).`, 'info'); }
+      if (step.type === 'move' && m.cond?.restrained) { if (canSee(m)) log(`${m.name} strains against the thorns but cannot move.`, 'info'); continue; }
       if (step.type === 'move') {
         for (const p of step.path.slice(1)) {
           const wasAdjacent = chebyshev(m.pos, s.hero.pos) <= 1;
           m.facing = facingToward(m.pos, p);
           m.pos = { x: p.x, y: p.y };
           openDoorAt(p);
-          if (wasAdjacent && chebyshev(m.pos, s.hero.pos) > 1 && !disengaged && !m.flyby && s.hero.reaction) await heroOpportunityAttack(m);
+          if (wasAdjacent && chebyshev(m.pos, s.hero.pos) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await heroOpportunityAttack(m);
           if (m.dead) return;
           updateVision(); redraw(); await sleep(STEP_MS);
         }
@@ -409,7 +446,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const costAt = (p) => s.reach.get(cellKey(p.x, p.y))?.cost ?? target.cost;
     for (const p of target.path.slice(1)) {
       const before = { ...s.hero.pos };
-      const threats = alive().filter((m) => m.aware && m.reaction && chebyshev(m.pos, before) <= 1);
+      const threats = s.disengaged ? [] : alive().filter((m) => m.aware && m.reaction && !helpless(m) && chebyshev(m.pos, before) <= 1);
       s.hero.facing = facingToward(before, p);
       s.hero.pos = { x: p.x, y: p.y };
       openDoorAt(p);
@@ -421,9 +458,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       let sprang = false;
       if (trap && trap.found && !trap.disarmed && !trap.sprung) {
         // Crossing a trap you know about: Acrobatics against its DC to step around the trigger.
-        const c = skillCheck(s.hero.skills.acrobatics ?? 0, trap.dc);
+        const c = heroCheck(s.hero.skills.acrobatics ?? 0, trap.dc);
         log(`${s.hero.name} edges past the ${trap.name}. ${checkText('Acrobatics', c)}. ${c.ok ? 'Safely across.' : 'A misstep!'}`, c.ok ? 'good' : 'bad');
-        if (!c.ok) sprang = true;
+        if (!c.ok) sprang = true; else awardXp(skillXp(trap.dc, s.def.level), p);
       }
       if (trap && (sprang || (!trap.found && !trap.disarmed && !trap.sprung))) {
         await springTrap(trap);
@@ -453,15 +490,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     t.found = true; t.sprung = true;
     play('trap', { volume: 0.9 });
     const dexSave = s.def.saves?.dex ?? s.hero.dexMod;
-    const save = skillCheck(dexSave, t.saveDc);
+    const save = heroCheck(dexSave, t.saveDc, { save: true });
     const dmg = roll(t.damage);
-    const taken = save.ok ? Math.floor(dmg.total / 2) : dmg.total;
-    s.hero.hp = Math.max(0, s.hero.hp - taken);
+    // Evasion (burglar 7): no damage on a successful DEX save, half on a failure.
+    const taken = s.def.evasion ? (save.ok ? 0 : Math.floor(dmg.total / 2)) : (save.ok ? Math.floor(dmg.total / 2) : dmg.total);
+    damageHero(taken);
     float(s.hero.pos, `−${taken}`, 'bad', !save.ok);
     flashHit(s.hero);
     if (taken) play(cry(s.hero, s.hero.hp > 0 ? 'hurt' : 'death'), { delay: 150 });
     banner(t.text);
-    log(`${t.text} ${s.hero.name} springs a ${t.name}! DEX save: d20 (${save.d20}) ${signed(dexSave)} = ${save.total} vs DC ${t.saveDc}. ${save.ok ? 'Half damage' : 'Full damage'}: ${taken} ${t.type} [${dmg.rolls.join(', ')}].`, 'bad');
+    log(`${t.text} ${s.hero.name} springs a ${t.name}! DEX save: d20 (${save.d20}) ${signed(dexSave)}${save.extra} = ${save.total} vs DC ${t.saveDc}. ${s.def.evasion ? (save.ok ? 'Evasion: no damage' : 'Evasion: half damage') : save.ok ? 'Half damage' : 'Full damage'}: ${taken} ${t.type} [${dmg.rolls.join(', ')}].`, 'bad');
     redraw(); await sleep(PAUSE_MS);
   }
 
@@ -504,8 +542,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     return 'No clear line of sight.';
   }
 
+  /** Can the hero make a weapon attack now? (Extra Attack lets one action hold several attacks.) */
+  const canAttack = () => s.mode !== 'combat' || !s.actionUsed || s.attacksLeft > 0;
+
   async function heroAttack(target, weaponIdx = null) {
-    if (s.actionUsed) { banner('You have already used your action this turn.'); return; }
+    if (!canAttack()) { banner('You have already used your action this turn.'); return; }
     let plan = heroAttackPlan(target);
     if (weaponIdx !== null) {
       const w = s.hero.weapons[weaponIdx];
@@ -516,10 +557,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!plan) { banner(whyNot(target)); return; }
     s.busy = true;
     s.hero.facing = facingToward(s.hero.pos, target.pos);
+    s.sneak = null;
     await doAttack(s.hero, target, plan.weapon);
-    target.aware = true;
-    s.actionUsed = s.mode === 'combat';
+    if (s.mode === 'combat') {
+      if (s.attacksLeft > 0) s.attacksLeft--; else { s.actionUsed = true; s.attacksLeft = (s.def.attacksPerAction ?? 1) - 1; }
+      if (s.attacksLeft > 0) banner(`Extra Attack: ${s.attacksLeft} more this action.`);
+    }
     s.busy = false;
+    provoke([target]);
     checkCombatOver();
     redraw();
   }
@@ -550,10 +595,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   };
 
   /** Animate an arrow flying from one square to another. */
-  async function shootProjectile(from, to) {
+  async function shootProjectile(from, to, color = null) {
     const frames = reduceMotion ? 1 : 9;
     for (let i = 1; i <= frames; i++) {
-      s.projectile = { from, to, t: i / frames };
+      s.projectile = { from, to, t: i / frames, color };
       drawOverlay();
       await sleep(reduceMotion ? 0 : 26);
     }
@@ -591,16 +636,29 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (attacker === s.hero || Math.random() < 0.6) play(cry(attacker, 'attack'), { volume: 0.75 });
     if (ranged) { play('bow-shot', { volume: 0.8 }); await shootProjectile(attacker.pos, target.pos); } else { await lunge(attacker, target); }
 
-    const r = resolveAttack({ weapon, ac: opts.ac, mode: opts.mode });
+    // Bless and inspiration add dice to the hero's attack roll.
+    const boost = attacker === s.hero ? rollBoosts({ attack: true }) : { total: 0, text: '' };
+    const w = boost.total ? { ...weapon, toHit: weapon.toHit + boost.total } : weapon;
+    const autoCrit = !!target.cond?.paralyzed && !ranged && chebyshev(attacker.pos, target.pos) <= 1;
+    const r = resolveAttack({ weapon: w, ac: opts.ac, mode: opts.mode, autoCrit });
+    if (attacker.cond?.mock) delete attacker.cond.mock;
     const who = attacker === s.hero ? s.hero.name : attacker.name;
     const whom = target === s.hero ? s.hero.name : target.name;
     const dice = r.d20s.length > 1 ? `d20 (${r.d20s.join(', ')} → ${r.d20})` : `d20 (${r.d20})`;
     const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2 AC' : null].filter(Boolean);
-    let line = `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}: ${dice} ${signed(weapon.toHit)} = ${r.total} vs AC ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
+    let line = `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
     if (r.hit) {
-      target.hp = Math.max(0, target.hp - r.damage);
-      line += ` ${r.crit ? 'CRITICAL HIT! ' : 'Hit! '}${r.damage} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}.`;
-      float(target.pos, `−${r.damage}`, target === s.hero ? 'bad' : 'good', r.crit);
+      let dmg = r.damage; const bits = [];
+      if (attacker === s.hero) {
+        const x = hitExtras(target, weapon, opts, ranged, r.crit);
+        dmg += x.total; bits.push(...x.text);
+      }
+      if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
+        dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
+      }
+      if (target === s.hero) damageHero(dmg); else damageMonster(target, dmg);
+      line += ` ${r.crit ? 'CRITICAL HIT! ' : 'Hit! '}${dmg} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
+      float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120, volume: 0.85 });
@@ -633,7 +691,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!onExit() || s.busy) return;
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
-    const carry = { hp: s.hero.hp, delve: s.delve };
+    const carry = { hp: s.hero.hp, delve: s.delve, res: s.res, buffs: s.buffs };
     carry.delve.deepest = Math.max(carry.delve.deepest ?? 1, s.depth + 1);
     play('door-open', { volume: 0.6 });
     const next = ((s.seed * 7919 + s.depth * 104729) % 99991) + 1;
@@ -892,7 +950,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       const { from, to, t } = s.projectile;
       const x0 = (from.x + 0.5) * sz; const y0 = (from.y + 0.5) * sz; const x1 = (to.x + 0.5) * sz; const y1 = (to.y + 0.5) * sz;
       const x = x0 + (x1 - x0) * t; const y = y0 + (y1 - y0) * t; const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
-      out += `<g transform="translate(${x} ${y}) rotate(${ang})" class="dg-arrow"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
+      if (s.projectile.color) out += `<circle cx="${x}" cy="${y}" r="12" class="dg-bolt" style="fill:${s.projectile.color}"/>`;
+      else out += `<g transform="translate(${x} ${y}) rotate(${ang})" class="dg-arrow"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
+    }
+    if (s.blast) {
+      const b = s.blast;
+      out += `<rect x="${(b.x - b.r) * sz}" y="${(b.y - b.r) * sz}" width="${(2 * b.r + 1) * sz}" height="${(2 * b.r + 1) * sz}" rx="${sz}" class="dg-blast" style="fill:${b.color};stroke:${b.color}"/>`;
+    }
+    if (s.pending) {
+      const item = findMagic(s.pending.id); const r = item?.range ?? 0;
+      out += `<rect x="${(s.hero.pos.x - r) * sz}" y="${(s.hero.pos.y - r) * sz}" width="${(2 * r + 1) * sz}" height="${(2 * r + 1) * sz}" class="dg-range"/>`;
     }
     // Floating numbers
     for (const f of s.floats) out += `<text x="${(f.x + 0.5) * sz}" y="${f.y * sz}" class="dg-float ${f.kind} ${f.big ? 'big' : ''}">${esc(f.text)}</text>`;
@@ -921,15 +988,17 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       <div class="hc-bar"><span class="${h.hp <= h.maxHp / 2 ? 'low' : ''}" style="width:${(h.hp / h.maxHp) * 100}%"></span></div>
       <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${s.moveLeft * ft} ft)` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
-      <div class="hc-row"><span class="pip ${!s.actionUsed ? 'on' : ''}">Action</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}</span></div>
+      <div class="hc-row"><span class="pip ${canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
       ${xpBar()}
       <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
       <div class="hc-actions">
         <button class="btn small" data-dg="inventory" title="Open your pack (I)">🎒 Pack</button>
         <button class="btn small" data-dg="bandage" ${countOf(s.draft?.inventory ?? [], 'bandage') && !s.busy ? '' : 'disabled'} title="Medicine check (DC 10): heal 1d6 + Medicine${s.mode === 'combat' ? '. Uses your action.' : ''}">🩹 Bandage <span class="muted">${countOf(s.draft?.inventory ?? [], 'bandage')}</span> <span class="muted">${signed(h.skills.medicine ?? 0)}</span></button>
-        <button class="btn small" data-dg="search" ${s.busy ? 'disabled' : ''} title="Investigation check against hidden traps and secret doors nearby${s.mode === 'combat' ? '. Uses your action.' : ''}">🔍 Search <span class="muted">${signed(h.skills.investigation ?? 0)}</span></button>
+        <button class="btn small" data-dg="search" ${s.busy ? 'disabled' : ''} title="Perception or Investigation (your better one) against hidden traps and secret doors nearby${s.mode === 'combat' ? '. Uses your action.' : ''}">🔍 Search <span class="muted">${signed(Math.max(h.skills.investigation ?? 0, h.skills.perception ?? 0))}</span></button>
       </div>
+      ${restPanel()}
       ${s.lastCheck ? `<p class="study-result ${s.lastCheck.ok ? 'ok' : ''}">${esc(s.lastCheck.text)}</p>` : ''}
+      ${magicPanel()}
       <h4>Weapons</h4>
       <div class="hc-weapons">${h.weapons.map((w, i) => `
         <button class="weapon ${i === s.weaponIdx ? 'sel' : ''}" data-dg="weapon" data-i="${i}" aria-pressed="${i === s.weaponIdx}">
@@ -969,7 +1038,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     }
     return true;
   }
-  const checkText = (label, c) => `${label}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(c.bonus)} = ${c.total} vs DC ${c.dc}`;
+  const checkText = (label, c) => `${label}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(c.bonus)}${c.extra ?? ''} = ${c.total} vs DC ${c.dc}`;
   const hasTools = () => (s.draft.inventory.find((x) => x.id === 'thieves-tools' && (x.charges ?? 1) > 0) ?? null);
 
   function heal(amount, source) {
@@ -987,13 +1056,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!spendAction('Bandaging')) return;
     const bonus = s.hero.skills.medicine ?? 0;
     const kit = !!findItem(s.draft.inventory, 'healers-kit');
-    const c = skillCheck(bonus, 10, { mode: kit ? 'advantage' : 'normal' });
+    const c = heroCheck(bonus, 10, { mode: kit ? 'advantage' : 'normal' });
     removeItem(s.draft.inventory, inst.uid, 1);
     play('bandage', { volume: 0.8 });
     if (c.ok) {
       const r = roll('1d6');
       const got = heal(r.total + Math.max(0, bonus), 'bandage');
       log(`${s.hero.name} binds their wounds. ${checkText('Medicine', c)}${kit ? ' (healer\'s kit: advantage)' : ''}. Success: heals 1d6 (${r.total}) + ${Math.max(0, bonus)} = ${got} HP.`, 'heal');
+      awardXp(skillXp(10, s.def.level), s.hero.pos);
     } else {
       log(`${s.hero.name} fumbles the bandage. ${checkText('Medicine', c)}. The bandage is wasted.`, 'info');
       float(s.hero.pos, 'fumbled', 'muted');
@@ -1023,20 +1093,25 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   /** Search: an Investigation check against every hidden trap and secret door nearby. */
   function search() {
     if (!spendAction('Searching')) return;
-    const bonus = s.hero.skills.investigation ?? 0;
-    const c = skillCheck(bonus, 0, { mode: s.def.keenSearch ? 'advantage' : 'normal' });
+    // Look with your eyes (Perception) or reason it out (Investigation): whichever you are better at.
+    const useInv = (s.hero.skills.investigation ?? 0) >= (s.hero.skills.perception ?? 0);
+    const skillName = useInv ? 'Investigation' : 'Perception';
+    const bonus = s.hero.skills[useInv ? 'investigation' : 'perception'] ?? 0;
+    const c = heroCheck(bonus, 0, { mode: s.def.keenSearch ? 'advantage' : 'normal' });
+    let xpFound = 0;
     play('dice', { volume: 0.6 });
     const found = []; let missed = 0;
     for (const t of s.features.traps) {
       if (t.found || t.sprung || chebyshev(t, s.hero.pos) > 6 || !s.visible.has(cellKey(t.x, t.y))) continue;
-      if (c.total >= t.dc) { t.found = true; found.push(`a ${t.name}`); } else missed++;
+      if (c.total >= t.dc) { t.found = true; found.push(`a ${t.name}`); xpFound += skillXp(t.dc, s.def.level); } else missed++;
     }
     for (const k of [...s.features.secretDoors]) {
       const [x, y] = k.split(',').map(Number);
       if (chebyshev({ x, y }, s.hero.pos) > 4) continue;
-      if (c.total >= secretDC()) { revealSecret(k); found.push('a secret door'); } else missed++;
+      if (c.total >= secretDC()) { revealSecret(k); found.push('a secret door'); xpFound += skillXp(secretDC(), s.def.level); } else missed++;
     }
-    const roll20 = `Investigation${s.def.keenSearch ? ' (Burglar\'s Eye: advantage)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)} = ${c.total}`;
+    if (xpFound) awardXp(xpFound, s.hero.pos);
+    const roll20 = `${skillName}${s.def.keenSearch ? ' (Burglar\'s Eye: advantage)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)}${c.extra} = ${c.total}`;
     log(`${s.hero.name} searches the area. ${roll20}. ${found.length ? `Found ${found.join(', ')}!` : 'Nothing found.'}`, found.length ? 'good' : 'info');
     s.lastCheck = { text: `${roll20}: ${found.length ? `found ${found.join(', ')}` : 'nothing found here'}`, ok: !!found.length };
     if (!found.length) banner(missed ? 'You find nothing... yet something feels off.' : 'You find nothing hidden here.');
@@ -1071,10 +1146,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!tools) { banner('You need thieves\' tools (with picks left) to pick a lock.'); return; }
     if (!spendAction('Picking a lock')) return;
     const bonus = s.def.toolBonus;
-    const c = skillCheck(bonus, lock.dc);
+    const c = heroCheck(bonus, lock.dc);
     play('lockpick', { volume: 0.8 });
     let extra = '';
-    if (c.ok) unlock(t);
+    if (c.ok) { unlock(t); awardXp(skillXp(lock.dc, s.def.level), s.hero.pos); }
     else if (c.margin <= -5) { tools.charges = (tools.charges ?? 10) - 1; extra = ` A pick snaps! (${tools.charges} left)`; }
     const text = `${checkText('Thieves\' tools (DEX)', c)}. ${c.ok ? `The lock of ${lockLabel(t)} clicks open.` : 'The lock resists.'}${extra}`;
     log(`${s.hero.name} picks the lock. ${text}`, c.ok ? 'good' : 'info');
@@ -1088,9 +1163,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!spendAction('Forcing a lock')) return;
     const bonus = s.hero.skills.athletics ?? 0;
     const bar = !!findItem(s.draft.inventory, 'crowbar');
-    const c = skillCheck(bonus, lock.dc + 2, { mode: bar ? 'advantage' : 'normal' });
+    const c = heroCheck(bonus, lock.dc + 2, { mode: bar ? 'advantage' : 'normal' });
     play(c.ok ? 'door-open' : 'swing-miss', { volume: 0.9 });
-    if (c.ok) unlock(t);
+    if (c.ok) { unlock(t); awardXp(skillXp(lock.dc + 2, s.def.level), s.hero.pos); }
     const text = `${checkText(`Athletics${bar ? ' (crowbar: advantage)' : ''}`, c)}. ${c.ok ? `${lockLabel(t)[0].toUpperCase()}${lockLabel(t).slice(1)} bursts open with a crash!` : 'It holds.'}`;
     log(`${s.hero.name} tries to force ${lockLabel(t)}. ${text}`, c.ok ? 'good' : 'info');
     s.lastCheck = { text, ok: c.ok };
@@ -1099,29 +1174,31 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   }
 
   /** Noise wakes foes within `radius` squares: they come looking for you. */
-  function makeNoise(radius) {
+  function makeNoise(radius, limit = Infinity) {
     // Only foes with a way to reach you come running (a walk of up to ~4 turns).
     const blocked = new Set([...terrainBlocked()]);
     const near = alive().filter((m) => !m.aware && chebyshev(m.pos, s.hero.pos) <= radius);
-    const woken = near.filter((m) => [...reachableSquares(s.map, m.pos, m.speed * 4, { blocked }).values()].some((c) => chebyshev(c, s.hero.pos) <= 1));
-    if (!woken.length) return;
+    const woken = near.filter((m) => [...reachableSquares(s.map, m.pos, m.speed * 4, { blocked }).values()].some((c) => chebyshev(c, s.hero.pos) <= 1))
+      .sort((a, b) => chebyshev(a.pos, s.hero.pos) - chebyshev(b.pos, s.hero.pos)).slice(0, limit);
+    if (!woken.length) return 0;
     woken.forEach((m) => { m.aware = true; });
     log('The noise echoes through the halls... something stirs.', 'warn');
     banner('Something heard that!');
     enterCombat(woken);
+    return woken.length;
   }
 
   function disarm(trap) {
     const tools = hasTools();
     if (!tools) { banner('You need thieves\' tools to disarm a trap.'); return; }
     if (!spendAction('Disarming a trap')) return;
-    const c = skillCheck(s.def.toolBonus, trap.dc);
+    const c = heroCheck(s.def.toolBonus, trap.dc);
     play('lockpick', { volume: 0.7 });
     if (c.ok) {
       trap.disarmed = true;
       log(`${s.hero.name} disarms the ${trap.name}. ${checkText('Thieves\' tools (DEX)', c)}.`, 'good');
       s.lastCheck = { text: `${checkText('Thieves\' tools', c)}: disarmed`, ok: true };
-      awardXp(10 * (s.def.level ?? 1), trap);
+      awardXp(skillXp(trap.dc, s.def.level) * 2, trap);
       s.target = null;
     } else if (c.margin <= -5) {
       log(`${s.hero.name} slips while disarming the ${trap.name}! ${checkText('Thieves\' tools (DEX)', c)}.`, 'bad');
@@ -1143,6 +1220,502 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     }
     s.target = { kind: 'chest', id: c.id };
     redraw();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Magic and class abilities
+  // ---------------------------------------------------------------------------
+
+  /** The numbers the rest/resource rules need about the hero. */
+  const magicHero = () => ({
+    level: s.def.level, casterType: s.def.magic?.type, abilities: s.def.magic?.abilities ?? [], cls: s.def.cls,
+    hitDie: s.def.hitDie, conMod: s.def.conMod,
+  });
+
+  /** After a level-up: new slots and uses appear (already spent ones stay spent), +1 hit die. */
+  function growResources() {
+    const fresh = freshResources(magicHero());
+    const r = s.res;
+    const gained = fresh.maxSlots.map((n, i) => n - (r.maxSlots[i] ?? 0));
+    r.slots = fresh.maxSlots.map((n, i) => Math.min(n, (r.slots[i] ?? 0) + Math.max(0, gained[i])));
+    r.maxSlots = fresh.maxSlots;
+    for (const [id, n] of Object.entries(fresh.uses)) if (r.uses[id] === undefined) r.uses[id] = n;
+    r.hitDice = Math.min(s.def.level, r.hitDice + 1);
+    if (s.def.cls === 'warden') r.pool += 5;
+    r.level = s.def.level;
+  }
+
+  function refreshAC() {
+    if (!s.hero || !s.def) return;
+    s.hero.ac = s.def.ac + (s.buffs.shield ? 5 : 0) + (s.buffs.faith ? 2 : 0);
+  }
+
+  const helpless = (m) => !!(m.cond?.asleep || m.cond?.paralyzed || m.cond?.stun > 0);
+
+  /** A monster's saving throw: d20 + its save bonus against a DC. */
+  function monsterRoll(m, ability, dc) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    const bonus = monsterSave(stat, ability);
+    const d20 = rollDie(20);
+    return { d20, bonus, total: d20 + bonus, dc, ok: d20 + bonus >= dc };
+  }
+
+  /** Conditions that cost a monster its turn. Returns true if it skips the turn. */
+  async function conditionSkip(m) {
+    const c = m.cond ??= {};
+    if (m.surprised) { m.surprised = false; if (canSee(m)) log(`${m.name} is caught by surprise and loses its turn.`, 'good'); return true; }
+    if (c.asleep) return true;
+    if (c.stun > 0) { c.stun--; if (canSee(m)) log(`${m.name} is stunned and cannot act.`, 'good'); return true; }
+    if (c.paralyzed) {
+      const sv = monsterRoll(m, 'wis', c.paralyzed);
+      if (sv.ok) { delete c.paralyzed; log(`${m.name} breaks free of the hold (WIS save ${sv.total} vs DC ${sv.dc}).`, 'warn'); } else log(`${m.name} stays held fast (WIS save ${sv.total} vs DC ${sv.dc}).`, 'good');
+      return true;
+    }
+    return false;
+  }
+
+  /** Attacking or harming a creature starts a fight. Creatures that had not noticed you are surprised. */
+  function provoke(targets) {
+    const hit = targets.filter((m) => m && !m.dead);
+    if (!hit.length) return;
+    if (s.mode === 'combat') {
+      const late = hit.filter((m) => !m.aware);
+      late.forEach((m) => { m.aware = true; m.unnoticed = false; });
+      if (late.length) enterCombat(late);
+      return;
+    }
+    const group = alive().filter((m) => hit.includes(m) || (s.visible.has(cellKey(m.pos.x, m.pos.y)) && !m.cond?.asleep));
+    for (const m of group) { if (!m.aware) m.surprised = true; m.aware = true; m.unnoticed = false; }
+    s.sneak = null;
+    enterCombat(group);
+  }
+
+  /** Bless (+1d4 to attacks and saves) and an inspiration die (spent on the next roll). */
+  function rollBoosts({ attack = false, save = false } = {}) {
+    let total = 0; let text = '';
+    if (s.buffs.bless && (attack || save)) { const r = rollDie(4); total += r; text += ` + bless ${r}`; }
+    if (s.buffs.inspiration) {
+      const sides = Number(s.buffs.inspiration.slice(1)); const r = rollDie(sides);
+      total += r; text += ` + inspiration ${r}`; delete s.buffs.inspiration;
+    }
+    return { total, text };
+  }
+
+  /** A skill check or save by the hero, with boosts applied. */
+  function heroCheck(bonus, dc, { mode = 'normal', save = false } = {}) {
+    const c = skillCheck(bonus, dc, { mode });
+    const b = rollBoosts({ save });
+    c.total += b.total; c.extra = b.text; c.ok = c.total >= dc; c.margin = c.total - dc;
+    return c;
+  }
+
+  /** Extra damage on a hero's weapon hit: Sneak Attack, Hunter's Mark, Warden's Wrath; Ensnaring Strike. */
+  function hitExtras(target, weapon, opts, ranged, crit) {
+    let total = 0; const text = [];
+    const rollX = (dice) => roll(crit ? dice.replace(/^(\d+)d/, (_, n) => `${n * 2}d`) : dice).total;
+    if (s.def.sneak && !s.sneakUsed && (weapon.finesse || ranged) && opts.mode === 'advantage') {
+      const d = rollX(sneakAttackDice(s.def.level)); total += d; s.sneakUsed = true; text.push(`Sneak Attack +${d}`);
+    }
+    if (s.buffs.mark === target.id) { const d = rollX('1d6'); total += d; text.push(`Hunter's Mark +${d}`); }
+    if (s.buffs.smite && !ranged) {
+      const d = rollX(s.buffs.smite.dice); total += d; text.push(`Warden's Wrath +${d} radiant`); delete s.buffs.smite;
+      play('spell-heal', { volume: 0.7 });
+    }
+    if (s.buffs.ensnare) {
+      delete s.buffs.ensnare;
+      const sv = monsterRoll(target, 'str', s.def.caster?.dc ?? 12);
+      if (!sv.ok) { (target.cond ??= {}).restrained = s.def.caster?.dc ?? 12; text.push('thorns restrain it'); } else text.push('it shrugs off the thorns');
+    }
+    return { total, text };
+  }
+
+  /** Damage to the hero: temporary hit points first; Ward against Death; concentration checks. */
+  function damageHero(n) {
+    let left = Math.max(0, n);
+    if (s.hero.tempHp) { const t = Math.min(s.hero.tempHp, left); s.hero.tempHp -= t; left -= t; }
+    s.hero.hp = Math.max(0, s.hero.hp - left);
+    if (s.hero.hp === 0 && s.buffs.deathward) { s.hero.hp = 1; delete s.buffs.deathward; log('The Ward against Death flares: you drop to 1 hit point instead!', 'heal'); }
+    if (left > 0 && s.res?.concentration && s.hero.hp > 0) {
+      const dc = concentrationDC(left);
+      const c = heroCheck(s.def.saves?.con ?? 0, dc, { save: true });
+      if (!c.ok) { log(`Concentration broken! ${checkText('CON save', c)}.`, 'bad'); endConcentration(); }
+    }
+    return left;
+  }
+
+  function damageMonster(m, n) {
+    m.hp = Math.max(0, m.hp - n);
+    if (m.cond?.asleep && n > 0) { m.cond.asleep = false; if (m.hp > 0) log(`${m.name} wakes with a start!`, 'warn'); }
+    return n;
+  }
+
+  function finishIfDead(m) {
+    if (m.hp > 0 || m.dead) return;
+    m.dead = true;
+    play(cry(m, 'death'), { delay: 150 });
+    if (s.selectedId === m.id) s.selectedId = null;
+    onKill(m);
+  }
+
+  /** End the spell you are concentrating on, removing what it was doing. */
+  function endConcentration() {
+    const id = s.res?.concentration;
+    if (!id) return;
+    for (const k of ['bless', 'faith', 'trace', 'heroism', 'mark']) delete s.buffs[k];
+    for (const m of s.monsters) if (m.cond?.paralyzed && m.cond.heldBy === 'hero') { delete m.cond.paralyzed; }
+    s.res.concentration = null;
+    refreshAC();
+  }
+
+  const timeLabel = { action: 'action', bonus: 'bonus action', reaction: 'reaction', free: 'free' };
+  /** Why a spell or ability cannot be used right now (or null if it can). */
+  function magicBlocked(item) {
+    if (s.busy) return 'Wait for the current action to finish.';
+    if (item.passive) return 'This works automatically.';
+    if (item.kind === 'spell' && item.level > 0 && lowestSlot(s.res, item.level) < 0) return `No spell slots of level ${item.level} or higher left. Rest to recover them.`;
+    if (item.kind === 'ability' && Number.isFinite(item.maxUses) && !(s.res.uses[item.id] > 0)) return `No uses left (${item.period === 'short' ? 'back after a short rest' : 'back after a long rest'}).`;
+    if (item.effect?.type === 'pool' && !(s.res.pool > 0)) return 'Your healing pool is empty.';
+    if (item.outOfCombat && s.mode === 'combat') return 'Not during a fight.';
+    if (item.effect?.type === 'recover' && !s.res.slots.some((n, i) => n < s.res.maxSlots[i])) return 'You have not spent any spell slots.';
+    if (['heal', 'pool'].includes(item.effect?.type) && s.hero.hp >= s.hero.maxHp) return 'You are not wounded.';
+    if (s.mode === 'combat') {
+      if (item.time === 'action' && s.actionUsed) return 'You have used your action this turn.';
+      if (item.time === 'bonus' && s.bonusUsed) return 'You have used your bonus action this turn.';
+      if (item.time === 'reaction' && !s.hero.reaction) return 'You have used your reaction this round.';
+    }
+    if (item.effect?.type === 'surge' && s.mode !== 'combat') return 'Only useful in a fight.';
+    if (['dash', 'disengage'].includes(item.effect?.type) && s.mode !== 'combat') return 'Only useful in a fight.';
+    return null;
+  }
+
+  function spendTime(time) {
+    if (s.mode !== 'combat') return;
+    if (time === 'action') { s.actionUsed = true; s.attacksLeft = 0; }
+    if (time === 'bonus') s.bonusUsed = true;
+    if (time === 'reaction') s.hero.reaction = false;
+  }
+
+  const findMagic = (id) => s.def.magic?.spells.find((x) => x.id === id) ?? s.def.magic?.abilities.find((x) => x.id === id);
+
+  /** Click on a spell or ability: check it, find its target, then resolve it. */
+  async function useMagic(id) {
+    const item = findMagic(id);
+    if (!item) return;
+    const why = magicBlocked(item);
+    if (why) { banner(why); return; }
+    let target = null;
+    if (item.target === 'enemy' || item.target === 'point') {
+      target = s.selectedId && alive().find((m) => m.id === s.selectedId && canSee(m));
+      if (!target) { banner(`Select a target first: click a foe, then cast ${item.name}.`); return; }
+      if (chebyshev(s.hero.pos, target.pos) > item.range) { banner(`${target.name} is out of range (${item.range * 5} ft).`); return; }
+      if (!lineOfSight(s.hero.pos, target.pos, opaque()).visible) { banner('You need a clear line of sight.'); return; }
+      if (item.effect.humanoidOnly && BESTIARY_BY_ID[target.statId].type !== 'humanoid') { banner(`${item.name} only works on humanoids.`); return; }
+    }
+    if ((item.target === 'cone' || item.target === 'around') && !areaTargets(item.effect.shape, item.effect.size, s.hero.pos).length) {
+      banner(item.target === 'cone' ? `No foe in the cone in front of you (${item.effect.size * 5} ft). Turn to face them (Q / E).` : 'No foe is close enough.');
+      return;
+    }
+    if (item.target === 'square') { s.pending = { id: item.id }; banner(`${item.name}: click a free square you can see, up to ${item.range * 5} ft away. Esc cancels.`); redraw(); return; }
+    await resolveMagic(item, target);
+  }
+
+  /** Pay for a spell/ability: slot or use, the action economy, concentration. Returns the slot level. */
+  function payFor(item) {
+    spendTime(item.time);
+    let slot = 0;
+    if (item.kind === 'spell' && item.level > 0) { slot = lowestSlot(s.res, item.level); s.res.slots[slot - 1]--; }
+    if (item.kind === 'ability' && Number.isFinite(item.maxUses)) s.res.uses[item.id]--;
+    if (item.concentration) { endConcentration(); s.res.concentration = item.id; }
+    return slot;
+  }
+
+  /** Every creature caught by an area. */
+  function areaTargets(shape, size, center) {
+    const f = FACINGS[s.hero.facing];
+    return alive().filter((m) => {
+      if (!canSee(m) && !s.visible.has(cellKey(m.pos.x, m.pos.y))) return false;
+      if (shape === 'radius') return chebyshev(m.pos, center) <= size;
+      if (shape === 'around') return chebyshev(m.pos, s.hero.pos) <= size;
+      if (shape === 'cone') {
+        const dx = m.pos.x - s.hero.pos.x; const dy = m.pos.y - s.hero.pos.y;
+        if (chebyshev(m.pos, s.hero.pos) > size || (!dx && !dy)) return false;
+        // Inside the cone if the angle to the creature is within ~45° of where you face: cos >= 0.7.
+        return (dx * f.dx + dy * f.dy) / (Math.hypot(dx, dy) * Math.hypot(f.dx, f.dy)) >= 0.7;
+      }
+      return false;
+    });
+  }
+
+  async function showBlast(center, radius, color) {
+    s.blast = { x: center.x, y: center.y, r: radius, color };
+    drawOverlay(); await sleep(reduceMotion ? 0 : 380);
+    s.blast = null; drawOverlay();
+  }
+
+  async function resolveMagic(item, target) {
+    const slot = payFor(item);
+    const e = item.effect;
+    const lvl = s.def.level; const mod = s.def.caster?.mod ?? 0;
+    const dc = s.def.caster?.dc ?? 8 + s.def.proficiencyBonus + Math.max(s.def.mods.int, s.def.mods.wis);
+    const label = `${item.name}${slot > item.level ? ` (${ordinal(slot)}-level slot)` : ''}`;
+    const affected = [];
+    s.busy = true;
+    play(item.sound ?? 'spell-arcane', { volume: 0.85 });
+    if (target) s.hero.facing = facingToward(s.hero.pos, target.pos);
+    switch (e.type) {
+      case 'heal': {
+        let amount; let how;
+        if (e.flat) { amount = e.flat + (item.upcast?.flat ?? 0) * Math.max(0, slot - item.level); how = `${amount}`; } else {
+          const dice = item.kind === 'spell' ? spellDice(item, slot, lvl) : e.dice;
+          const r = roll(dice); amount = r.total + (e.addMod ? mod : 0) + (e.addLevel ? lvl : 0);
+          how = `${dice} (${r.total})${e.addMod ? ` + ${mod}` : ''}${e.addLevel ? ` + ${lvl}` : ''}`;
+        }
+        const got = heal(amount);
+        log(`${s.hero.name} uses ${label}: heals ${how} = ${got} HP.`, 'heal');
+        break;
+      }
+      case 'pool': {
+        const got = heal(Math.min(s.res.pool, s.hero.maxHp - s.hero.hp));
+        s.res.pool -= got;
+        log(`${s.hero.name} lays on healing hands: +${got} HP (${s.res.pool} left in the pool).`, 'heal');
+        break;
+      }
+      case 'buff': {
+        s.buffs[e.buff] = e.buff === 'smite' ? { dice: spellDice(item, slot, lvl) } : true;
+        if (e.buff === 'heroism') s.hero.tempHp = Math.max(s.hero.tempHp ?? 0, mod);
+        refreshAC();
+        log(`${s.hero.name} casts ${label}. ${item.desc}`, 'good');
+        break;
+      }
+      case 'mark':
+        s.buffs.mark = target.id;
+        log(`${s.hero.name} marks the ${target.name.toLowerCase()} as quarry (Hunter's Mark: +1d6 on each weapon hit).`, 'good');
+        break;
+      case 'inspire': {
+        s.buffs.inspiration = inspirationDie(lvl);
+        log(`${s.hero.name} sings a few bars of an old song: inspiration die ${s.buffs.inspiration} for the next attack, check or save.`, 'good');
+        break;
+      }
+      case 'surge': s.actionUsed = false; s.attacksLeft = 0; log(`${s.hero.name} surges forward: one more action this turn!`, 'good'); break;
+      case 'dash': s.moveLeft += s.hero.speed; s.dash = true; log(`${s.hero.name} darts ahead (Cunning Action: Dash).`, 'info'); break;
+      case 'disengage': s.disengaged = true; log(`${s.hero.name} slips out of reach (Cunning Action: Disengage). No opportunity attacks this turn.`, 'info'); break;
+      case 'recover': {
+        const got = arcaneRecovery(s.res, lvl);
+        log(`${s.hero.name} studies their notes and recovers spell slots: ${got.map(ordinal).join(', ') || 'none'}.`, 'good');
+        break;
+      }
+      case 'reveal': {
+        const found = [];
+        for (const t of s.features.traps) if (!t.found && !t.sprung && chebyshev(t, s.hero.pos) <= e.radius) { t.found = true; found.push(t.name); }
+        for (const k of [...s.features.secretDoors]) { const [x, y] = k.split(',').map(Number); if (chebyshev({ x, y }, s.hero.pos) <= e.radius) { revealSecret(k); found.push('secret door'); } }
+        await showBlast(s.hero.pos, e.radius, item.color);
+        log(`${label}: sunlight floods the halls. ${found.length ? `Revealed: ${found.join(', ')}.` : 'Nothing hidden nearby.'}`, 'good');
+        break;
+      }
+      case 'attack': {
+        const rays = spellCount(item, slot, 'rays');
+        const dice = spellDice(item, slot, lvl);
+        for (let i = 0; i < rays && !target.dead; i++) {
+          const pseudo = { name: item.name, toHit: s.def.caster.attack, damage: dice, type: e.damageType, ranged: true, melee: false, normal: item.range, long: item.range };
+          const opts = attackOptions({ attacker: s.hero, target, weapon: pseudo, opaque: opaque(), occupied: occupied(), enemiesOf });
+          if (!opts) break;
+          await shootProjectile(s.hero.pos, target.pos, item.color);
+          const boost = rollBoosts({ attack: true });
+          const r = resolveAttack({ weapon: { ...pseudo, toHit: pseudo.toHit + boost.total }, ac: opts.ac, mode: opts.mode });
+          const head = `${s.hero.name} casts ${label}${rays > 1 ? ` (ray ${i + 1})` : ''} at the ${target.name.toLowerCase()}: spell attack d20 (${r.d20s.join(', ')}) ${signed(pseudo.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}.`;
+          if (r.hit) {
+            damageMonster(target, r.damage); flashHit(target); float(target.pos, `−${r.damage}`, 'good', r.crit);
+            log(`${head} ${r.crit ? 'CRITICAL! ' : 'Hit! '}${r.damage} ${e.damageType} damage.`, 'good');
+            if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120 });
+          } else { float(target.pos, 'miss', 'muted'); log(`${head} Miss.`, 'info'); }
+          finishIfDead(target);
+          await sleep(PAUSE_MS / 2);
+        }
+        affected.push(target);
+        break;
+      }
+      case 'darts': {
+        const n = spellCount(item, slot, 'count');
+        let total = 0; const rolls = [];
+        for (let i = 0; i < n; i++) {
+          if (target.dead) break;
+          await shootProjectile(s.hero.pos, target.pos, item.color);
+          const r = roll(e.dice); total += r.total; rolls.push(r.total);
+          damageMonster(target, r.total); flashHit(target); float(target.pos, `−${r.total}`, 'good');
+          finishIfDead(target);
+        }
+        log(`${s.hero.name} casts ${label}: ${rolls.length} darts strike the ${target.name.toLowerCase()} for ${rolls.join(' + ')} = ${total} force damage.`, 'good');
+        affected.push(target);
+        break;
+      }
+      case 'sleep': {
+        const pool = roll(addDice(e.pool, item.upcast?.pool, slot - item.level));
+        let left = pool.total; const slept = [];
+        const near = alive().filter((m) => chebyshev(m.pos, target.pos) <= e.radius && BESTIARY_BY_ID[m.statId].type !== 'undead' && !m.cond?.asleep).sort((a, b) => a.hp - b.hp);
+        for (const m of near) { if (m.hp > left) break; left -= m.hp; (m.cond ??= {}).asleep = true; slept.push(m.name); }
+        await showBlast(target.pos, e.radius, item.color);
+        log(`${s.hero.name} casts ${label}: ${e.pool} = ${pool.total} hit points of slumber. ${slept.length ? `Asleep: ${slept.join(', ')}.` : 'Nobody falls asleep: they are too hale.'}`, slept.length ? 'good' : 'info');
+        // Sleeping creatures do not raise the alarm; the others nearby do.
+        affected.push(...near.filter((m) => !m.cond?.asleep));
+        break;
+      }
+      case 'save': {
+        const center = item.target === 'point' ? target.pos : s.hero.pos;
+        const targets = e.shape ? areaTargets(e.shape, e.size, center) : [target];
+        const dice = item.kind === 'spell' ? spellDice(item, slot, lvl) : null;
+        const dmgRoll = dice ? roll(dice) : null;
+        if (e.shape) await showBlast(center, e.shape === 'radius' ? e.size : e.size, item.color);
+        else if (target) await shootProjectile(s.hero.pos, target.pos, item.color);
+        const lines = [];
+        for (const m of targets) {
+          const sv = monsterRoll(m, e.save, dc);
+          let dmg = 0;
+          if (dmgRoll) dmg = sv.ok ? (e.half ? Math.floor(dmgRoll.total / 2) : 0) : dmgRoll.total;
+          if (dmg) { damageMonster(m, dmg); flashHit(m); float(m.pos, `−${dmg}`, 'good'); }
+          if (!sv.ok) applyRider(e.onFail, m, dc);
+          lines.push(`${m.name}: ${e.save.toUpperCase()} save ${sv.total} vs DC ${dc} ${sv.ok ? 'saves' : 'fails'}${dmgRoll ? `, ${dmg} ${e.damageType}` : ''}${!sv.ok && e.onFail ? ` (${riderText[e.onFail]})` : ''}`);
+          finishIfDead(m);
+          affected.push(m);
+        }
+        // A fireball in a corridor hurts its caster too.
+        if (item.target === 'point' && e.shape === 'radius' && chebyshev(s.hero.pos, center) <= e.size && dmgRoll) {
+          const c = heroCheck(s.def.saves?.[e.save] ?? 0, dc, { save: true });
+          const evade = s.def.evasion && e.save === 'dex';
+          const dmg = evade ? (c.ok ? 0 : Math.floor(dmgRoll.total / 2)) : (c.ok ? Math.floor(dmgRoll.total / 2) : dmgRoll.total);
+          damageHero(dmg); float(s.hero.pos, `−${dmg}`, 'bad');
+          lines.push(`${s.hero.name} is caught in the blast! ${checkText(`${e.save.toUpperCase()} save`, c)}: ${dmg} damage`);
+        }
+        log(`${s.hero.name} uses ${label}${dmgRoll ? ` (${dice} = ${dmgRoll.total})` : ''}. ${lines.join('; ') || 'It catches no one'}.`, 'good');
+        break;
+      }
+      default:
+    }
+    s.busy = false;
+    if (s.hero.hp <= 0) { showEnd('defeat'); return; }
+    if (affected.length) provoke(affected);
+    checkCombatOver();
+    redraw();
+  }
+
+  const riderText = { mock: 'disadvantage on its next attack', flee: 'flees in terror', push: 'pushed back', stun: 'stunned', paralyze: 'paralysed', restrain: 'restrained' };
+  function applyRider(kind, m, dc) {
+    const c = m.cond ??= {};
+    if (kind === 'mock') c.mock = true;
+    if (kind === 'flee') c.flee = 2;
+    if (kind === 'stun') c.stun = 1;
+    if (kind === 'paralyze') { c.paralyzed = dc; c.heldBy = 'hero'; }
+    if (kind === 'restrain') c.restrained = dc;
+    if (kind === 'push') {
+      // Shove it up to 2 squares straight away from you, stopping at walls and other creatures.
+      const dx = Math.sign(m.pos.x - s.hero.pos.x); const dy = Math.sign(m.pos.y - s.hero.pos.y);
+      const blocked = new Set([...occupied(m), ...terrainBlocked()]);
+      for (let i = 0; i < 2; i++) {
+        const n = { x: m.pos.x + dx, y: m.pos.y + dy };
+        if (s.map.tiles[n.y]?.[n.x] === undefined || s.map.tiles[n.y][n.x] === TILE.ROCK || blocked.has(cellKey(n.x, n.y))) break;
+        if (s.map.tiles[n.y][n.x] === TILE.DOOR && !s.doors.get(cellKey(n.x, n.y))) break;
+        m.pos = n;
+      }
+    }
+  }
+  const ordinal = (n) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
+
+  /** Misty Step: finish the teleport on the clicked square. */
+  function finishTeleport(c) {
+    const item = findMagic(s.pending.id);
+    const k = cellKey(c.x, c.y);
+    const ok = s.visible.has(k) && s.map.tiles[c.y][c.x] !== TILE.ROCK && !occupied().has(k) && !terrainBlocked().has(k) && chebyshev(c, s.hero.pos) <= item.range
+      && !(s.map.tiles[c.y][c.x] === TILE.DOOR && !s.doors.get(k));
+    if (!ok) { banner('Choose a free square you can see, within range.'); return; }
+    s.pending = null;
+    payFor(item);
+    play(item.sound, { volume: 0.8 });
+    const from = { ...s.hero.pos };
+    s.hero.pos = { x: c.x, y: c.y };
+    s.hero.facing = facingToward(from, c) >= 0 ? facingToward(from, c) : s.hero.facing;
+    float(from, '✦', 'muted'); float(c, '✦', 'good');
+    log(`${s.hero.name} steps into silver mist and reappears ${chebyshev(from, c) * 5} ft away.`, 'good');
+    const spotted = updateVision();
+    if (spotted.length) enterCombat(spotted);
+    redraw();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rests and stealth
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Short rest: spend Hit Dice to heal and recover short-rest abilities. Long rest: everything
+   * back, once per floor. Either can be interrupted by wandering monsters.
+   */
+  function rest(kind) {
+    if (s.mode === 'combat' || s.busy) { banner('You cannot rest with enemies nearby.'); return; }
+    if (kind === 'long' && s.longRested) { banner('You have already taken a long rest on this floor. Go deeper first.'); return; }
+    const w = wanderingCheck(kind);
+    const what = kind === 'long' ? 'a long rest' : 'a short rest';
+    if (w.interrupted) {
+      log(`${s.hero.name} settles down for ${what}... Wandering monster check: d6 = ${w.d6}. Something is coming!`, 'warn');
+      if (!makeNoise(99, 2)) log('...whatever it was passes by, but the rest is spoiled.', 'info');
+      if (kind === 'long') s.longRested = true;
+      redraw(); return;
+    }
+    if (kind === 'short') {
+      const before = s.res.hitDice;
+      const r = shortRest(s.res, magicHero(), s.hero.hp, s.hero.maxHp);
+      s.hero.hp += r.healed;
+      log(`${s.hero.name} takes a short rest (wandering check d6 = ${w.d6}, all quiet). ${r.rolls.length ? `Spends ${before - s.res.hitDice} Hit Dice: d${s.def.hitDie} rolls ${r.rolls.join(', ')} + CON each = +${r.healed} HP.` : 'No Hit Dice spent.'} Short-rest abilities recovered.`, 'heal');
+    } else {
+      longRest(s.res, magicHero());
+      s.hero.hp = s.hero.maxHp; s.hero.tempHp = 0;
+      endConcentration(); s.buffs = {}; refreshAC();
+      s.longRested = true;
+      log(`${s.hero.name} sleeps through a long rest (wandering check d6 = ${w.d6}, all quiet). Hit points, spell slots and abilities are restored.`, 'heal');
+    }
+    play('spell-heal', { volume: 0.6 });
+    redraw();
+  }
+
+  /** Sneak: one Stealth check; creatures whose passive Perception is lower do not notice you. */
+  function sneak() {
+    if (s.mode === 'combat') { banner('Too late to hide: they have seen you.'); return; }
+    if (s.sneak) { s.sneak = null; log(`${s.hero.name} stops sneaking.`, 'info'); redraw(); return; }
+    const bonus = (s.hero.skills.stealth ?? 0) + (s.buffs.trace ? 10 : 0);
+    const c = heroCheck(bonus, 0, { mode: s.def.stealthDis ? 'disadvantage' : 'normal' });
+    s.sneak = { total: c.total };
+    for (const m of s.monsters) m.unnoticed = false;
+    log(`${s.hero.name} moves into the shadows. Stealth${s.def.stealthDis ? ' (noisy armour: disadvantage)' : ''}${s.buffs.trace ? ' (Pass without Trace +10)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)}${c.extra} = ${c.total}.`, 'info');
+    redraw();
+  }
+
+  function magicPanel() {
+    const d = s.def; const m = d?.magic;
+    if (!m || (!m.spells.length && !m.abilities.length)) return '';
+    const r = s.res;
+    const usable = [...m.abilities.filter((a) => !a.passive), ...m.spells].sort((a, b) => (a.kind === b.kind ? (a.level ?? 0) - (b.level ?? 0) : a.kind === 'ability' ? -1 : 1));
+    const btn = (it) => {
+      const why = magicBlocked(it);
+      const cost = it.kind === 'spell' ? (it.level === 0 ? 'cantrip' : `${ordinal(it.level)}`) : Number.isFinite(it.maxUses) ? `${r.uses[it.id] ?? 0}/${it.maxUses}` : it.effect?.type === 'pool' ? `${r.pool} HP` : '';
+      return `<button class="spell-btn ${it.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${it.id}" title="${esc(`${it.desc}${it.range ? ` Range ${it.range * 5} ft.` : ''} ${why ? `(${why})` : ''}`)}">
+        <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${timeLabel[it.time] ?? 'action'}${it.concentration ? ' · C' : ''}</span></button>`;
+    };
+    const slots = r.maxSlots.length ? `<div class="slots">${r.maxSlots.map((n, i) => `<span class="slot-lvl" title="${ordinal(i + 1)}-level spell slots">${ordinal(i + 1)} ${'●'.repeat(r.slots[i])}${'○'.repeat(n - r.slots[i])}</span>`).join('')}</div>` : '';
+    const buffs = [s.res.concentration && `Concentrating: ${findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 AC', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
+      s.buffs.inspiration && `Inspiration ${s.buffs.inspiration}`, s.buffs.deathward && 'Ward against Death', s.hero.tempHp && `${s.hero.tempHp} temp HP`].filter(Boolean);
+    return `<h4>Spells &amp; abilities</h4>
+      ${d.caster ? `<p class="small muted">Spell save DC <b>${d.caster.dc}</b> · spell attack <b>${signed(d.caster.attack)}</b> (${d.caster.ability.toUpperCase()})</p>` : ''}
+      ${slots}
+      ${buffs.length ? `<p class="small buffs">${buffs.map(esc).join(' · ')}${s.res.concentration ? ' <button class="linkish" data-dg="end-conc">end</button>' : ''}</p>` : ''}
+      <div class="spell-list">${usable.map(btn).join('')}</div>
+      ${m.abilities.some((a) => a.passive) ? `<p class="small muted">Always on: ${m.abilities.filter((a) => a.passive).map((a) => `<span title="${esc(a.desc)}">${esc(a.name)}</span>`).join(', ')}</p>` : ''}`;
+  }
+
+  function restPanel() {
+    if (!s.res) return '';
+    const combat = s.mode === 'combat';
+    return `<div class="hc-actions rest-row">
+      <button class="btn small" data-dg="sneak" ${combat ? 'disabled' : ''} title="Stealth check: foes whose passive Perception is lower will not notice you">${s.sneak ? `👣 Sneaking (${s.sneak.total})` : '👣 Sneak'}</button>
+      <button class="btn small" data-dg="rest-short" ${combat ? 'disabled' : ''} title="Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.">☾ Short rest <span class="muted">${s.res.hitDice} HD</span></button>
+      <button class="btn small" data-dg="rest-long" ${combat || s.longRested ? 'disabled' : ''} title="Full recovery, once per floor. 1 in 3 chance of wandering monsters.">☀ Long rest</button>
+    </div>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -1178,6 +1751,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (ok) {
       if (studyId === 'hp') s.knownHp.add(m.id);
       else (s.knowledge[m.statId] ??= new Set()).add(studyId);
+      awardXp(skillXp(dc, s.def.level), m.pos);
     }
     if (s.mode === 'combat') s.actionUsed = true;
     s.lastStudy = { id: m.id, studyId, ok, text: `${SKILL_LABEL[st.skill]}: d20 (${d20}) ${signed(bonus)} = ${total} vs DC ${dc}. ${ok ? 'Success!' : 'Not this time.'}` };
@@ -1213,7 +1787,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const health = s.knownHp.has(m.id) ? `${m.hp} / ${m.maxHp} HP` : woundState(m.hp, m.maxHp);
     const weapons = s.hero.weapons.map((w, i) => {
       const o = attackOptions({ attacker: s.hero, target: m, weapon: w, opaque: opaque(), occupied: occupied(), enemiesOf });
-      const blocked = !o || s.actionUsed || s.busy || !combat;
+      const blocked = !o || !canAttack() || s.busy || !combat;
       return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o ? `${pct(o.chance)} to hit${o.mode !== 'normal' ? ` (${o.mode})` : ''}` : esc(whyNot(m))}">
         ${esc(w.name)}${o ? ` · ${pct(o.chance)}` : ''}</button>`;
     }).join('');
@@ -1236,7 +1810,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       </div>
       <h4>Attack</h4>
       <div class="row wrap">${weapons}</div>
-      ${!combat ? '<p class="small muted">Attacks are made on your turn in combat.</p>' : s.actionUsed ? '<p class="small muted">You have used your action this turn.</p>' : '<p class="small muted">Tip: click the selected foe again to attack with your best weapon.</p>'}
+      ${(() => {
+    const targeted = [...(s.def.magic?.abilities ?? []), ...(s.def.magic?.spells ?? [])].filter((x) => !x.passive && (x.target === 'enemy' || x.target === 'point'));
+    if (!targeted.length) return '';
+    return `<h4>Cast at it</h4><div class="spell-list">${targeted.map((x) => {
+      const why = magicBlocked(x) ?? (d > x.range ? `Out of range (${x.range * 5} ft)` : null);
+      return `<button class="spell-btn ${x.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${x.id}" title="${esc(`${x.desc} ${why ? `(${why})` : ''}`)}"><b>${esc(x.name)}</b><span class="muted">${x.kind === 'spell' ? (x.level ? ordinal(x.level) : 'cantrip') : `${s.res.uses[x.id] ?? ''}`} · ${x.range * 5} ft</span></button>`;
+    }).join('')}</div>`;
+  })()}
+      ${!combat ? `<p class="small muted">${m.aware ? 'Attacks are made on your turn in combat.' : 'It has not noticed you: attacking now gets advantage and catches it by surprise.'}</p>` : !canAttack() ? '<p class="small muted">You have used your action this turn.</p>' : '<p class="small muted">Tip: click the selected foe again to attack with your best weapon.</p>'}
       <h4>Study it <span class="muted small">DC ${studyDC(stat)}${combat ? ' · uses your action' : ''}</span></h4>
       <div class="studies">${studies}</div>
       ${last}
@@ -1442,6 +2024,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   function handleClick(c) {
     if (!c || !s.hero || s.busy || s.mode === 'defeat' || s.mode === 'victory') return;
+    if (s.pending) { finishTeleport(c); return; }
     const foe = alive().find((m) => m.pos.x === c.x && m.pos.y === c.y && canSee(m));
     if (foe) {
       // First click selects (and shows the portrait); clicking the selected foe again attacks.
@@ -1538,6 +2121,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         break;
       }
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
+      case 'cast': useMagic(el.dataset.id); break;
+      case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }
+      case 'sneak': sneak(); break;
+      case 'rest-short': rest('short'); break;
+      case 'rest-long': rest('long'); break;
       case 'bandage': bandage(); break;
       case 'search': search(); break;
       case 'pick-target': if (el.dataset.kind === 'stairs') { descend(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
@@ -1578,6 +2166,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
     else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === 'Escape' && s.pending) { s.pending = null; banner('Cancelled.'); redraw(); }
     else if (e.key === 'Escape' && s.invOpen) { s.invOpen = false; redraw(); }
     else if (e.key === 'Escape' && (s.selectedId || s.target)) { s.selectedId = null; s.target = null; redraw(); }
   };

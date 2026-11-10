@@ -12,6 +12,7 @@ import { SKILLS, SKILLS_BY_ID } from './skills.js';
 import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
 import { addItem, makeItem, carriedWeight, carryCapacity } from './items.js';
+import { magicFor, casterInfo, attacksPerAction } from './magic.js';
 
 export const DRAFT_VERSION = 1;
 
@@ -255,6 +256,8 @@ export function deriveCharacter(draft, setting) {
   const capacity = carryCapacity(scores.str);
   if (load > capacity) g.notes.push(`Over-burdened (${load} / ${capacity} lb): speed −10 ft.`);
   const attacks = g.attacks;
+  // Ranger Archery style (level 2): +2 to hit with ranged weapons.
+  if (cls?.id === 'ranger' && level >= 2) for (const at of attacks) if (at.slot === 'ranged') { at.toHit += 2; at.archery = true; }
   const maxHp = baseHp + g.hpBonus;
   const equipment = gear.inventory.map((x) => ({ uid: x.uid, name: itemName(x), qty: x.qty ?? 1, equipped: Object.values(gear.equipped ?? {}).includes(x.uid) }));
 
@@ -286,6 +289,9 @@ export function deriveCharacter(draft, setting) {
     mode: draft.mode ?? 'standard',
     coins: gear.coins ?? draft.coins ?? 0,
     gearNotes: g.notes,
+    magic: magicFor(cls, level, mods),
+    caster: casterInfo(cls, mods, pb),
+    attacksPerAction: attacksPerAction(cls?.id, level),
     passivePerception: 10 + perception.bonus,
     attacks,
     equipment,

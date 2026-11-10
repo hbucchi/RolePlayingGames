@@ -48,6 +48,22 @@ npm test       # rules-engine tests
 - **Dungeon skills:** pick locks (thieves' tools, DEX) or force them (Athletics, loud), search for traps and
   secret doors (Investigation, plus passive Perception as you walk), disarm traps, bind wounds with
   bandages (Medicine), drink potions. Chests, locked doors, traps and secret doors are seeded per dungeon.
+- **Spells and abilities:** 34 spells (cantrips to 9th level) and 17 class abilities. Loremasters and
+  minstrels are full casters, rangers and wardens half casters from level 2, and warriors and burglars have
+  trained abilities: Second Wind, Action Surge, Extra Attack, Sneak Attack, Cunning Action, Uncanny Dodge and
+  Evasion. Spell slots follow the 5e tables and come back on a long rest; abilities recharge on a short or
+  long rest. Spells can be cast in or out of combat, using an action, bonus action or reaction (the panel
+  shows Action / Bonus / Reaction). Upcasting is automatic: the lowest free slot is used. Effects include
+  attacks, saving throws with areas (radius, cone, around you), sleep, hold, fear, push, buffs,
+  concentration, temporary HP, healing and teleport.
+- **Rests:** a short rest spends Hit Dice to heal; a long rest (once per floor) restores everything.
+  Each has a wandering-monster check (1 in 6 / 1 in 3).
+- **Stealth:** Sneak rolls Stealth once; foes with a lower passive Perception do not notice you, and
+  attacking them catches them by surprise (they lose their first turn).
+- **Skill XP (house rule):** successful checks (bandaging, lockpicking, forcing, searching, disarming,
+  studying a foe, slipping past a foe, crossing a trap) give a little XP: about DC ÷ 2 × level.
+- **Hidden traps:** traps stay hidden unless you Search; only very watchful heroes (passive Perception ≥
+  trap DC + 5) spot them by chance.
 - **Stairs down:** every dungeon has a way deeper, in the room farthest from the entrance (by walking
   distance). Take it to reach the next depth, a new dungeon, keeping your wounds and loot. Every two
   floors the foes get tougher.
@@ -126,6 +142,9 @@ To add a new world, create `src/content/<world>/` with the same shape as `westla
 | Skill check | d20 + bonus ≥ DC; P(success) = (21 − DC + bonus) / 20 |
 | Encounter difficulty | sum of monster XP × crowd multiplier (1: ×1, 2: ×1.5, 3-6: ×2) vs the level's thresholds |
 | Loot | each drop is an independent chance p; expected drops = Σp; P(≥1 magic in k kills) = 1 − (1 − p)^k |
+| Spell save DC / attack | 8 + proficiency + casting modifier / proficiency + casting modifier |
+| Spell slots | full casters by the 5e table; half casters use the table at ⌈level ÷ 2⌉ from level 2 |
+| Concentration | when hurt, CON save DC max(10, damage ÷ 2) or the spell ends |
 | Carrying capacity | STR score × 15 lb (50 coins = 1 lb) |
 
 ## Licences and credits

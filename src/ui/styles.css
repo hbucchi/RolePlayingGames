@@ -549,3 +549,22 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .music-vol { width: 80px; accent-color: var(--accent); }
 @media (max-width: 520px) { .music-vol { width: 56px; } }
 .sound-toggle[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
+
+/* ---- Spells & abilities ------------------------------------------------- */
+.spell-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin: 6px 0; }
+.spell-btn { display: grid; gap: 1px; text-align: left; font: inherit; font-size: .84rem; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.spell-btn.spell { border-left: 4px solid var(--r-rare); }
+.spell-btn.ability { border-left: 4px solid var(--gold); }
+.spell-btn:hover:not(.off) { border-color: var(--gold); }
+.spell-btn.off { opacity: .5; }
+.slots { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: .85rem; margin: 4px 0; }
+.slot-lvl { white-space: nowrap; color: var(--r-rare); letter-spacing: .05em; }
+.buffs { color: var(--good); }
+.linkish { background: none; border: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
+.pip.half { border-style: dashed; }
+.dg-bolt { filter: drop-shadow(0 0 8px currentColor) blur(.5px); opacity: .95; }
+.dg-blast { opacity: .32; stroke-width: 6; animation: blast .4s ease-out; }
+@keyframes blast { from { opacity: .7; } to { opacity: .2; } }
+.dg-range { fill: rgb(150 190 255 / .12); stroke: #9ad7ff; stroke-width: 3; stroke-dasharray: 10 8; pointer-events: none; }
+.sheet-magic .slots { font-size: 1rem; }
+.sheet-magic .locked { opacity: .55; }
