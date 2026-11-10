@@ -107,3 +107,49 @@ test('wandering monsters interrupt about 1 in 6 short rests and 1 in 3 long rest
   assert.ok(Math.abs(short / N - 1 / 6) < 0.02, `${short / N}`);
   assert.ok(Math.abs(long / N - 1 / 3) < 0.02, `${long / N}`);
 });
+
+test('terrain: difficult squares cost double, deep water blocks, arenas round-trip', async () => {
+  const { createArenaMap, paintTerrain, encodeTerrain, decodeArena, terrainCost } = await import('../src/engine/terrain.js');
+  const { reachableSquares } = await import('../src/engine/movement.js');
+  const map = createArenaMap(10, 5);
+  for (let x = 2; x <= 3; x++) paintTerrain(map, x, 2, 'mud');
+  paintTerrain(map, 5, 1, 'river'); paintTerrain(map, 5, 2, 'river'); paintTerrain(map, 5, 3, 'river');
+  assert.equal(terrainCost(map, 2, 2), 2);
+  const r = reachableSquares(map, { x: 1, y: 2 }, 20);
+  assert.equal(r.get('3,2').cost, 3); // diagonal around the mud: 1 + 1 + 1 beats 2 + 2
+  assert.equal(r.get('4,2').cost, 3);
+  assert.ok(!r.has('6,2'), 'the river is a wall to walkers');
+  const back = decodeArena(encodeTerrain(map));
+  assert.deepEqual(back.terrain, map.terrain);
+  assert.ok(!paintTerrain(map, 0, 0, 'grass'), 'the outer wall stays');
+});
+
+test('creature sizes: blocks, distance between blocks, reach and big movers', async () => {
+  const { footprintOf, blockDistance, cellsOf } = await import('../src/engine/size.js');
+  const { createMonster, entityDistance, reachOf } = await import('../src/engine/combat.js');
+  const { BESTIARY_BY_ID } = await import('../src/content/bestiary/index.js');
+  const { reachableSquares } = await import('../src/engine/movement.js');
+  const { createArenaMap, paintTerrain } = await import('../src/engine/terrain.js');
+  assert.equal(footprintOf(BESTIARY_BY_ID.goblin), 1);
+  assert.equal(footprintOf(BESTIARY_BY_ID.ogre), 2);
+  assert.equal(footprintOf(BESTIARY_BY_ID['adult-red-dragon']), 3);
+  assert.equal(footprintOf(BESTIARY_BY_ID['ancient-red-dragon']), 4);
+  assert.equal(footprintOf(BESTIARY_BY_ID['shadowflame-tyrant']), 2);
+  assert.equal(cellsOf({ x: 1, y: 1 }, 2).length, 4);
+  // A 2x2 troll at (5,5) and a hero at (7,5): the nearest troll square is (6,5), one square away.
+  assert.equal(blockDistance({ x: 5, y: 5 }, 2, { x: 7, y: 5 }, 1), 1);
+  assert.equal(blockDistance({ x: 5, y: 5 }, 2, { x: 9, y: 9 }, 1), 3);
+  const troll = createMonster(BESTIARY_BY_ID['hill-troll'], 't', { x: 2, y: 2 });
+  assert.equal(troll.size, 2);
+  const ogre = createMonster(BESTIARY_BY_ID.ogre, 'o', { x: 2, y: 2 });
+  assert.equal(entityDistance(ogre, { pos: { x: 4, y: 3 } }), 1);
+  const giant = createMonster(BESTIARY_BY_ID['hill-giant'], 'g', { x: 2, y: 2 });
+  assert.equal(reachOf(giant), 2); // 10 ft reach
+  // A 2x2 creature cannot squeeze through a one-square gap.
+  const map = createArenaMap(10, 8);
+  for (let y = 1; y < 7; y++) if (y !== 3) paintTerrain(map, 5, y, 'wall');
+  const small = reachableSquares(map, { x: 2, y: 2 }, 30);
+  const big = reachableSquares(map, { x: 2, y: 2 }, 30, { size: 2 });
+  assert.ok(small.has('7,3'));
+  assert.ok(![...big.keys()].some((k) => Number(k.split(',')[0]) >= 6));
+});

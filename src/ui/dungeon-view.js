@@ -7,11 +7,13 @@
  */
 import { generateDungeon, roomAt, TILE } from '../engine/dungeon.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
+import { renderArenaSVG } from '../engine/arena-render.js';
+import { cellsOf, blockDistance, centerOf } from '../engine/size.js';
 import { reachableSquares, speedToSquares, DIAGONAL_RULES, cellKey } from '../engine/movement.js';
 import { makeOpacity, visibleSquares, revealFrom } from '../engine/vision.js';
 import {
   FACINGS, facingToward, rotateFacing, facingAngle, chebyshev, weaponFromHeroAttack, placeMonsters,
-  rollInitiative, planMonsterTurn, attackOptions, resolveAttack, woundState,
+  rollInitiative, planMonsterTurn, attackOptions, resolveAttack, woundState, createMonster, entityDistance, covers, reachOf, bestSight,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
@@ -48,10 +50,11 @@ const FOE_POOL = DUNGEON_FOES.map((id) => BESTIARY_BY_ID[id]).filter(Boolean);
  *   api.load(id) -> the hero's draft (with gear); api.derive(draft) -> combat stats;
  *   api.save(draft) -> the saved draft (a ready-made hero is adopted on its first save).
  */
-export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
+export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null }) {
   const s = {
-    seed: initialSeed, map: null, grid: true, revealAll: false, rule: 'standard', zoom: 0.5,
-    heroId: heroes[0]?.id ?? null, hero: null, monsters: [],
+    seed: initialSeed, map: null, grid: true, revealAll: !!arena, rule: 'standard', zoom: 0.5,
+    partyIds: arena ? arena.heroes.map((h) => h.id) : heroes.slice(0, 1).map((h) => h.id), members: [], active: 0,
+    hero: null, monsters: [],
     doors: new Map(), revealed: new Set(), visible: new Set(),
     mode: 'explore', round: 0, order: [], turnIdx: 0,
     moveLeft: 0, actionUsed: false, dash: false, weaponIdx: 0,
@@ -59,15 +62,22 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     selectedId: null, knowledge: {}, knownHp: new Set(), lunge: null, flash: new Set(), projectile: null, lastStudy: null,
     draft: null, def: null, features: null, target: null, invOpen: false, invSel: null, invFilter: 'all',
     ammoSpent: {}, delve: { xp: 0, coins: 0, items: 0, kills: 0 }, lastCheck: null, phialUsed: false,
+    vfx: [], effects: [],
     res: null, buffs: {}, bonusUsed: false, attacksLeft: 0, sneakUsed: false, disengaged: false, sneak: null, pending: null, blast: null, longRested: false,
   };
 
   host.innerHTML = `
     <div class="dg-topbar">
-      <div class="dg-group">
-        ${heroes.length ? `<select id="dg-hero" data-dg="hero" aria-label="Hero">${heroes.map((h) => `<option value="${esc(h.id)}">${esc(h.label)}</option>`).join('')}</select>` : ''}
+      <div class="dg-group dg-partypick" ${arena ? 'hidden' : ''}>
+        <span class="small muted">Party (up to 4):</span>
+        ${heroes.map((h) => `<label class="chip party-chip"><input type="checkbox" data-dg="party" value="${esc(h.id)}" ${h === heroes[0] ? 'checked' : ''}> ${esc(h.label)}</label>`).join('')}
       </div>
-      <div class="dg-group">
+      <div class="dg-group dg-arenabar" ${arena ? '' : 'hidden'}>
+        <b>${esc(arena?.name ?? 'Arena')}</b>
+        <button class="btn small" data-dg="leave-arena">← Back to the builder</button>
+        <button class="btn small ghost" data-dg="retry">Restart bout</button>
+      </div>
+      <div class="dg-group" ${arena ? 'hidden' : ''}>
         <button class="btn small ghost" data-dg="seed-prev" aria-label="Previous dungeon">◀</button>
         <label class="dg-seed" for="dg-seed">Dungeon #</label><input id="dg-seed" type="number" min="1" max="999999" data-dg="seed">
         <button class="btn small ghost" data-dg="seed-next" aria-label="Next dungeon">▶</button>
@@ -81,7 +91,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         <button class="btn small ghost" data-dg="fit">Fit</button>
         <button class="btn small ghost" data-dg="center">Find hero</button>
       </div>
-      <div class="dg-group">
+      <div class="dg-group" ${arena ? 'hidden' : ''}>
         <label class="dg-check"><input id="dg-grid" type="checkbox" data-dg="grid" checked> Grid</label>
         <label class="dg-check" title="Narrator view: show the whole map and every monster"><input id="dg-reveal" type="checkbox" data-dg="reveal"> Reveal map</label>
       </div>
@@ -106,7 +116,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       </aside>
     </div>
     <div class="dg-endscreen" hidden></div>
-    <div class="dg-inv" hidden role="dialog" aria-label="Inventory"></div>`;
+    <div class="dg-inv" hidden role="dialog" aria-label="Inventory"></div>
+    <div class="dg-pop" hidden role="dialog" aria-modal="true"></div>`;
 
   const $ = (sel) => host.querySelector(sel);
   const viewport = $('.dg-viewport'); const stage = $('.dg-stage');
@@ -117,25 +128,90 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   // Setup
   // ---------------------------------------------------------------------------
 
-  /** Load the chosen hero's saved draft (inventory, coins, XP) and derive its combat stats. */
-  function loadHero() {
-    const id = heroes.some((h) => h.id === s.heroId) ? s.heroId : heroes[0]?.id;
-    s.draft = id ? api.load(id) : null;
+  // ---------------------------------------------------------------------------
+  // The party. Each member keeps its own copy of the per-hero state below; the member whose
+  // turn it is (or who leads while exploring) is "active", and its state lives directly on `s`.
+  // Switching members saves those fields into the old member and loads the new one's.
+  // ---------------------------------------------------------------------------
+  const MKEYS = ['draft', 'def', 'hero', 'res', 'buffs', 'actionUsed', 'bonusUsed', 'attacksLeft', 'moveLeft', 'dash', 'sneakUsed', 'disengaged',
+    'weaponIdx', 'ammoSpent', 'pending', 'phialUsed', 'invSel'];
+  function saveActive() { const m = s.members[s.active]; if (m) for (const k of MKEYS) m[k] = s[k]; }
+  function activate(i) {
+    if (!s.members[i] || (i === s.active && s.members[i].hero === s.hero)) return;
+    saveActive(); s.active = i;
+    for (const k of MKEYS) s[k] = s.members[i][k];
+  }
+  const party = () => s.members.map((m) => m.hero).filter(Boolean);
+  const partyAlive = () => party().filter((h) => h.hp > 0);
+  const memberIndex = (hero) => s.members.findIndex((m) => m.hero === hero);
+  const partyDown = () => s.members.length > 0 && partyAlive().length === 0;
+
+  /** Free squares near a point (breadth-first), for placing the party at the stairs. */
+  function freeNear(p, n) {
+    const out = []; const seen = new Set([cellKey(p.x, p.y)]); const q = [p];
+    const taken = new Set(s.monsters.map((m) => cellKey(m.pos.x, m.pos.y)));
+    while (q.length && out.length < n) {
+      const c = q.shift();
+      if (isFloor(c.x, c.y) && !taken.has(cellKey(c.x, c.y))) out.push(c);
+      for (const [dx, dy] of [[0, -1], [1, 0], [-1, 0], [0, 1], [1, -1], [-1, -1], [1, 1], [-1, 1]]) {
+        const k = cellKey(c.x + dx, c.y + dy);
+        if (!seen.has(k) && isFloor(c.x + dx, c.y + dy)) { seen.add(k); q.push({ x: c.x + dx, y: c.y + dy }); }
+      }
+    }
+    return out;
+  }
+  const isFloor = (x, y) => s.map.tiles[y]?.[x] !== undefined && s.map.tiles[y][x] !== TILE.ROCK && s.map.tiles[y][x] !== TILE.DOOR
+    && !(s.map.terrain && s.map.terrain[y][x] === 'river');
+
+  /** Build one member: load the hero's saved draft (gear, coins, XP) and derive combat stats. */
+  function makeMember(i, id, pos, carried) {
+    s.draft = api.load(id);
     s.def = s.draft ? api.derive(s.draft) : null;
+    const h = s.def;
+    if (!h) return null;
+    const weapons = heroWeapons(h);
+    s.hero = {
+      id: `hero${i}`, isHero: true, name: h.name, pos, facing: 0,
+      hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
+      weapons, reaction: true, aware: true, tempHp: 0,
+      look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {},
+    };
+    if (carried) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
+    s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
+    // Spell slots, ability uses and hit dice last for the whole delve and come back with rests.
+    s.res = carried?.res ?? { ...freshResources(magicHero()), level: h.level };
+    s.buffs = carried?.buffs ?? {};
+    s.ammoSpent = {}; s.pending = null; s.phialUsed = false; s.invSel = null;
+    s.actionUsed = false; s.bonusUsed = false; s.attacksLeft = 0; s.moveLeft = s.hero.speed; s.dash = false; s.sneakUsed = false; s.disengaged = false;
+    refreshAC();
+    const m = {}; for (const k of MKEYS) m[k] = s[k];
+    return m;
+  }
+
+  /** Load every member of the party. `positions` (arena) or a cluster around the stairs. */
+  function loadParty(carry, positions = null) {
+    s.members = []; s.active = 0;
+    const spots = positions ?? freeNear(s.map.entrance, s.partyIds.length);
+    s.partyIds.forEach((id, i) => {
+      const m = makeMember(i, id, { ...(spots[i] ?? s.map.entrance) }, carry?.members?.[i]);
+      if (m) s.members.push(m);
+    });
+    s.active = 0;
+    if (s.members[0]) for (const k of MKEYS) s[k] = s.members[0][k];
   }
 
   const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, finesse: (a.properties ?? []).includes('finesse') }));
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
-    if (!s.draft) return;
+    if (!s.draft || arena) return; // arena bouts are practice: nothing is saved
     const saved = api.save(s.draft);
     if (saved && saved.id !== s.draft.id) {
-      const opt = host.querySelector(`#dg-hero option[value="${CSS.escape(s.draft.id)}"]`);
+      const box = host.querySelector(`[data-dg="party"][value="${CSS.escape(s.draft.id)}"]`);
       const h = heroes.find((x) => x.id === s.draft.id);
-      if (h) h.id = saved.id;
-      if (opt) { opt.value = saved.id; opt.textContent = opt.textContent.replace(' (ready-made)', ''); }
-      s.heroId = saved.id;
+      if (h) { h.id = saved.id; h.label = h.label.replace(' (ready-made)', ''); }
+      if (box) { box.value = saved.id; box.parentElement.lastChild.textContent = ` ${h?.label ?? saved.name}`; }
+      s.partyIds = s.partyIds.map((x) => (x === s.draft.id ? saved.id : x));
       log(`${saved.name} joins your company, so their loot and experience are kept.`, 'info');
     }
     s.draft = saved ?? s.draft;
@@ -160,9 +236,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function newDungeon(seed, carry = null) {
     if (!carry) s.depth = 1;
     s.seed = Math.max(1, Math.floor(seed) || 1);
-    s.map = generateDungeon(s.seed);
+    s.map = arena ? arena.map : generateDungeon(s.seed);
     $('#dg-seed').value = s.seed;
-    base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
+    base.innerHTML = arena ? renderArenaSVG(s.map, { grid: s.grid }) : renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
     overlay.setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`);
     resetDelve(carry);
     // Start close to the hero: a fresh map is mostly unexplored darkness anyway.
@@ -174,36 +250,41 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
    * wounds and the running tally come along; everything else on the new floor is fresh.
    */
   function resetDelve(carry = null) {
-    loadHero();
-    const h = s.def;
-    const weapons = heroWeapons(h);
-    s.hero = h ? {
-      id: 'hero', name: h.name, pos: { x: s.map.entrance.x, y: s.map.entrance.y }, facing: 0,
-      hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
-      weapons, reaction: true, aware: true,
-      look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {},
-    } : null;
-    s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
-    if (carry && s.hero) s.hero.hp = Math.min(s.hero.maxHp, carry.hp);
-    // Spell slots, ability uses and hit dice last for the whole delve and come back with rests.
-    s.res = carry?.res ?? (h ? { ...freshResources(magicHero()), level: h.level } : null);
-    s.buffs = carry?.buffs ?? {}; s.sneak = null; s.pending = null; s.longRested = false;
-    if (s.hero) { s.hero.tempHp = 0; refreshAC(); }
-    // The dungeon's secrets are fixed by its number; its inhabitants are matched to the hero's level,
-    // and every two floors deeper the danger rises as if the hero were a level higher.
-    const level = Math.min(20, (h?.level ?? 1) + Math.floor(((s.depth ?? 1) - 1) / 2));
-    s.features = placeFeatures(s.map, s.seed, level);
-    const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y)]);
-    s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid });
+    s.monsters = [];
+    if (arena) {
+      loadParty(null, arena.heroes.map((h) => ({ ...h.pos })));
+      s.features = { chests: [], traps: [], secretDoors: new Set(), locks: new Map() };
+      s.monsters = arena.foes.map((f, i) => {
+        const stat = BESTIARY_BY_ID[f.statId];
+        return { ...createMonster(stat, `m${i + 1}`, { ...f.pos }, f.facing ?? 4), aware: true };
+      }).filter(Boolean);
+    } else {
+      loadParty(carry);
+      // Its secrets are fixed by the dungeon's number; its inhabitants are matched to the party's
+      // level and size, and every two floors deeper the danger rises as if a level higher.
+      const lv = party().length ? Math.round(s.members.reduce((t, m) => t + m.def.level, 0) / s.members.length) : 1;
+      const level = Math.min(20, lv + Math.floor(((s.depth ?? 1) - 1) / 2));
+      s.features = placeFeatures(s.map, s.seed, level);
+      const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y), ...party().map((h) => cellKey(h.pos.x, h.pos.y))]);
+      s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid, partySize: Math.max(1, s.members.length) });
+    }
+    s.sneak = null; s.longRested = false; s.effects = []; s.vfx = [];
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
     s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
-    s.ammoSpent = {}; s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.phialUsed = false; s.invOpen = false;
+    s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.invOpen = false;
     s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false;
-    $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true;
-    setMood('dungeon');
+    $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true;
+    setMood(arena ? 'combat' : 'dungeon');
     startHeroTurn();
+    const names = party().map((h) => h.name).join(', ') || 'Your hero';
+    if (arena) {
+      log(`The arena gates open. ${names} face ${s.monsters.map((m) => m.name).join(', ')}. A practice bout: no XP or loot is kept.`, 'info');
+      updateVision(); redraw();
+      startArenaFight();
+      return;
+    }
     const kinds = [...new Set(s.monsters.map((m) => m.name))];
-    log(`${s.hero?.name ?? 'Your hero'} (level ${h?.level ?? 1}) ${carry ? 'climbs down' : 'descends the stairs'} into dungeon #${s.seed}, depth ${s.depth}. Somewhere here: ${s.monsters.length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, traps, and stairs leading further down. Find them.`, 'info');
+    log(`${names} ${carry ? (s.members.length > 1 ? 'climb down' : 'climbs down') : (s.members.length > 1 ? 'descend the stairs' : 'descends the stairs')} into dungeon #${s.seed}, depth ${s.depth}. Somewhere here: ${s.monsters.length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, traps, and stairs leading further down. Find them.`, 'info');
     $('.dg-depth').textContent = `Depth ${s.depth}`;
     updateVision();
     redraw();
@@ -215,8 +296,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   const opaque = () => makeOpacity(s.map, s.doors);
   const alive = () => s.monsters.filter((m) => !m.dead);
-  const occupied = (except) => new Set([s.hero, ...alive()].filter((e) => e && e !== except).map((e) => cellKey(e.pos.x, e.pos.y)));
-  const canSee = (m) => s.revealAll || s.visible.has(cellKey(m.pos.x, m.pos.y));
+  const occupied = (except) => new Set([...partyAlive(), ...alive()].filter((e) => e && e !== except).flatMap((e) => cellsOf(e.pos, e.size ?? 1).map((c) => cellKey(c.x, c.y))));
+  const edist = (a, b) => entityDistance(a, b);
+  const edistP = (e, p) => blockDistance(e.pos, e.size ?? 1, p, 1);
+  /** Can the party actually see it? (Not the narrator's Reveal map view.) */
+  const inSight = (m) => cellsOf(m.pos, m.size ?? 1).some((c) => s.visible.has(cellKey(c.x, c.y)));
+  const canSee = (m) => s.revealAll || inSight(m);
 
   // Squares nobody can walk through: undiscovered secret doors, locked doors, chests.
   const isSecret = (k) => s.features?.secretDoors.has(k);
@@ -231,7 +316,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   }
   const chestAt = (x, y) => s.features?.chests.find((c) => c.x === x && c.y === y) ?? null;
   const trapAt = (x, y) => s.features?.traps.find((t) => t.x === x && t.y === y) ?? null;
-  const corpseAt = (x, y) => s.monsters.find((m) => m.dead && m.pos.x === x && m.pos.y === y && m.loot && (m.loot.coins || m.loot.items.length)) ?? null;
+  const corpseAt = (x, y) => s.monsters.find((m) => m.dead && covers(m, { x, y }) && m.loot && (m.loot.coins || m.loot.items.length)) ?? null;
   const doorAt = (x, y) => s.map.doors.find((d) => d.x === x && d.y === y) ?? null;
   const adjacent = (p) => chebyshev(s.hero.pos, p) <= 1;
 
@@ -263,7 +348,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   /** Recompute what the hero sees; returns monsters that just noticed the hero. */
   function updateVision() {
-    s.visible = visibleSquares(s.map, s.hero.pos, opaque());
+    // The party sees what any of its members sees.
+    if (arena) { s.visible = new Set(); for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) s.visible.add(cellKey(x, y)); } else {
+      const op = opaque(); s.visible = new Set();
+      for (const h of (partyAlive().length ? partyAlive() : [s.hero])) for (const k of visibleSquares(s.map, h.pos, op)) s.visible.add(k);
+    }
     if (s.features) passiveNotice();
     if (s.map.exit && !s.exitSeen && s.visible.has(cellKey(s.map.exit.x, s.map.exit.y))) {
       s.exitSeen = true;
@@ -272,7 +361,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
     for (const m of alive()) {
-      if (m.aware || !s.visible.has(cellKey(m.pos.x, m.pos.y)) || m.cond?.asleep) continue;
+      if (m.aware || !inSight(m) || m.cond?.asleep) continue;
       if (s.sneak) {
         // Stealth vs passive Perception: if your roll beats it, the creature does not notice you.
         if (m.unnoticed) continue;
@@ -314,9 +403,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       s.mode = 'combat'; s.round = 1;
       setMood('combat');
       if (s.sneak) { s.sneak = null; }
-      const heroInit = rollInitiative(s.hero.dexMod);
-      s.order = [{ id: 'hero', init: heroInit.total, roll: heroInit.d20 }];
-      log(`${names} spotted! Roll for initiative. ${s.hero.name}: d20 (${heroInit.d20}) ${signed(s.hero.dexMod)} = ${heroInit.total}.`, 'warn');
+      s.order = []; const rolls = [];
+      for (const h of partyAlive()) {
+        const r = rollInitiative(h.dexMod);
+        s.order.push({ id: h.id, hero: true, init: r.total, roll: r.d20 });
+        rolls.push(`${h.name}: d20 (${r.d20}) ${signed(h.dexMod)} = ${r.total}`);
+      }
+      log(`${names} spotted! Roll for initiative. ${rolls.join('; ')}.`, 'warn');
     } else {
       log(`${names} join the fight!`, 'warn');
     }
@@ -324,11 +417,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       const r = rollInitiative(m.dexMod);
       s.order.push({ id: m.id, init: r.total, roll: r.d20 });
     }
-    s.order.sort((a, b) => b.init - a.init || (a.id === 'hero' ? -1 : 1));
+    s.order.sort((a, b) => b.init - a.init || (a.hero ? -1 : 1));
     if (isNew) {
-      // New combat: monsters that beat the hero's initiative act first.
-      startHeroTurn();
-      if (s.order[0].id !== 'hero') runMonsterTurns(true);
+      // New combat: whoever rolled highest goes first. Monsters ahead of every hero act now.
+      if (s.order[0].hero) { activate(memberIndex(party().find((h) => h.id === s.order[0].id))); startHeroTurn(); keepInView(s.hero.pos); } else runMonsterTurns(true);
     }
   }
 
@@ -337,10 +429,19 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       s.mode = 'explore'; s.order = [];
       setMood('dungeon');
       log('The fight is over. You can explore freely again.', 'good');
+      // Fallen companions are patched up by their friends and come round with 1 hit point.
+      for (const h of party()) if (h.hp <= 0) { h.hp = 1; log(`${h.name} comes round, battered but alive (1 HP).`, 'heal'); }
       recoverAmmo();
       startHeroTurn();
       if (!alive().length) showEnd('victory');
     }
+  }
+
+  /** Arena: everyone is aware from the first moment; roll initiative for all. */
+  function startArenaFight() {
+    for (const m of s.monsters) m.aware = true;
+    enterCombat(alive());
+    redraw();
   }
 
   async function endHeroTurn() {
@@ -354,27 +455,50 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
    * otherwise begin just after the hero. Wrapping past the end starts a new round.
    */
   async function runMonsterTurns(fromStart = false) {
-    s.busy = true; redraw();
-    const heroIdx = s.order.findIndex((o) => o.id === 'hero');
+    s.busy = true; saveActive(); redraw();
+    const heroIdx = s.order.findIndex((o) => o.id === s.hero?.id);
     let i = fromStart ? 0 : heroIdx + 1;
-    for (let guard = 0; guard < s.order.length; guard++, i++) {
-      if (i >= s.order.length) { i = 0; s.round++; }
+    let next = null;
+    for (let guard = 0; guard < s.order.length * 2 + 2; guard++, i++) {
+      if (i >= s.order.length) {
+        i = 0; s.round++;
+        for (const fx of s.effects) fx.rounds--;
+        const gone = s.effects.filter((fx) => fx.rounds <= 0);
+        if (gone.length) { s.effects = s.effects.filter((fx) => fx.rounds > 0); log('The wall of fire gutters out.', 'info'); }
+      }
       const slot = s.order[i];
-      if (slot.id === 'hero') break;
+      if (slot.hero) {
+        const h = partyAlive().find((x) => x.id === slot.id);
+        if (h) { next = h; break; }
+        continue;
+      }
       const m = s.monsters.find((x) => x.id === slot.id);
       if (!m || m.dead || !m.aware) continue;
+      for (const fx of s.effects) if (inEffect(m, fx)) { log(burnIn(m, fx), 'good'); await sleep(PAUSE_MS / 2); }
+      if (m.dead) continue;
       if (await conditionSkip(m)) continue;
+      // Each monster goes for the nearest hero it can see (or the nearest at all).
+      const targets = partyAlive();
+      if (!targets.length) break;
+      const sees = (h) => lineOfSight(m.pos, h.pos, opaque()).visible;
+      targets.sort((a, b) => (sees(b) - sees(a)) || edist(a, m) - edist(b, m));
+      activate(memberIndex(targets[0]));
       const acted = await monsterTurn(m);
       if (m.cond?.flee > 0) m.cond.flee--;
       if (m.cond?.restrained) { const sv = monsterRoll(m, 'str', m.cond.restrained); if (sv.ok) { delete m.cond.restrained; log(`${m.name} tears free of the thorns.`, 'info'); } }
-      if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+      if (s.hero.hp <= 0) {
+        if (partyDown()) { s.busy = false; showEnd('defeat'); return; }
+        log(`${s.hero.name} falls, unconscious! The others fight on.`, 'bad');
+      }
       // A hunter that can neither reach nor see you for two rounds loses interest.
       if (!acted && !canSee(m)) { m.idle = (m.idle ?? 0) + 1; if (m.idle >= 2) { m.aware = false; m.idle = 0; log(`Somewhere in the dark, a ${m.name.toLowerCase()} gives up the hunt.`, 'info'); } } else m.idle = 0;
     }
-    s.order = s.order.filter((o) => { const m = s.monsters.find((x) => x.id === o.id); return o.id === 'hero' || (m && !m.dead && m.aware); });
+    s.order = s.order.filter((o) => { const m = s.monsters.find((x) => x.id === o.id); return (o.hero && partyAlive().some((h) => h.id === o.id)) || (m && !m.dead && m.aware); });
     s.busy = false;
+    if (next) activate(memberIndex(next));
     startHeroTurn();
-    banner(`Round ${s.round}: your turn`);
+    banner(s.members.length > 1 ? `Round ${s.round}: ${s.hero.name}'s turn` : `Round ${s.round}: your turn`);
+    keepInView(s.hero.pos);
     // Goblins that noticed the hero during the enemy turns join the fight now.
     const late = alive().filter((m) => m.aware && !s.order.some((o) => o.id === m.id));
     if (late.length) enterCombat(late);
@@ -383,7 +507,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   }
 
   async function monsterTurn(m) {
-    m.reaction = true;
+    m.reaction = true; m.burnedThisTurn = false;
     banner(`${m.name}'s turn`);
     const plan = planMonsterTurn({ m, hero: s.hero, map: s.map, opaque: opaque(), blocked: new Set([...occupied(m), ...terrainBlocked()]) });
     let disengaged = false;
@@ -394,11 +518,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       if (step.type === 'move' && m.cond?.restrained) { if (canSee(m)) log(`${m.name} strains against the thorns but cannot move.`, 'info'); continue; }
       if (step.type === 'move') {
         for (const p of step.path.slice(1)) {
-          const wasAdjacent = chebyshev(m.pos, s.hero.pos) <= 1;
+          const wasAdjacent = edist(m, s.hero) <= 1;
           m.facing = facingToward(m.pos, p);
           m.pos = { x: p.x, y: p.y };
           openDoorAt(p);
-          if (wasAdjacent && chebyshev(m.pos, s.hero.pos) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await heroOpportunityAttack(m);
+          for (const fx of s.effects) if (inEffect(m, fx) && !m.burnedThisTurn) { m.burnedThisTurn = true; log(burnIn(m, fx), 'good'); }
+          if (m.dead) return true;
+          if (wasAdjacent && edist(m, s.hero) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await heroOpportunityAttack(m);
           if (m.dead) return;
           updateVision(); redraw(); await sleep(STEP_MS);
         }
@@ -441,18 +567,38 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     return safe;
   }
 
+  /** The active hero dropped to 0 HP on their own turn (a trap, an opportunity attack, their own fireball). */
+  function heroFell() {
+    if (partyDown()) { showEnd('defeat'); return; }
+    log(`${s.hero.name} falls, unconscious!`, 'bad');
+    if (s.mode === 'combat') { s.busy = false; endHeroTurn(); return; }
+    activate(memberIndex(partyAlive()[0]));
+    redraw();
+  }
+
   async function moveHero(target) {
     s.busy = true;
     const costAt = (p) => s.reach.get(cellKey(p.x, p.y))?.cost ?? target.cost;
     for (const p of target.path.slice(1)) {
       const before = { ...s.hero.pos };
-      const threats = s.disengaged ? [] : alive().filter((m) => m.aware && m.reaction && !helpless(m) && chebyshev(m.pos, before) <= 1);
+      const threats = s.disengaged ? [] : alive().filter((m) => m.aware && m.reaction && !helpless(m) && edistP(m, before) <= reachOf(m));
       s.hero.facing = facingToward(before, p);
       s.hero.pos = { x: p.x, y: p.y };
+      // Exploring: the others follow in single file, each stepping where the one ahead just was.
+      if (s.mode !== 'combat') {
+        let prev = before;
+        for (const h of partyAlive()) {
+          if (h === s.hero) continue;
+          const old = { ...h.pos };
+          if (chebyshev(old, prev) > 0) { h.facing = facingToward(old, prev) >= 0 ? facingToward(old, prev) : h.facing; h.pos = { ...prev }; }
+          prev = old;
+        }
+      }
       openDoorAt(p);
+      for (const fx of s.effects) if (inEffect(s.hero, fx)) { log(burnIn(s.hero, fx), 'bad'); if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; } }
       for (const m of threats) {
-        if (chebyshev(m.pos, s.hero.pos) > 1) await monsterOpportunityAttack(m);
-        if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+        if (edist(m, s.hero) > reachOf(m)) await monsterOpportunityAttack(m);
+        if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; }
       }
       const trap = trapAt(p.x, p.y);
       let sprang = false;
@@ -464,7 +610,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       }
       if (trap && (sprang || (!trap.found && !trap.disarmed && !trap.sprung))) {
         await springTrap(trap);
-        if (s.hero.hp <= 0) { s.busy = false; showEnd('defeat'); return; }
+        if (s.hero.hp <= 0) { s.busy = false; heroFell(); return; }
         s.moveLeft = s.mode === 'combat' ? Math.max(0, s.moveLeft - costAt(p)) : s.hero.speed;
         updateVision(); s.busy = false; redraw();
         return; // the trap stops you in your tracks
@@ -507,14 +653,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   // Attacks
   // ---------------------------------------------------------------------------
 
-  const enemiesOf = (who) => (who === s.hero ? alive().filter((m) => m.aware) : [s.hero]);
+  const enemiesOf = (who) => (who.isHero ? alive().filter((m) => m.aware) : partyAlive());
 
   /** Pick the hero weapon to use against a target: the selected one if it works, else any that does. */
   function heroAttackPlan(target) {
     const args = (w) => ({ attacker: s.hero, target, weapon: w, opaque: opaque(), occupied: occupied(), enemiesOf });
     const sel = s.hero.weapons[s.weaponIdx];
     const order = [sel, ...s.hero.weapons.filter((w) => w !== sel)];
-    const adjacent = chebyshev(s.hero.pos, target.pos) <= 1;
+    const adjacent = edist(s.hero, target) <= 1;
     // Next to the target, prefer a melee weapon (shooting point-blank has disadvantage).
     if (adjacent) order.sort((a, b) => Number(b.melee) - Number(a.melee) || (a === sel ? -1 : 1));
     for (const w of order) {
@@ -528,13 +674,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   /** Bows need arrows (slings need stones). Point-blank melee and thrown weapons need none. */
   function hasAmmo(w, target) {
     if (!w.ammo || !s.draft) return true;
-    if (w.melee && target && chebyshev(s.hero.pos, target.pos) <= 1) return true;
+    if (w.melee && target && edist(s.hero, target) <= (w.reach ?? 1)) return true;
     return countOf(s.draft.inventory, w.ammo) > 0;
   }
 
   function whyNot(target) {
     if (s.hero.weapons.some((w) => w.ammo && !hasAmmo(w, target)) && !s.hero.weapons.some((w) => w.melee) ) return 'Out of ammunition.';
-    const d = chebyshev(s.hero.pos, target.pos);
+    const d = edist(s.hero, target);
     const maxRange = Math.max(0, ...s.hero.weapons.filter((w) => w.ranged).map((w) => w.long));
     if (!s.visible.has(cellKey(target.pos.x, target.pos.y))) return 'You can\'t see it.';
     if (d > 1 && !maxRange) return 'Too far for a melee weapon. Move next to it first.';
@@ -634,12 +780,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     }
     // Wind-up: battle cry, then the weapon.
     if (attacker === s.hero || Math.random() < 0.6) play(cry(attacker, 'attack'), { volume: 0.75 });
-    if (ranged) { play('bow-shot', { volume: 0.8 }); await shootProjectile(attacker.pos, target.pos); } else { await lunge(attacker, target); }
+    if (ranged) { play('bow-shot', { volume: 0.8 }); await shootProjectile(centerOf(attacker.pos, attacker.size ?? 1), centerOf(target.pos, target.size ?? 1)); } else { await lunge(attacker, target); }
 
     // Bless and inspiration add dice to the hero's attack roll.
     const boost = attacker === s.hero ? rollBoosts({ attack: true }) : { total: 0, text: '' };
     const w = boost.total ? { ...weapon, toHit: weapon.toHit + boost.total } : weapon;
-    const autoCrit = !!target.cond?.paralyzed && !ranged && chebyshev(attacker.pos, target.pos) <= 1;
+    const autoCrit = !!target.cond?.paralyzed && !ranged && edist(attacker, target) <= 1;
     const r = resolveAttack({ weapon: w, ac: opts.ac, mode: opts.mode, autoCrit });
     if (attacker.cond?.mock) delete attacker.cond.mock;
     const who = attacker === s.hero ? s.hero.name : attacker.name;
@@ -691,14 +837,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (!onExit() || s.busy) return;
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
-    const carry = { hp: s.hero.hp, delve: s.delve, res: s.res, buffs: s.buffs };
+    saveActive();
+    const carry = { delve: s.delve, members: s.members.map((m) => ({ hp: Math.max(1, m.hero.hp), res: m.res, buffs: m.buffs })) };
     carry.delve.deepest = Math.max(carry.delve.deepest ?? 1, s.depth + 1);
     play('door-open', { volume: 0.6 });
     const next = ((s.seed * 7919 + s.depth * 104729) % 99991) + 1;
     s.depth += 1;
     newDungeon(next, carry);
     log(`New depth reached: +${bonus} XP for finding the way down.`, 'good');
-    awardXp(bonus);
+    awardPartyXp(bonus);
     banner(`Depth ${s.depth}`);
     redraw();
   }
@@ -713,14 +860,28 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     m.loot = rollMonsterLoot(stat);
     s.delve.kills++;
     const n = m.loot.items.length + (m.loot.coins ? 1 : 0);
-    log(`${m.name} falls! +${stat.xp} XP.${n ? ' It carried something: search the body.' : ''}`, 'good');
-    awardXp(stat.xp, m.pos);
+    if (arena) { m.loot = { coins: 0, items: [] }; log(`${m.name} falls!`, 'good'); awardPartyXp(stat.xp, m.pos); return; }
+    log(`${m.name} falls! +${stat.xp} XP.${n ? ' It carried something: click the body to search it.' : ''}`, 'good');
+    awardPartyXp(stat.xp, m.pos);
   }
 
-  function awardXp(xp, pos) {
-    if (!xp || !s.draft) return;
+  /** Experience for the whole party is split evenly (5e); a skill's XP goes to whoever used it. */
+  function awardPartyXp(xp, pos) {
+    if (arena) { if (xp) float(pos ?? s.hero.pos, 'practice', 'muted'); return; }
+    const alivePeople = s.members.map((m, i) => i).filter((i) => s.members[i].hero.hp > 0 || s.members[i].hero === s.hero);
+    if (alivePeople.length <= 1) { awardXp(xp, pos); return; }
+    const share = Math.floor(xp / alivePeople.length);
+    const back = s.active;
+    for (const i of alivePeople) { activate(i); awardXp(share, s.hero.pos, true); }
+    activate(back);
+    s.delve.xp += share * alivePeople.length;
+    log(`${xp} XP shared by ${alivePeople.length}: ${share} each.`, 'info');
+  }
+
+  function awardXp(xp, pos, shared = false) {
+    if (!xp || !s.draft || arena) return;
     const r = api.gainXp(s.draft, xp);
-    s.delve.xp += xp;
+    if (!shared) s.delve.xp += xp;
     float(pos ?? s.hero.pos, `+${xp} XP`, 'xp');
     refreshHero();
     if (r.to > r.from) {
@@ -808,23 +969,25 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   /** A round token: the portrait in the middle, a coloured front arc + arrow, a dark back arc. */
   function token(e, { hero = false } = {}) {
-    const sz = S(); const r = sz * 0.36; const R = r + 4;
+    const n = e.size ?? 1;
+    const sz = S(); const r = sz * (n > 1 ? 0.44 : 0.36) * n; const R = r + 4;
     const state = woundState(e.hp, e.maxHp);
     const off = s.lunge?.id === e.id ? { x: s.lunge.dx * sz * 0.28, y: s.lunge.dy * sz * 0.28 } : { x: 0, y: 0 };
-    const cx = (e.pos.x + 0.5) * sz + off.x; const cy = (e.pos.y + 0.5) * sz + off.y;
-    const img = hero ? s.hero.look?.url : monsterPortrait(e.statId);
-    const filter = hero ? (s.hero.look?.filter ?? 'none') : 'none';
-    const ring = hero ? (s.hero.look?.frameColor ?? '#e9c46a') : '#c94a3a';
+    const cx = (e.pos.x + n / 2) * sz + off.x; const cy = (e.pos.y + n / 2) * sz + off.y;
+    const img = hero ? e.look?.url : monsterPortrait(e.statId);
+    const filter = hero ? (e.look?.filter ?? 'none') : 'none';
+    const ring = hero ? (e.look?.frameColor ?? '#e9c46a') : '#c94a3a';
     const hpFrac = Math.max(0, e.hp / e.maxHp);
-    const cls = `tk ${hero ? 'tk-hero' : `tk-foe tk-${state}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}`;
+    const cls = `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `tk-foe tk-${state}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}`;
     return `<g class="${cls}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<circle r="${R + 9}" class="tk-selring"/>` : ''}
+      ${hero && e === s.hero && s.members.length > 1 ? `<circle r="${R + 8}" class="tk-activering"/>` : ''}
       <g transform="rotate(${facingAngle(e.facing)})">
         <path d="M ${R} 0 A ${R} ${R} 0 0 1 ${-R} 0" class="tk-backarc"/>
         <path d="M ${-R} 0 A ${R} ${R} 0 0 1 ${R} 0" class="tk-frontarc" style="stroke:${ring}"/>
         <path d="M ${-r * 0.42} ${-R - 2} L 0 ${-R - sz * 0.17} L ${r * 0.42} ${-R - 2} Z" class="tk-nose" style="fill:${ring}"/>
       </g>
-      ${img ? `<image href="${esc(img)}" x="${-r}" y="${-r}" width="${r * 2}" height="${r * 2}" clip-path="url(#tk-clip)" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
+      ${img ? `<image href="${esc(img)}" x="${-r}" y="${-r}" width="${r * 2}" height="${r * 2}" clip-path="url(#tk-clip-${n})" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
     : `<circle r="${r}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
       <circle r="${r}" class="tk-hitflash"/>
       ${hero || state !== 'unhurt' ? `<rect x="${-r}" y="${-R - 16}" width="${r * 2}" height="7" rx="3" class="tk-hpbg"/><rect x="${-r}" y="${-R - 16}" width="${r * 2 * hpFrac}" height="7" rx="3" class="tk-hp ${hpFrac <= 0.5 ? 'low' : ''}"/>` : ''}
@@ -916,7 +1079,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   function drawOverlay() {
     if (!s.hero) { overlay.innerHTML = ''; return; }
-    const sz = S(); let out = `<defs><clipPath id="tk-clip" clipPathUnits="userSpaceOnUse"><circle r="${sz * 0.36}"/></clipPath></defs>`;
+    const sz = S(); let out = `<defs>${[1, 2, 3, 4].map((n) => `<clipPath id="tk-clip-${n}" clipPathUnits="userSpaceOnUse"><circle r="${sz * (n > 1 ? 0.44 : 0.36) * n}"/></clipPath>`).join('')}</defs>`;
     out += drawDoors();
     // Reachable squares
     for (const c of s.reach.values()) if (c.cost > 0) out += `<rect x="${c.x * sz + 4}" y="${c.y * sz + 4}" width="${sz - 8}" height="${sz - 8}" rx="7" class="dg-reach"/>`;
@@ -924,7 +1087,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     out += drawFeatures();
     // Hover: path preview, or attack preview on a monster
     const hov = s.hover;
-    const foe = hov && alive().find((m) => m.pos.x === hov.x && m.pos.y === hov.y && canSee(m));
+    const foe = hov && alive().find((m) => covers(m, hov) && canSee(m));
     if (foe && !s.busy) {
       const plan = heroAttackPlan(foe);
       out += `<rect x="${foe.pos.x * sz + 2}" y="${foe.pos.y * sz + 2}" width="${sz - 4}" height="${sz - 4}" rx="9" class="${plan && !s.actionUsed ? 'dg-attack' : 'dg-noattack'}"/>`;
@@ -941,10 +1104,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     }
     // Tokens
     for (const m of s.monsters) {
-      if (m.dead) { if (canSee(m) || s.revealed.has(cellKey(m.pos.x, m.pos.y))) out += `<text x="${(m.pos.x + 0.5) * sz}" y="${(m.pos.y + 0.5) * sz + 10}" class="tk-dead">✕</text>`; continue; }
+      if (m.dead) { const c = centerOf(m.pos, m.size ?? 1); if (canSee(m) || s.revealed.has(cellKey(m.pos.x, m.pos.y))) out += `<text x="${(c.x + 0.5) * sz}" y="${(c.y + 0.5) * sz + 10}" class="tk-dead" style="font-size:${30 * (m.size ?? 1)}px">✕</text>`; continue; }
       if (canSee(m)) out += token(m);
     }
-    out += token(s.hero, { hero: true });
+    for (const h of party()) if (h !== s.hero) out += token(h, { hero: true });
+    if (s.hero) out += token(s.hero, { hero: true });
     // Arrow in flight
     if (s.projectile) {
       const { from, to, t } = s.projectile;
@@ -952,6 +1116,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       const x = x0 + (x1 - x0) * t; const y = y0 + (y1 - y0) * t; const ang = Math.atan2(y1 - y0, x1 - x0) * 180 / Math.PI;
       if (s.projectile.color) out += `<circle cx="${x}" cy="${y}" r="12" class="dg-bolt" style="fill:${s.projectile.color}"/>`;
       else out += `<g transform="translate(${x} ${y}) rotate(${ang})" class="dg-arrow"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
+    }
+    for (const fx of s.effects) for (const c of fx.cells) {
+      out += `<image href="assets/vfx/firewall-${((c.x * 7 + c.y * 3) % 4) + 1}.jpg" x="${c.x * sz - sz * 0.15}" y="${c.y * sz - sz * 0.35}" width="${sz * 1.3}" height="${sz * 1.3}" class="vfx vfx-persist" preserveAspectRatio="xMidYMid slice"/>`;
+    }
+    for (const v of s.vfx) {
+      const span = (2 * v.r + 1.4) * sz;
+      out += `<image href="assets/vfx/${v.kind}-${v.n}.jpg" x="${(v.x + 0.5) * sz - span / 2}" y="${(v.y + 0.5) * sz - span / 2}" width="${span}" height="${span}" class="vfx vfx-burst" preserveAspectRatio="xMidYMid slice"/>`;
     }
     if (s.blast) {
       const b = s.blast;
@@ -974,7 +1145,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const combat = s.mode === 'combat';
     const heroTurn = combat && !s.busy;
     $('.dg-banner').classList.toggle('turn', heroTurn);
-    $('.dg-herocard').innerHTML = `
+    $('.dg-herocard').innerHTML = `${partyBar()}
       <div class="hc-head">
         <div><h3>${esc(h.name)}</h3><p class="muted small">${combat ? `Round ${s.round} · ${s.busy ? 'enemies are acting…' : 'your turn'}` : 'Exploring'}</p></div>
         <div class="hc-compass" title="Facing ${FACINGS[h.facing].name}">
@@ -1014,12 +1185,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         <select id="dg-rule" data-dg="rule">${Object.entries(DIAGONAL_RULES).map(([k, v]) => `<option value="${k}" ${k === s.rule ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
       </label>`;
     drawTargetInfo();
+    drawPop();
     drawNearby();
     if (s.invOpen) drawInventory();
     $('.dg-initiative').innerHTML = combat ? `<h3>Initiative</h3><ol class="init">${s.order.map((o) => {
-      const e = o.id === 'hero' ? h : s.monsters.find((m) => m.id === o.id);
-      if (!e || e.dead) return '';
-      return `<li class="${o.id === 'hero' ? 'me' : ''}"><b>${o.init}</b> ${esc(e.name)}${o.id === 'hero' ? '' : ` <span class="muted small">${canSee(e) ? woundState(e.hp, e.maxHp) : 'unseen'}</span>`}</li>`;
+      const e = o.hero ? party().find((x) => x.id === o.id) : s.monsters.find((m) => m.id === o.id);
+      if (!e || e.dead || (o.hero && e.hp <= 0)) return '';
+      return `<li class="${o.hero ? 'me' : ''} ${o.id === s.hero.id ? 'now' : ''}"><b>${o.init}</b> ${esc(e.name)}${o.hero ? ` <span class="muted small">${e.hp} HP</span>` : ` <span class="muted small">${canSee(e) ? woundState(e.hp, e.maxHp) : 'unseen'}</span>`}</li>`;
     }).join('')}</ol>` : '';
     $('.dg-log').innerHTML = s.log.map((l) => `<li class="${l.kind}">${esc(l.text)}</li>`).join('');
     $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
@@ -1177,9 +1349,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function makeNoise(radius, limit = Infinity) {
     // Only foes with a way to reach you come running (a walk of up to ~4 turns).
     const blocked = new Set([...terrainBlocked()]);
-    const near = alive().filter((m) => !m.aware && chebyshev(m.pos, s.hero.pos) <= radius);
-    const woken = near.filter((m) => [...reachableSquares(s.map, m.pos, m.speed * 4, { blocked }).values()].some((c) => chebyshev(c, s.hero.pos) <= 1))
-      .sort((a, b) => chebyshev(a.pos, s.hero.pos) - chebyshev(b.pos, s.hero.pos)).slice(0, limit);
+    const near = alive().filter((m) => !m.aware && edist(m, s.hero) <= radius);
+    const woken = near.filter((m) => [...reachableSquares(s.map, m.pos, m.speed * 4, { blocked, size: m.size ?? 1 }).values()].some((c) => blockDistance(c, m.size ?? 1, s.hero.pos, 1) <= 1))
+      .sort((a, b) => edist(a, s.hero) - edist(b, s.hero)).slice(0, limit);
     if (!woken.length) return 0;
     woken.forEach((m) => { m.aware = true; });
     log('The noise echoes through the halls... something stirs.', 'warn');
@@ -1284,7 +1456,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       if (late.length) enterCombat(late);
       return;
     }
-    const group = alive().filter((m) => hit.includes(m) || (s.visible.has(cellKey(m.pos.x, m.pos.y)) && !m.cond?.asleep));
+    const group = alive().filter((m) => hit.includes(m) || (inSight(m) && !m.cond?.asleep));
     for (const m of group) { if (!m.aware) m.surprised = true; m.aware = true; m.unnoticed = false; }
     s.sneak = null;
     enterCombat(group);
@@ -1364,6 +1536,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     for (const k of ['bless', 'faith', 'trace', 'heroism', 'mark']) delete s.buffs[k];
     for (const m of s.monsters) if (m.cond?.paralyzed && m.cond.heldBy === 'hero') { delete m.cond.paralyzed; }
     s.res.concentration = null;
+    s.effects = s.effects.filter((fx) => fx.owner !== 'hero' || fx.id !== id);
     refreshAC();
   }
 
@@ -1407,7 +1580,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (item.target === 'enemy' || item.target === 'point') {
       target = s.selectedId && alive().find((m) => m.id === s.selectedId && canSee(m));
       if (!target) { banner(`Select a target first: click a foe, then cast ${item.name}.`); return; }
-      if (chebyshev(s.hero.pos, target.pos) > item.range) { banner(`${target.name} is out of range (${item.range * 5} ft).`); return; }
+      if (edist(s.hero, target) > item.range) { banner(`${target.name} is out of range (${item.range * 5} ft).`); return; }
       if (!lineOfSight(s.hero.pos, target.pos, opaque()).visible) { banner('You need a clear line of sight.'); return; }
       if (item.effect.humanoidOnly && BESTIARY_BY_ID[target.statId].type !== 'humanoid') { banner(`${item.name} only works on humanoids.`); return; }
     }
@@ -1433,12 +1606,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function areaTargets(shape, size, center) {
     const f = FACINGS[s.hero.facing];
     return alive().filter((m) => {
-      if (!canSee(m) && !s.visible.has(cellKey(m.pos.x, m.pos.y))) return false;
-      if (shape === 'radius') return chebyshev(m.pos, center) <= size;
-      if (shape === 'around') return chebyshev(m.pos, s.hero.pos) <= size;
+      if (!canSee(m)) return false;
+      if (shape === 'radius') return edistP(m, center) <= size;
+      if (shape === 'around') return edist(m, s.hero) <= size;
       if (shape === 'cone') {
         const dx = m.pos.x - s.hero.pos.x; const dy = m.pos.y - s.hero.pos.y;
-        if (chebyshev(m.pos, s.hero.pos) > size || (!dx && !dy)) return false;
+        if (edist(m, s.hero) > size || (!dx && !dy)) return false;
         // Inside the cone if the angle to the creature is within ~45° of where you face: cos >= 0.7.
         return (dx * f.dx + dy * f.dy) / (Math.hypot(dx, dy) * Math.hypot(f.dx, f.dy)) >= 0.7;
       }
@@ -1446,10 +1619,26 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     });
   }
 
-  async function showBlast(center, radius, color) {
-    s.blast = { x: center.x, y: center.y, r: radius, color };
-    drawOverlay(); await sleep(reduceMotion ? 0 : 380);
-    s.blast = null; drawOverlay();
+  /** Which painted effect fits a spell: fire, ice, lightning, arcane, healing, thunder, poison, radiant. */
+  const VFX_BY_TYPE = { fire: 'fire', cold: 'ice', lightning: 'lightning', force: 'arcane', psychic: 'arcane', thunder: 'thunder', necrotic: 'poison', poison: 'poison', radiant: 'radiant', acid: 'poison' };
+  function vfxFor(item) {
+    const e = item.effect ?? {};
+    if (e.type === 'heal' || e.type === 'pool' || e.type === 'inspire') return 'heal';
+    if (e.type === 'reveal' || ['bless', 'faith', 'smite', 'deathward', 'heroism'].includes(e.buff)) return 'radiant';
+    if (e.type === 'wall') return 'firewall';
+    return VFX_BY_TYPE[e.damageType] ?? 'arcane';
+  }
+
+  /** Flash an effect sprite over an area (centre + radius in squares) for a moment. */
+  async function showVfx(kind, center, radius = 0, ms = 650) {
+    const fx = { kind, x: center.x, y: center.y, r: radius, n: 1 + Math.floor(Math.random() * 4), id: Math.random() };
+    s.vfx.push(fx); drawOverlay();
+    await sleep(reduceMotion ? 150 : ms);
+    s.vfx = s.vfx.filter((v) => v !== fx); drawOverlay();
+  }
+
+  async function showBlast(center, radius, color, kind = 'arcane') {
+    await showVfx(kind, center, radius, 520);
   }
 
   async function resolveMagic(item, target) {
@@ -1471,6 +1660,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
           how = `${dice} (${r.total})${e.addMod ? ` + ${mod}` : ''}${e.addLevel ? ` + ${lvl}` : ''}`;
         }
         const got = heal(amount);
+        showVfx('heal', s.hero.pos, 0.6);
         log(`${s.hero.name} uses ${label}: heals ${how} = ${got} HP.`, 'heal');
         break;
       }
@@ -1484,7 +1674,29 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         s.buffs[e.buff] = e.buff === 'smite' ? { dice: spellDice(item, slot, lvl) } : true;
         if (e.buff === 'heroism') s.hero.tempHp = Math.max(s.hero.tempHp ?? 0, mod);
         refreshAC();
+        showVfx(vfxFor(item), s.hero.pos, 0.6);
         log(`${s.hero.name} casts ${label}. ${item.desc}`, 'good');
+        break;
+      }
+      case 'wall': {
+        // A line of flame at right angles to the caster's line of sight, centred on the chosen spot.
+        const c = centerOf(target.pos, target.size ?? 1);
+        const across = Math.abs(c.x - s.hero.pos.x) >= Math.abs(c.y - s.hero.pos.y);
+        const cx = Math.round(c.x); const cy = Math.round(c.y); const half = Math.floor(e.length / 2);
+        const cells = [];
+        for (let i = -half; i <= half; i++) {
+          const q = across ? { x: cx, y: cy + i } : { x: cx + i, y: cy };
+          if (s.map.tiles[q.y]?.[q.x] !== undefined && s.map.tiles[q.y][q.x] !== TILE.ROCK) cells.push(q);
+        }
+        const dice = spellDice(item, slot, lvl);
+        s.effects.push({ id: item.id, kind: 'firewall', cells, rounds: e.rounds, dc, dice, save: e.save, damageType: e.damageType, owner: 'hero' });
+        await showVfx('fire', c, half, 500);
+        const lines = [];
+        for (const m of alive().filter((m) => cellsOf(m.pos, m.size ?? 1).some((q) => cells.some((w) => w.x === q.x && w.y === q.y)))) {
+          lines.push(burnIn(m, s.effects[s.effects.length - 1]));
+          affected.push(m);
+        }
+        log(`${s.hero.name} raises a ${label}: ${cells.length} squares of roaring flame for ${e.rounds} rounds.${lines.length ? ` ${lines.join('; ')}.` : ''}`, 'good');
         break;
       }
       case 'mark':
@@ -1508,7 +1720,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         const found = [];
         for (const t of s.features.traps) if (!t.found && !t.sprung && chebyshev(t, s.hero.pos) <= e.radius) { t.found = true; found.push(t.name); }
         for (const k of [...s.features.secretDoors]) { const [x, y] = k.split(',').map(Number); if (chebyshev({ x, y }, s.hero.pos) <= e.radius) { revealSecret(k); found.push('secret door'); } }
-        await showBlast(s.hero.pos, e.radius, item.color);
+        await showBlast(s.hero.pos, e.radius, item.color, vfxFor(item));
         log(`${label}: sunlight floods the halls. ${found.length ? `Revealed: ${found.join(', ')}.` : 'Nothing hidden nearby.'}`, 'good');
         break;
       }
@@ -1519,12 +1731,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
           const pseudo = { name: item.name, toHit: s.def.caster.attack, damage: dice, type: e.damageType, ranged: true, melee: false, normal: item.range, long: item.range };
           const opts = attackOptions({ attacker: s.hero, target, weapon: pseudo, opaque: opaque(), occupied: occupied(), enemiesOf });
           if (!opts) break;
-          await shootProjectile(s.hero.pos, target.pos, item.color);
+          await shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color);
           const boost = rollBoosts({ attack: true });
           const r = resolveAttack({ weapon: { ...pseudo, toHit: pseudo.toHit + boost.total }, ac: opts.ac, mode: opts.mode });
           const head = `${s.hero.name} casts ${label}${rays > 1 ? ` (ray ${i + 1})` : ''} at the ${target.name.toLowerCase()}: spell attack d20 (${r.d20s.join(', ')}) ${signed(pseudo.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}.`;
           if (r.hit) {
             damageMonster(target, r.damage); flashHit(target); float(target.pos, `−${r.damage}`, 'good', r.crit);
+            showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), (target.size ?? 1) / 2);
             log(`${head} ${r.crit ? 'CRITICAL! ' : 'Hit! '}${r.damage} ${e.damageType} damage.`, 'good');
             if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120 });
           } else { float(target.pos, 'miss', 'muted'); log(`${head} Miss.`, 'info'); }
@@ -1539,9 +1752,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         let total = 0; const rolls = [];
         for (let i = 0; i < n; i++) {
           if (target.dead) break;
-          await shootProjectile(s.hero.pos, target.pos, item.color);
+          await shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color);
           const r = roll(e.dice); total += r.total; rolls.push(r.total);
           damageMonster(target, r.total); flashHit(target); float(target.pos, `−${r.total}`, 'good');
+          showVfx('arcane', centerOf(target.pos, target.size ?? 1), 0.3, 300);
           finishIfDead(target);
         }
         log(`${s.hero.name} casts ${label}: ${rolls.length} darts strike the ${target.name.toLowerCase()} for ${rolls.join(' + ')} = ${total} force damage.`, 'good');
@@ -1551,9 +1765,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       case 'sleep': {
         const pool = roll(addDice(e.pool, item.upcast?.pool, slot - item.level));
         let left = pool.total; const slept = [];
-        const near = alive().filter((m) => chebyshev(m.pos, target.pos) <= e.radius && BESTIARY_BY_ID[m.statId].type !== 'undead' && !m.cond?.asleep).sort((a, b) => a.hp - b.hp);
+        const near = alive().filter((m) => edist(m, target) <= e.radius && BESTIARY_BY_ID[m.statId].type !== 'undead' && !m.cond?.asleep).sort((a, b) => a.hp - b.hp);
         for (const m of near) { if (m.hp > left) break; left -= m.hp; (m.cond ??= {}).asleep = true; slept.push(m.name); }
-        await showBlast(target.pos, e.radius, item.color);
+        await showBlast(centerOf(target.pos, target.size ?? 1), e.radius, item.color, vfxFor(item));
         log(`${s.hero.name} casts ${label}: ${e.pool} = ${pool.total} hit points of slumber. ${slept.length ? `Asleep: ${slept.join(', ')}.` : 'Nobody falls asleep: they are too hale.'}`, slept.length ? 'good' : 'info');
         // Sleeping creatures do not raise the alarm; the others nearby do.
         affected.push(...near.filter((m) => !m.cond?.asleep));
@@ -1564,8 +1778,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         const targets = e.shape ? areaTargets(e.shape, e.size, center) : [target];
         const dice = item.kind === 'spell' ? spellDice(item, slot, lvl) : null;
         const dmgRoll = dice ? roll(dice) : null;
-        if (e.shape) await showBlast(center, e.shape === 'radius' ? e.size : e.size, item.color);
-        else if (target) await shootProjectile(s.hero.pos, target.pos, item.color);
+        if (e.shape === 'cone') { const f = FACINGS[s.hero.facing]; await showBlast({ x: s.hero.pos.x + f.dx * (e.size + 1) / 2, y: s.hero.pos.y + f.dy * (e.size + 1) / 2 }, (e.size - 1) / 2 + 0.5, item.color, vfxFor(item)); } else if (e.shape) await showBlast(item.target === 'point' ? centerOf(target.pos, target.size ?? 1) : center, e.size, item.color, vfxFor(item));
+        else if (target) { await shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color); showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), (target.size ?? 1) / 2); }
         const lines = [];
         for (const m of targets) {
           const sv = monsterRoll(m, e.save, dc);
@@ -1591,11 +1805,24 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       default:
     }
     s.busy = false;
-    if (s.hero.hp <= 0) { showEnd('defeat'); return; }
+    if (s.hero.hp <= 0) { heroFell(); return; }
     if (affected.length) provoke(affected);
     checkCombatOver();
     redraw();
   }
+
+  /** A creature caught in a lasting effect: save for half damage. Returns a log fragment. */
+  function burnIn(m, fx) {
+    const isHero = !!m.isHero;
+    let sv;
+    if (isHero) { const back = s.active; activate(memberIndex(m)); sv = heroCheck(s.def.saves?.[fx.save] ?? 0, fx.dc, { save: true }); activate(back); } else sv = monsterRoll(m, fx.save, fx.dc);
+    const r = roll(fx.dice);
+    const dmg = sv.ok ? Math.floor(r.total / 2) : r.total;
+    if (isHero) { const back = s.active; activate(memberIndex(m)); damageHero(dmg); activate(back); } else { damageMonster(m, dmg); finishIfDead(m); }
+    float(m.pos, `−${dmg}`, isHero ? 'bad' : 'good'); flashHit(m);
+    return `${m.name} burns: ${fx.save.toUpperCase()} save ${sv.total} vs DC ${fx.dc}, ${dmg} ${fx.damageType}`;
+  }
+  const inEffect = (e, fx) => cellsOf(e.pos, e.size ?? 1).some((q) => fx.cells.some((w) => w.x === q.x && w.y === q.y));
 
   const riderText = { mock: 'disadvantage on its next attack', flee: 'flees in terror', push: 'pushed back', stun: 'stunned', paralyze: 'paralysed', restrain: 'restrained' };
   function applyRider(kind, m, dc) {
@@ -1658,18 +1885,24 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       if (kind === 'long') s.longRested = true;
       redraw(); return;
     }
-    if (kind === 'short') {
-      const before = s.res.hitDice;
-      const r = shortRest(s.res, magicHero(), s.hero.hp, s.hero.maxHp);
-      s.hero.hp += r.healed;
-      log(`${s.hero.name} takes a short rest (wandering check d6 = ${w.d6}, all quiet). ${r.rolls.length ? `Spends ${before - s.res.hitDice} Hit Dice: d${s.def.hitDie} rolls ${r.rolls.join(', ')} + CON each = +${r.healed} HP.` : 'No Hit Dice spent.'} Short-rest abilities recovered.`, 'heal');
-    } else {
-      longRest(s.res, magicHero());
-      s.hero.hp = s.hero.maxHp; s.hero.tempHp = 0;
-      endConcentration(); s.buffs = {}; refreshAC();
-      s.longRested = true;
-      log(`${s.hero.name} sleeps through a long rest (wandering check d6 = ${w.d6}, all quiet). Hit points, spell slots and abilities are restored.`, 'heal');
+    const back = s.active;
+    for (let i = 0; i < s.members.length; i++) {
+      activate(i);
+      if (kind === 'short') {
+        const before = s.res.hitDice;
+        if (s.hero.hp <= 0) s.hero.hp = 1;
+        const r = shortRest(s.res, magicHero(), s.hero.hp, s.hero.maxHp);
+        s.hero.hp += r.healed;
+        log(`${s.hero.name} takes a short rest (wandering check d6 = ${w.d6}, all quiet). ${r.rolls.length ? `Spends ${before - s.res.hitDice} Hit Dice: d${s.def.hitDie} rolls ${r.rolls.join(', ')} + CON each = +${r.healed} HP.` : 'No Hit Dice spent.'} Short-rest abilities recovered.`, 'heal');
+      } else {
+        longRest(s.res, magicHero());
+        s.hero.hp = s.hero.maxHp; s.hero.tempHp = 0;
+        endConcentration(); s.buffs = {}; refreshAC();
+        log(`${s.hero.name} sleeps through a long rest (wandering check d6 = ${w.d6}, all quiet). Hit points, spell slots and abilities are restored.`, 'heal');
+      }
     }
+    activate(back);
+    if (kind === 'long') s.longRested = true;
     play('spell-heal', { volume: 0.6 });
     redraw();
   }
@@ -1678,11 +1911,20 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function sneak() {
     if (s.mode === 'combat') { banner('Too late to hide: they have seen you.'); return; }
     if (s.sneak) { s.sneak = null; log(`${s.hero.name} stops sneaking.`, 'info'); redraw(); return; }
-    const bonus = (s.hero.skills.stealth ?? 0) + (s.buffs.trace ? 10 : 0);
-    const c = heroCheck(bonus, 0, { mode: s.def.stealthDis ? 'disadvantage' : 'normal' });
-    s.sneak = { total: c.total };
+    // A party sneaks only as well as its clumsiest member: everyone rolls, the lowest roll counts.
+    const back = s.active; const rolls = [];
+    for (let i = 0; i < s.members.length; i++) {
+      activate(i);
+      if (s.hero.hp <= 0) continue;
+      const bonus = (s.hero.skills.stealth ?? 0) + (s.buffs.trace ? 10 : 0);
+      const c = heroCheck(bonus, 0, { mode: s.def.stealthDis ? 'disadvantage' : 'normal' });
+      rolls.push({ name: s.hero.name, total: c.total, text: `${s.hero.name}${s.def.stealthDis ? ' (noisy armour: disadvantage)' : ''}${s.buffs.trace ? ' (Pass without Trace)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)}${c.extra} = ${c.total}` });
+    }
+    activate(back);
+    const worst = rolls.reduce((a, b) => (b.total < a.total ? b : a));
+    s.sneak = { total: worst.total };
     for (const m of s.monsters) m.unnoticed = false;
-    log(`${s.hero.name} moves into the shadows. Stealth${s.def.stealthDis ? ' (noisy armour: disadvantage)' : ''}${s.buffs.trace ? ' (Pass without Trace +10)' : ''}: ${c.d20s.length > 1 ? `d20 (${c.d20s.join(', ')} → ${c.d20})` : `d20 (${c.d20})`} ${signed(bonus)}${c.extra} = ${c.total}.`, 'info');
+    log(`${rolls.length > 1 ? 'The party moves' : `${worst.name} moves`} into the shadows. Stealth: ${rolls.map((r) => r.text).join('; ')}.${rolls.length > 1 ? ` The party is only as quiet as ${worst.name}: ${worst.total}.` : ''}`, 'info');
     redraw();
   }
 
@@ -1782,7 +2024,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function foePanel(m) {
     const stat = BESTIARY_BY_ID[m.statId];
     const portrait = monsterPortrait(m.statId);
-    const d = chebyshev(s.hero.pos, m.pos);
+    const d = edist(s.hero, m);
     const combat = s.mode === 'combat';
     const health = s.knownHp.has(m.id) ? `${m.hp} / ${m.maxHp} HP` : woundState(m.hp, m.maxHp);
     const weapons = s.hero.weapons.map((w, i) => {
@@ -1899,6 +2141,26 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     return '';
   }
 
+  /** Bodies, chests, doors and traps open as a pop-up in the middle of the screen. */
+  function drawPop() {
+    const box = $('.dg-pop');
+    const html = s.target ? interactPanel(s.target) : '';
+    if (s.target && !html) s.target = null;
+    box.hidden = !html;
+    if (html) box.innerHTML = `<div class="dg-pop-card">${html}<p class="small muted pop-hint">Esc or click outside to close.</p></div>`;
+  }
+
+  /** Party roster: who is in the group, their health; while exploring, click to choose the leader. */
+  function partyBar() {
+    if (s.members.length < 2) return '';
+    return `<div class="party-bar">${s.members.map((m, i) => {
+      const h = m.hero; const me = h === s.hero;
+      return `<button class="party-member ${me ? 'me' : ''} ${h.hp <= 0 ? 'down' : ''}" data-dg="pick-hero" data-i="${i}" ${s.mode === 'combat' || s.busy ? 'disabled' : ''} title="${esc(h.name)}${s.mode === 'combat' ? '' : ': click to lead the party'}">
+        <img src="${esc(h.look?.url ?? '')}" alt="" style="filter:${h.look?.filter ?? 'none'};border-color:${h.look?.frameColor ?? '#c9a227'}">
+        <span><b>${esc(h.name.split(' ')[0])}</b><span class="mini-hp"><span style="width:${Math.max(0, h.hp / h.maxHp) * 100}%"></span></span><small>${h.hp}/${h.maxHp}</small></span></button>`;
+    }).join('')}</div>`;
+  }
+
   function drawInventory() {
     const box = $('.dg-inv');
     box.hidden = !s.invOpen;
@@ -1914,14 +2176,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const box = $('.dg-target');
     const sel = s.selectedId && s.monsters.find((m) => m.id === s.selectedId && !m.dead && canSee(m));
     if (sel) { box.innerHTML = foePanel(sel); return; }
-    if (s.target) { const html = interactPanel(s.target); if (html) { box.innerHTML = html; return; } s.target = null; }
+
     const hov = s.hover;
     if (!hov || !s.hero) { box.innerHTML = '<p class="muted small">Click a foe to see its portrait, attack it or study it. Click chests, locked doors, traps and bodies next to you. Hover to check distances.</p>'; return; }
-    const foe = alive().find((m) => m.pos.x === hov.x && m.pos.y === hov.y && canSee(m));
+    const foe = alive().find((m) => covers(m, hov) && canSee(m));
     if (foe) {
       const plan = heroAttackPlan(foe);
       box.innerHTML = `<div class="foe-mini">${monsterPortrait(foe.statId) ? `<img src="${esc(monsterPortrait(foe.statId))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
-        <p class="small">${woundState(foe.hp, foe.maxHp)} · ${chebyshev(s.hero.pos, foe.pos) * 5} ft away</p>
+        <p class="small">${woundState(foe.hp, foe.maxHp)} · ${edist(s.hero, foe) * 5} ft away</p>
         ${plan ? `<p class="hit"><b>${pct(plan.opts.chance)}</b> to hit with ${esc(plan.weapon.name)}</p>` : `<p class="small">${esc(whyNot(foe))}</p>`}
         <p class="small muted">Click to select it and see more.</p></div></div>`;
       return;
@@ -2025,7 +2287,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function handleClick(c) {
     if (!c || !s.hero || s.busy || s.mode === 'defeat' || s.mode === 'victory') return;
     if (s.pending) { finishTeleport(c); return; }
-    const foe = alive().find((m) => m.pos.x === c.x && m.pos.y === c.y && canSee(m));
+    const foe = alive().find((m) => covers(m, c) && canSee(m));
     if (foe) {
       // First click selects (and shows the portrait); clicking the selected foe again attacks.
       if (s.selectedId === foe.id) heroAttack(foe);
@@ -2037,17 +2299,28 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const known = s.revealAll || s.revealed.has(k);
     if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { descend(); return; }
     const body = corpseAt(c.x, c.y);
-    if (body && chebyshev(s.hero.pos, body.pos) <= 1) { s.target = { kind: 'corpse', id: body.id }; redraw(); return; }
+    if (body) { approachThen(body.pos, () => { s.target = { kind: 'corpse', id: body.id }; }); return; }
     const chest = known && chestAt(c.x, c.y);
     if (chest) {
-      if (adjacent(chest) && !chest.locked && !chest.opened) { openChest(chest); return; }
-      s.target = { kind: 'chest', id: chest.id }; redraw(); return;
+      approachThen(chest, () => { if (!chest.locked && !chest.opened) openChest(chest); else s.target = { kind: 'chest', id: chest.id }; });
+      return;
     }
-    if (known && isLocked(k)) { s.target = { kind: 'door', id: k }; redraw(); return; }
+    if (known && isLocked(k)) { approachThen(c, () => { s.target = { kind: 'door', id: k }; }); return; }
     const trap = trapAt(c.x, c.y);
     if (trap && trap.found && !trap.disarmed && !trap.sprung) { s.target = { kind: 'trap', id: trap.id }; redraw(); return; }
     const t = s.reach.get(k);
     if (t && t.cost > 0) { s.target = null; moveHero(t); }
+  }
+
+  /** Walk next to something (if needed and possible), then open its pop-up. */
+  async function approachThen(pos, open) {
+    if (chebyshev(s.hero.pos, pos) > 1) {
+      const step = [...s.reach.values()].filter((r) => r.cost > 0 && chebyshev(r, pos) <= 1).sort((a, b) => a.cost - b.cost)[0];
+      if (step) await moveHero(step);
+    }
+    if (s.mode === 'defeat') return;
+    open();
+    redraw();
   }
 
   function handleInventory(el) {
@@ -2080,6 +2353,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     redraw();
   }
 
+  host.addEventListener('click', (e) => { if (e.target.classList?.contains('dg-pop')) { s.target = null; redraw(); } });
   host.addEventListener('click', (e) => {
     const el = e.target.closest('[data-inv]');
     if (el && !el.disabled && s.draft) handleInventory(el);
@@ -2121,6 +2395,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         break;
       }
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
+      case 'pick-hero': if (s.mode !== 'combat' && !s.busy && s.members[Number(el.dataset.i)]?.hero.hp > 0) { activate(Number(el.dataset.i)); startHeroTurn(); redraw(); centerOn(s.hero.pos); } break;
+      case 'leave-arena': onLeave?.(); break;
       case 'cast': useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }
       case 'sneak': sneak(); break;
@@ -2153,7 +2429,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         break;
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
-      case 'hero': s.heroId = el.value; resetDelve(); centerOn(s.hero.pos); break;
+      case 'party': {
+        const boxes = [...host.querySelectorAll('[data-dg="party"]')];
+        let ids = boxes.filter((b) => b.checked).map((b) => b.value);
+        if (ids.length > 4) { el.checked = false; banner('A party can have up to 4 heroes.'); break; }
+        if (!ids.length) { el.checked = true; ids = [el.value]; banner('Someone has to go!'); }
+        s.partyIds = ids; resetDelve(); centerOn(s.hero.pos);
+        break;
+      }
       default:
     }
   });
@@ -2166,6 +2449,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
     else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === 'Escape' && s.target) { s.target = null; redraw(); }
     else if (e.key === 'Escape' && s.pending) { s.pending = null; banner('Cancelled.'); redraw(); }
     else if (e.key === 'Escape' && s.invOpen) { s.invOpen = false; redraw(); }
     else if (e.key === 'Escape' && (s.selectedId || s.target)) { s.selectedId = null; s.target = null; redraw(); }

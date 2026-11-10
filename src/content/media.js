@@ -23,7 +23,16 @@ const PREMADE = {
 const KINDRED = { 'men-west': 'kin-men-west', 'men-plains': 'kin-men-plains', elf: 'kin-elf', dwarf: 'kin-dwarf', halfling: 'kin-halfling' };
 
 /** Monster portraits by bestiary id (more to come). */
-export const MONSTER_PORTRAITS = { goblin: 'goblin', 'pit-runt': 'pit-runt', 'dark-wood-spiderling': 'spiderling', 'crag-bat': 'crag-bat' };
+export const MONSTER_PORTRAITS = {
+  goblin: 'goblin', 'pit-runt': 'pit-runt', 'dark-wood-spiderling': 'spiderling', 'crag-bat': 'crag-bat',
+  ...Object.fromEntries([
+    'mountain-goblin', 'wolf', 'skeleton', 'giant-wolf-spider', 'black-pit-orc', 'orc-tracker', 'worg', 'dire-wolf',
+    'giant-spider', 'shadow-wolf', 'sun-hardened-great-orc', 'hollow-hill-lurker', 'great-goblin-of-the-mountain-halls', 'wight',
+    'weaver-of-the-nightwood', 'hill-troll', 'orc-captain', 'cairn-wight', 'stone-troll', 'snow-troll', 'shadow-wolf-chieftain',
+    'herald-of-the-dark-tower', 'cave-troll', 'spirit-wolf-of-the-shadow', 'shadow-bred-war-troll', 'hooded-rider-of-the-shadow',
+    'fallen-loremaster', 'dread-sovereign-of-the-hooded-riders',
+  ].map((id) => [id, id])),
+};
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
 
 /** Style presets are CSS filter chains applied on top of the painting. */

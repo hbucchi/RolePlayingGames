@@ -12,6 +12,7 @@ import { TILE, isWalkable } from './dungeon.js';
 import { cellKey } from './movement.js';
 import { createMonster } from './combat.js';
 import { buildEncounter } from './progression.js';
+import { footprintOf, cellsOf } from './size.js';
 
 /** d20 + bonus vs DC. mode: 'normal' | 'advantage' | 'disadvantage'. */
 export function skillCheck(bonus, dc, { mode = 'normal', rng = cryptoRandomInt } = {}) {
@@ -120,7 +121,7 @@ export function placeFeatures(map, seed, level = 1) {
  * Fill rooms with monsters suited to the hero's level using the encounter budget:
  * most rooms easy or medium, a few hard. About half the rooms are empty.
  */
-export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = new Set() } = {}) {
+export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = new Set(), partySize = 1 } = {}) {
   const rng = seededRng((seed * 2654435761) >>> 0);
   const monsters = [];
   let n = 0;
@@ -128,17 +129,19 @@ export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = 
     if (r.entrance || rng(1000) / 1000 >= chance) continue;
     const roll = rng(100);
     const difficulty = roll < 40 ? 'easy' : roll < 85 ? 'medium' : 'hard';
-    const group = buildEncounter(level, pool, rng, { difficulty });
+    const group = buildEncounter(level, pool, rng, { difficulty, partySize, maxCount: Math.min(4, partySize + 1) });
     const used = new Set();
     for (const stat of group) {
+      // Big creatures fill a block of squares that must fit inside the room.
+      const fp = footprintOf(stat);
+      if (fp > r.w || fp > r.h) continue;
       let pos = null;
-      for (let t = 0; t < 30; t++) {
-        const p = { x: r.x + rng(r.w), y: r.y + rng(r.h) };
-        const k = cellKey(p.x, p.y);
-        if (!used.has(k) && !avoid.has(k)) { pos = p; break; }
+      for (let t = 0; t < 40; t++) {
+        const p = { x: r.x + rng(r.w - fp + 1), y: r.y + rng(r.h - fp + 1) };
+        if (cellsOf(p, fp).every((c) => !used.has(cellKey(c.x, c.y)) && !avoid.has(cellKey(c.x, c.y)))) { pos = p; break; }
       }
       if (!pos) continue;
-      used.add(cellKey(pos.x, pos.y));
+      for (const c of cellsOf(pos, fp)) used.add(cellKey(c.x, c.y));
       monsters.push({ ...createMonster(stat, `m${++n}`, pos, rng(8)), roomDifficulty: difficulty });
     }
   }

@@ -27,13 +27,21 @@ export const MOODS = {
   combat: ['battle'],
 };
 
-const KEY_ON = 'rpg.music.on'; const KEY_VOL = 'rpg.music.volume';
+const KEY_ON = 'rpg.music.on'; const KEY_LEVEL = 'rpg.music.level';
 const load = (k, d) => { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch { return d; } };
 const store = (k, v) => { try { localStorage.setItem(k, String(v)); } catch { /* storage unavailable */ } };
 
 let enabled = load(KEY_ON, '1') === '1';
-let volume = Math.min(1, Math.max(0, Number(load(KEY_VOL, '0.35'))));
-let mood = null; let index = 0; let current = null; let unlocked = false; let duck = 1;
+/**
+ * Loudness is perceived on a logarithmic scale: halving the signal sounds only a little quieter
+ * (-6 dB). A linear slider therefore crams all the useful quiet settings into its bottom tenth.
+ * So the slider position (0-1) is mapped to decibels instead: 0 = silent, then -40 dB ... 0 dB,
+ * and gain = 10^(dB / 20). Each tenth of the slider is the same 4 dB step to the ear.
+ */
+export const DB_RANGE = 40;
+export const levelToGain = (level) => (level <= 0 ? 0 : 10 ** ((DB_RANGE * (Math.min(1, level) - 1)) / 20));
+let volume = Math.min(1, Math.max(0, Number(load(KEY_LEVEL, '0.7')))); // slider position, not gain
+let mood = null; let index = 0; let current = null; let unlocked = false; let duck = 1; let stingerAudio = null;
 const listeners = new Set();
 const notify = () => listeners.forEach((fn) => fn(state()));
 
@@ -51,7 +59,7 @@ function fade(audio, to, ms, done) {
   }, 50);
 }
 
-const target = () => volume * duck;
+const target = () => levelToGain(volume) * duck;
 
 function start(key) {
   const old = current;
@@ -85,24 +93,35 @@ export function setMood(m) {
 /** Play a one-off theme over a ducked mood (victory, defeat). */
 export function stinger(key) {
   if (!enabled || !unlocked) return;
+  stopStinger();
   duck = 0.15;
   if (current) fade(current.audio, target(), 600);
   const a = new Audio(`assets/music/${key}.mp3`);
-  a.volume = Math.min(1, volume * 1.6);
+  a.volume = stingerGain();
+  stingerAudio = a;
   a.play().catch(() => {});
-  a.addEventListener('ended', () => { duck = 1; if (current) fade(current.audio, target(), 1500); });
+  a.addEventListener('ended', () => { if (stingerAudio === a) stingerAudio = null; duck = 1; if (current) fade(current.audio, target(), 1500); });
+}
+/** Stingers sit about 4 dB above the music (they are short), but follow the same slider. */
+const stingerGain = () => Math.min(1, levelToGain(volume) * 1.6);
+function stopStinger() {
+  if (!stingerAudio) return;
+  const a = stingerAudio; stingerAudio = null; fade(a, 0, 400, () => a.pause());
+  duck = 1;
 }
 
 export function setEnabled(on) {
   enabled = !!on; store(KEY_ON, enabled ? '1' : '0');
+  if (!enabled) stopStinger();
   if (!enabled && current) { const old = current; current = null; fade(old.audio, 0, 600, () => old.audio.pause()); }
   if (enabled && mood && unlocked) { const m = mood; mood = null; setMood(m); }
   notify();
 }
 
 export function setVolume(v) {
-  volume = Math.min(1, Math.max(0, v)); store(KEY_VOL, volume);
+  volume = Math.min(1, Math.max(0, v)); store(KEY_LEVEL, volume);
   if (current) { clearInterval(current.audio._fade); current.audio.volume = target(); }
+  if (stingerAudio) { clearInterval(stingerAudio._fade); stingerAudio.volume = stingerGain(); }
   notify();
 }
 

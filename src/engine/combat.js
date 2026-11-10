@@ -11,6 +11,26 @@
 import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
 import { lineOfSight, coverBetween } from './vision.js';
+import { footprintOf, cellsOf, blockDistance, centerOf } from './size.js';
+
+/** Distance between two creatures, measured between their nearest squares (big creatures fill blocks). */
+export const entityDistance = (a, b) => blockDistance(a.pos, a.size ?? 1, b.pos, b.size ?? 1);
+/** Does a creature cover a square? */
+export const covers = (e, c) => c.x >= e.pos.x && c.y >= e.pos.y && c.x < e.pos.x + (e.size ?? 1) && c.y < e.pos.y + (e.size ?? 1);
+/** Best line of sight between any square of one creature and any square of the other. */
+export function bestSight(a, b, opaque) {
+  let best = null;
+  for (const ca of cellsOf(a.pos, a.size ?? 1)) {
+    for (const cb of cellsOf(b.pos, b.size ?? 1)) {
+      const los = lineOfSight(ca, cb, opaque);
+      if (los.visible) return { from: ca, to: cb, ...los };
+      best ??= { from: ca, to: cb, ...los };
+    }
+  }
+  return best;
+}
+/** Melee reach in squares: 5 ft = 1, 10 ft (big creatures, polearms) = 2. */
+export const reachOf = (e) => Math.max(1, ...e.weapons.filter((w) => w.melee).map((w) => w.reach ?? 1));
 
 // ---------------------------------------------------------------------------
 // Facing
@@ -37,7 +57,8 @@ export const facingAngle = (f) => f * 45; // degrees clockwise from north
  */
 export function isBehind(attackerPos, target) {
   const f = FACINGS[target.facing];
-  const rx = Math.sign(attackerPos.x - target.pos.x); const ry = Math.sign(attackerPos.y - target.pos.y);
+  const c = centerOf(target.pos, target.size ?? 1);
+  const rx = Math.sign(attackerPos.x - c.x); const ry = Math.sign(attackerPos.y - c.y);
   return rx * f.dx + ry * f.dy <= -1;
 }
 
@@ -54,14 +75,14 @@ export function weaponFromHeroAttack(a) {
   const thrown = props.find((p) => /^thrown /.test(p));
   const spec = (range ?? thrown)?.split(' ')[1];
   const [normal, long] = spec ? spec.split('/').map((n) => Number(n) / 5) : [0, 0];
-  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long };
+  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: props.includes('reach') ? 2 : 1 };
 }
 
 export function weaponFromMonsterAction(action) {
   const at = action.attack;
   const [normal, long] = at.range ? at.range.split('/').map((n) => Number(n) / 5) : [0, 0];
   const main = at.damage[0];
-  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1) };
+  return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1), reach: Math.max(1, Math.round((at.reach ?? 5) / 5)) };
 }
 
 export function hitChance(toHit, ac, mode = 'normal') {
@@ -114,26 +135,28 @@ export function resolveAttack({ weapon, ac, mode = 'normal', rng = cryptoRandomI
  * the actual roll. Returns null if the attack is impossible (out of range, no sight...).
  */
 export function attackOptions({ attacker, target, weapon, opaque, occupied, enemiesOf }) {
-  const dist = chebyshev(attacker.pos, target.pos);
+  const dist = entityDistance(attacker, target);
   const adv = []; const dis = [];
   let ac = target.ac;
   let cover = 'none';
   let usingRanged = false;
-  if (dist <= 1 && weapon.melee) {
-    // melee: adjacent, including diagonals
+  const sight = bestSight(attacker, target, opaque);
+  if (!sight?.visible) return null;
+  if (dist <= (weapon.reach ?? 1) && weapon.melee) {
+    // melee: within reach (adjacent, or 10 ft for long-armed creatures and polearms)
   } else if (weapon.ranged && dist <= weapon.long) {
     usingRanged = true;
-    const others = new Set([...occupied].filter((k) => k !== cellKey(attacker.pos.x, attacker.pos.y) && k !== cellKey(target.pos.x, target.pos.y)));
-    cover = coverBetween(attacker.pos, target.pos, opaque, others);
+    const own = new Set([...cellsOf(attacker.pos, attacker.size ?? 1), ...cellsOf(target.pos, target.size ?? 1)].map((c) => cellKey(c.x, c.y)));
+    const others = new Set([...occupied].filter((k) => !own.has(k)));
+    cover = coverBetween(sight.from, sight.to, opaque, others);
     if (cover === 'total') return null;
     if (cover === 'half') ac += 2;
     if (dist > weapon.normal) dis.push('long range');
-    if (enemiesOf(attacker).some((e) => chebyshev(e.pos, attacker.pos) <= 1)) dis.push('enemy adjacent');
+    if (enemiesOf(attacker).some((e) => entityDistance(e, attacker) <= 1)) dis.push('enemy adjacent');
   } else {
     return null;
   }
-  if (!lineOfSight(attacker.pos, target.pos, opaque).visible) return null;
-  if (isBehind(attacker.pos, target)) adv.push('attacking from behind');
+  if (isBehind(centerOf(attacker.pos, attacker.size ?? 1), target)) adv.push('attacking from behind');
   if (target.aware === false) adv.push('target unaware');
   const c = target.cond ?? {};
   if (c.asleep || c.paralyzed || c.stun > 0) adv.push('target helpless');
@@ -156,6 +179,7 @@ export function createMonster(stat, id, pos, facing = 4) {
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),
     flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
+    size: footprintOf(stat),
     cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
   };
 }
@@ -203,44 +227,48 @@ export function rollInitiative(dexMod, rng = cryptoRandomInt) {
 export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt }) {
   const melee = m.weapons.find((w) => w.melee);
   const ranged = m.weapons.find((w) => w.ranged && !w.melee) ?? null;
-  const dist = chebyshev(m.pos, hero.pos);
-  const sees = (pos) => lineOfSight(pos, hero.pos, opaque).visible;
+  const n = m.size ?? 1;
+  const reachSq = reachOf(m);
+  const dAt = (pos) => blockDistance(pos, n, hero.pos, hero.size ?? 1);
+  const dist = dAt(m.pos);
+  const sees = (pos) => !!bestSight({ pos, size: n }, hero, opaque)?.visible;
+  const move = (budget) => reachableSquares(map, m.pos, budget, { blocked, size: n });
 
   // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
   if ((m.cowardly && m.hp <= m.maxHp / 2) || m.cond?.flee > 0) {
-    const reach = reachableSquares(map, m.pos, m.speed, { blocked });
-    const far = [...reach.values()].sort((a, b) => chebyshev(b, hero.pos) - chebyshev(a, hero.pos) || a.cost - b.cost)[0];
-    if (far && chebyshev(far, hero.pos) > dist) {
+    const reach = move(m.speed);
+    const far = [...reach.values()].sort((a, b) => dAt(b) - dAt(a) || a.cost - b.cost)[0];
+    if (far && dAt(far) > dist) {
       return [{ type: 'flee' }, { type: 'move', path: far.path }]; // a coward runs; it does not stop to shoot
     }
   }
 
-  if (dist <= 1) {
+  if (melee && dist <= reachSq && sees(m.pos)) {
     const wounded = m.hp <= m.maxHp / 2;
     if (ranged && m.nimble && (wounded || rng(100) < 35)) {
-      const reach = reachableSquares(map, m.pos, m.speed, { blocked });
-      const spots = [...reach.values()].filter((c) => chebyshev(c, hero.pos) >= 3 && sees(c));
-      spots.sort((a, b) => chebyshev(b, hero.pos) - chebyshev(a, hero.pos) || a.cost - b.cost);
+      const reach = move(m.speed);
+      const spots = [...reach.values()].filter((c) => dAt(c) >= 3 && sees(c));
+      spots.sort((a, b) => dAt(b) - dAt(a) || a.cost - b.cost);
       if (spots.length) return [{ type: 'disengage' }, { type: 'move', path: spots[0].path }, { type: 'attack', weapon: ranged }];
     }
-    return melee ? [{ type: 'attack', weapon: melee }] : [{ type: 'wait' }];
+    return [{ type: 'attack', weapon: melee }];
   }
 
   if (ranged && sees(m.pos) && dist <= ranged.long) return [{ type: 'attack', weapon: ranged }];
 
-  // Close in: find the cheapest free square next to the hero, then walk part of the way.
-  const all = reachableSquares(map, m.pos, 200, { blocked });
+  // Close in: find the cheapest square within reach of the hero, then walk part of the way.
+  const all = move(200);
   let best = null;
   for (const c of all.values()) {
-    if (chebyshev(c, hero.pos) !== 1) continue;
+    if (dAt(c) > reachSq || dAt(c) < 1) continue;
     if (!best || c.cost < best.cost) best = c;
   }
   if (!best) return [{ type: 'wait' }];
   const path = best.path.slice(0, m.speed + 1);
   const end = path[path.length - 1];
   const steps = [{ type: 'move', path }];
-  if (chebyshev(end, hero.pos) <= 1 && melee) steps.push({ type: 'attack', weapon: melee });
-  else if (ranged && sees(end) && chebyshev(end, hero.pos) <= ranged.long) steps.push({ type: 'attack', weapon: ranged });
+  if (dAt(end) <= reachSq && melee) steps.push({ type: 'attack', weapon: melee });
+  else if (ranged && sees(end) && dAt(end) <= ranged.long) steps.push({ type: 'attack', weapon: ranged });
   return steps;
 }
 

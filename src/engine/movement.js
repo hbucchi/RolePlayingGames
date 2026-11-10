@@ -13,6 +13,7 @@
  * first time a square is settled its cost is the minimum possible.
  */
 import { isWalkable } from './dungeon.js';
+import { terrainCost } from './terrain.js';
 
 export const DIAGONAL_RULES = {
   standard: { name: 'Standard (every square 5 ft)' },
@@ -31,9 +32,15 @@ export function speedToSquares(speedFeet, feetPerCell = 5) {
 }
 
 /** Can a creature step from (x,y) by (dx,dy)? Blocks walls and diagonal corner-cutting. */
-export function canStep(map, x, y, dx, dy, blocked) {
+export function canStep(map, x, y, dx, dy, blocked, size = 1) {
+  if (size > 1) {
+    // A big creature's whole block must fit at the new position (and slide past corners).
+    for (let oy = 0; oy < size; oy++) for (let ox = 0; ox < size; ox++) if (!canStep(map, x + ox, y + oy, dx, dy, blocked, 1)) return false;
+    return true;
+  }
   const nx = x + dx; const ny = y + dy;
   if (!isWalkable(map, nx, ny) || blocked?.has(cellKey(nx, ny))) return false;
+  if (map.terrain && terrainCost(map, nx, ny) === Infinity) return false; // deep water
   if (dx !== 0 && dy !== 0) {
     return isWalkable(map, x + dx, y) && isWalkable(map, x, y + dy);
   }
@@ -47,7 +54,7 @@ export function canStep(map, x, y, dx, dy, blocked) {
  * State = (square, parity of diagonals taken so far). Parity only matters for the
  * alternating rule; under the standard rule it is always 0.
  */
-export function reachableSquares(map, start, budget, { diagonalRule = 'standard', blocked = null } = {}) {
+export function reachableSquares(map, start, budget, { diagonalRule = 'standard', blocked = null, size = 1 } = {}) {
   const alternating = diagonalRule === 'alternating';
   const best = new Map(); // stateKey -> cost
   const parent = new Map(); // stateKey -> previous stateKey
@@ -72,9 +79,10 @@ export function reachableSquares(map, start, budget, { diagonalRule = 'standard'
     }
 
     for (const [dx, dy] of STEPS) {
-      if (!canStep(map, cur.x, cur.y, dx, dy, blocked)) continue;
+      if (!canStep(map, cur.x, cur.y, dx, dy, blocked, size)) continue;
       const diagonal = dx !== 0 && dy !== 0;
-      const stepCost = diagonal && alternating && cur.parity === 1 ? 2 : 1;
+      // Difficult terrain doubles the cost of entering a square.
+      const stepCost = (diagonal && alternating && cur.parity === 1 ? 2 : 1) * (map.terrain ? terrainCost(map, cur.x + dx, cur.y + dy) : 1);
       const parity = diagonal && alternating ? 1 - cur.parity : cur.parity;
       const cost = cur.cost + stepCost;
       if (cost > budget) continue;

@@ -58,19 +58,20 @@ export function rateEncounter(xps, levels) {
  * stay readable) whose adjusted XP stays within the hero's budget. `pool` is a list of
  * monster stat blocks with .xp. Prefers monsters that use a good share of the budget.
  */
-export function buildEncounter(level, pool, rng, { difficulty = 'medium', maxCount = 2 } = {}) {
-  const budget = THRESHOLDS[Math.min(20, Math.max(1, level))][DIFFICULTY.indexOf(difficulty)];
+export function buildEncounter(level, pool, rng, { difficulty = 'medium', maxCount = 2, partySize = 1 } = {}) {
+  // A party's budget is the sum of its members' thresholds (here: same level, so x party size).
+  const budget = THRESHOLDS[Math.min(20, Math.max(1, level))][DIFFICULTY.indexOf(difficulty)] * partySize;
   const sorted = [...pool].sort((a, b) => a.xp - b.xp);
-  const count = maxCount >= 2 && rng(100) < 45 ? 2 : 1;
+  const count = maxCount <= 1 ? 1 : 1 + (rng(100) < 45 ? 1 : 0) + (maxCount > 2 && rng(100) < 35 ? 1 : 0) + (maxCount > 3 && rng(100) < 25 ? 1 : 0);
   const per = budget / (crowdMultiplier(count) * count);
   let fits = sorted.filter((m) => m.xp <= per && m.xp >= per / 4);
   if (!fits.length) fits = sorted.filter((m) => m.xp <= per);
   if (!fits.length) return [sorted[0]];
   const first = fits[rng(fits.length)];
-  if (count === 1) return [first];
-  // A pair: usually the same kind (a hunting pair, two guards), sometimes a mixed band.
-  const second = rng(100) < 65 ? first : fits[rng(fits.length)];
-  return [first, second];
+  const group = [first];
+  // A band: usually the same kind (a hunting pack, guards), sometimes mixed.
+  while (group.length < count) group.push(rng(100) < 65 ? first : fits[rng(fits.length)]);
+  return group;
 }
 
 /**

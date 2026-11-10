@@ -48,6 +48,20 @@ npm test       # rules-engine tests
 - **Dungeon skills:** pick locks (thieves' tools, DEX) or force them (Athletics, loud), search for traps and
   secret doors (Investigation, plus passive Perception as you walk), disarm traps, bind wounds with
   bandages (Medicine), drink potions. Chests, locked doors, traps and secret doors are seeded per dungeon.
+- **Parties:** take up to 4 heroes into a dungeon (tick them in the Party bar). They walk in single file,
+  roll their own initiative and take their own turns; monsters go for the nearest hero they can see.
+  Kill XP is shared evenly; a hero who drops is out of the fight and comes round with 1 HP afterwards.
+- **The Arena:** paint a battlefield square by square with 11 terrains (grass, mud, snow, shallow water
+  and deep river, sand, cobbles, castle floor, bloodied stone, walls), place up to 4 heroes and any of
+  the 356 creatures, save the layout and fight a practice bout. Mud, snow and shallow water are difficult
+  terrain (double movement cost); deep water cannot be walked; walls block sight.
+- **Creature sizes:** Large creatures fill 2×2 squares, Huge 3×3, Gargantuan 4×4 (the Shadowflame Tyrant
+  2×2). Distance is measured between nearest squares; 10-ft reach lets big creatures hit from 2 squares
+  away; big creatures cannot squeeze through gaps narrower than they are.
+- **Spell effects:** painted fire, ice, lightning, arcane, thunder, poison, radiant and healing effects
+  show where a spell lands; Wall of Fire leaves a burning wall for 10 rounds.
+- **Pop-ups:** clicking a body, chest, locked door or trap walks your hero over and opens a pop-up with
+  every option (take loot, open, pick, force, disarm).
 - **Spells and abilities:** 34 spells (cantrips to 9th level) and 17 class abilities. Loremasters and
   minstrels are full casters, rangers and wardens half casters from level 2, and warriors and burglars have
   trained abilities: Second Wind, Action Surge, Extra Attack, Sneak Attack, Cunning Action, Uncanny Dodge and

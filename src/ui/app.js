@@ -20,6 +20,7 @@ import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter } from '../engine/storage.js';
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
+import { mountArenaBuilder } from './arena-builder.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
@@ -56,6 +57,15 @@ const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const fmt = formatModifier;
 const stepId = () => STEPS[state.step].id;
 const settingFor = (d) => getSetting(d.settingId) ?? setting;
+
+/** A toast that does not re-render the page (the arena builder and dungeon keep their state). */
+function toast(text, kind = 'ok') {
+  root.querySelector('.toast')?.remove();
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`; el.setAttribute('role', 'status'); el.textContent = text;
+  root.appendChild(el);
+  clearTimeout(toast.t); toast.t = setTimeout(() => el.remove(), 3500);
+}
 
 function notify(text, kind = 'ok') {
   state.notice = { text, kind };
@@ -112,11 +122,29 @@ function render() {
     start: startView,
     sheet: sheetView,
     dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
+    arena: () => `<div class="row sheet-actions"><button class="btn ghost" data-action="home">← Adventures</button><h1 class="arena-title">Arena</h1></div>
+      <p class="muted">Build a battlefield, choose who fights, and play a practice bout. Arena bouts never cost your heroes anything, and give no XP or loot.</p>
+      <div id="arena-host"></div>`,
+    'arena-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
   };
   renderInto((views[state.view] ?? homeView)());
-  if (state.view !== 'dungeon') music.setMood('menu');
+  if (state.view !== 'dungeon' && state.view !== 'arena-fight') music.setMood('menu');
   if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
+  if (state.view === 'arena') {
+    mountArenaBuilder(root.querySelector('#arena-host'), {
+      heroes: explorerHeroes(), setup: state.arenaSetup,
+      onChange: (setup) => { state.arenaSetup = setup; },
+      onFight: (setup) => { state.arenaFight = setup; state.view = 'arena-fight'; render(); window.scrollTo(0, 0); },
+      notify: toast,
+    });
+  }
+  if (state.view === 'arena-fight') {
+    mountDungeon(root.querySelector('#dungeon-host'), {
+      heroes: explorerHeroes(), api: heroApi, arena: structuredClone(state.arenaFight),
+      onLeave: () => { state.view = 'arena'; render(); },
+    });
+  }
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
 }
 
@@ -129,7 +157,7 @@ function renderInto(body) {
       </button>
  <div class="music-ctl">
         <button class="sound-toggle" data-action="toggle-music" aria-pressed="${music.state().enabled}" title="${esc(musicTitle())}">${music.state().enabled ? '🎵' : '🎵'}<span class="sr-only">${music.state().enabled ? 'Turn music off' : 'Turn music on'}</span></button>
-        <input type="range" class="music-vol" min="0" max="100" value="${Math.round(music.state().volume * 100)}" data-music="volume" aria-label="Music volume" ${music.state().enabled ? '' : 'disabled'}>
+        <input type="range" class="music-vol" min="0" max="100" value="${Math.round(music.state().volume * 100)}" data-music="volume" aria-label="Music volume" title="Music volume (each step is the same loudness change to the ear)" ${music.state().enabled ? '' : 'disabled'}>
       </div>
       <button class="sound-toggle" data-action="toggle-sound" aria-pressed="${!isMuted()}" title="${isMuted() ? 'Sound off' : 'Sound on'}">${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span></button>
       ${state.view === 'home' ? `
@@ -258,6 +286,12 @@ function adventuresView() {
       <h1>Adventures</h1>
       <p class="muted">Choose a tale and bring your company. Full adventures are on the way; the sandbox lets you explore generated dungeons now.</p>
       <div class="card-grid">
+        <article class="card adventure arena-card">
+          <div class="card-head"><h3>The Arena</h3><span class="badge">Playable</span></div>
+          <p>Build your own battlefield square by square (grass, mud, rivers, castle floors, walls), choose up to four heroes and any of the 356 creatures, place them, and fight. Save your arenas to use again.</p>
+          <p class="muted small">Any level · practice bouts</p>
+          <button class="btn small primary" data-action="open-arena">Open the arena</button>
+        </article>
         ${setting.adventures.map((a) => {
     const playable = a.status === 'playable';
     return `
@@ -679,7 +713,7 @@ function explorerHeroes() {
   const premade = setting.premades.filter((p) => !adopted.has(p.id)).map((p) => syncBaseFromAssignment(structuredClone(p)));
   return [...mine.map((d) => ({ d, tag: '' })), ...premade.map((d) => ({ d, tag: ' (ready-made)' }))].map(({ d, tag }) => {
     const c = deriveCharacter(d, settingFor(d));
-    return { id: d.id, label: `${c.name}, level ${c.level} ${c.race.name} ${c.cls.name}${tag}` };
+    return { id: d.id, label: `${c.name}, level ${c.level} ${c.race.name} ${c.cls.name}${tag}`, look: heroLook(d) };
   });
 }
 
@@ -775,7 +809,7 @@ function logRoll(label, bonus) {
 const actions = {
   home() {
     if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
-    if (state.view === 'dungeon') state.tab = 'adventures';
+    if (['dungeon', 'arena', 'arena-fight'].includes(state.view)) state.tab = 'adventures';
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
   },
@@ -817,6 +851,7 @@ const actions = {
     el.innerHTML = `${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span>`;
     if (!isMuted()) play('dice', { volume: 0.5 });
   },
+  'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
   'enter-dungeon'() {
     Object.assign(state, { view: 'dungeon' });
     render();
