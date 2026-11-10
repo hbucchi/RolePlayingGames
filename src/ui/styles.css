@@ -391,6 +391,8 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .portrait.lg { width: 168px; height: 168px; border-width: 6px; }
 .hero-card-top { display: flex; gap: 12px; align-items: center; }
 .hero-card-top > div { flex: 1; min-width: 0; }
+.hero-card-top > .portrait, .sheet-head > .portrait { flex: none; aspect-ratio: 1; }
+.hero-card-top > .portrait.sm { width: 96px; height: 96px; }
 .sheet-head { display: flex; gap: 18px; align-items: center; }
 .look-editor { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 18px; margin: 14px 0; box-shadow: var(--shadow); }
 .look-controls { flex: 1 1 320px; min-width: 0; display: grid; gap: 10px; }
@@ -649,3 +651,5 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .vfx-cloud { opacity: .5; }
 .vfx-aura { opacity: .38; pointer-events: none; }
 .sb-portrait { width: 100%; max-width: 320px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; margin-bottom: 8px; }
+.hero-card .card-head { flex-wrap: wrap; row-gap: 4px; }
+.hero-card .card-head h3 { min-width: 0; font-size: .98rem; letter-spacing: 0; }
