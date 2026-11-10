@@ -10,11 +10,27 @@ import { buildMonster } from '../../engine/monsters.js';
 import { humanoids } from './humanoids.js';
 import { undead } from './undead.js';
 import { dragons } from './dragons.js';
+import { beasts } from './beasts.js';
+import { monstrosities } from './monstrosities.js';
+import { fiends } from './fiends.js';
+import { giants } from './giants.js';
+import { elementals, celestials, constructs, fey, oozes, plants, aberrations } from './others.js';
 
 const RAW = [
   ...humanoids,
   ...undead,
   ...dragons,
+  ...beasts,
+  ...monstrosities,
+  ...fiends,
+  ...giants,
+  ...elementals,
+  ...celestials,
+  ...constructs,
+  ...fey,
+  ...oozes,
+  ...plants,
+  ...aberrations,
 ];
 
 export const BESTIARY = RAW.map(buildMonster).sort((a, b) => a.name.localeCompare(b.name));
