@@ -313,3 +313,4 @@ main:has(.dungeon-host) { max-width: 1400px; }
 .lore-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 18px 12px; box-shadow: var(--shadow); }
 .lore-panel h3 { font-size: 1rem; color: var(--gold); margin-bottom: .2em; }
 .sb-source { margin-top: 12px !important; }
+.toast.warn { background: var(--gold); color: var(--accent-ink); }

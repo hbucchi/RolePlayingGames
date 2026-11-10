@@ -58,6 +58,19 @@ function notify(text, kind = 'ok') {
   }, 3500);
 }
 
+/**
+ * In-page confirmation: the first click arms the action and shows a notice; a second click
+ * on the same action within 4 seconds confirms it. (Browser confirm() dialogs are blocked
+ * when the game runs inside a sandboxed frame.)
+ */
+let armed = { key: null, at: 0 };
+function confirmTwice(key, message) {
+  if (armed.key === key && Date.now() - armed.at < 4000) { armed = { key: null, at: 0 }; return true; }
+  armed = { key, at: Date.now() };
+  notify(`${message} Click again to confirm.`, 'warn');
+  return false;
+}
+
 function download(filename, text) {
   const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
   const a = Object.assign(document.createElement('a'), { href: url, download: filename });
@@ -588,7 +601,7 @@ function logRoll(label, bonus) {
 
 const actions = {
   home() {
-    if (state.view === 'wizard' && state.dirty && !confirm('Leave without saving this hero?')) return;
+    if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
     if (state.view === 'dungeon') state.tab = 'adventures';
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
@@ -637,11 +650,14 @@ const actions = {
   },
   export(el) {
     const d = roster.get(el.dataset.id);
-    if (d) download(`${d.name.replace(/[^\w-]+/g, '_') || 'hero'}.json`, exportCharacter(d));
+    if (!d) return;
+    const json = exportCharacter(d);
+    download(`${d.name.replace(/[^\w-]+/g, '_') || 'hero'}.json`, json);
+    navigator.clipboard?.writeText(json).then(() => notify(`${d.name} exported. The hero file is also copied to your clipboard.`), () => {});
   },
   delete(el) {
     const d = roster.get(el.dataset.id);
-    if (d && confirm(`Delete ${d.name}? This cannot be undone.`)) { roster.remove(d.id); notify(`${d.name} has been removed.`); }
+    if (d && confirmTwice(`delete-${d.id}`, `Delete ${d.name}? This cannot be undone.`)) { roster.remove(d.id); notify(`${d.name} has been removed.`); }
   },
   async import(el) {
     const file = el.files?.[0];
@@ -714,7 +730,7 @@ const actions = {
     if (idx.length) rollAbilitySlots(idx);
   },
   reroll() {
-    if (!confirm('Throw away all six rolls and start again?')) return;
+    if (!confirmTwice('reroll', 'Throw away all six rolls and start again?')) return;
     const d = state.draft;
     d.abilityRolls = Array(6).fill(null);
     setAbilityMethod(d, 'roll'); touch(); render();
