@@ -12,12 +12,12 @@ import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
 import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
 import { lineOfSight, coverBetween } from './vision.js';
-import { footprintOf, cellsOf, blockDistance, centerOf } from './size.js';
+import { footprintOf, cellsOf, blockDistance, centerOf, dims, orientFor } from './size.js';
 
 /** Distance between two creatures, measured between their nearest squares (big creatures fill blocks). */
 export const entityDistance = (a, b) => blockDistance(a.pos, a.size ?? 1, b.pos, b.size ?? 1);
 /** Does a creature cover a square? */
-export const covers = (e, c) => c.x >= e.pos.x && c.y >= e.pos.y && c.x < e.pos.x + (e.size ?? 1) && c.y < e.pos.y + (e.size ?? 1);
+export const covers = (e, c) => { const d = dims(e.size ?? 1); return c.x >= e.pos.x && c.y >= e.pos.y && c.x < e.pos.x + d.w && c.y < e.pos.y + d.h; };
 /** Best line of sight between any square of one creature and any square of the other. */
 export function bestSight(a, b, opaque) {
   let best = null;
@@ -231,7 +231,7 @@ export function createMonster(stat, id, pos, facing = 4) {
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),
     flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
-    size: footprintOf(stat),
+    size: orientFor(footprintOf(stat), facing),
     cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
     ...(() => { const powers = monsterPowers(stat); return { powers, uses: freshMonsterUses(stat, powers), aura: parseAura(stat.traits) }; })(),
   };

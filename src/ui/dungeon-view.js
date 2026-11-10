@@ -8,7 +8,7 @@
 import { generateDungeon, roomAt, TILE } from '../engine/dungeon.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
-import { cellsOf, blockDistance, centerOf } from '../engine/size.js';
+import { cellsOf, blockDistance, centerOf, dims, isSquare, spanOf, rotated } from '../engine/size.js';
 import { reachableSquares, speedToSquares, DIAGONAL_RULES, cellKey } from '../engine/movement.js';
 import { makeOpacity, visibleSquares, revealFrom } from '../engine/vision.js';
 import {
@@ -311,7 +311,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   /** Is a creature's block next to a wall (for chaining it)? */
   function nextToWall(pos, n = 1) {
-    for (let y = pos.y - 1; y <= pos.y + n; y++) for (let x = pos.x - 1; x <= pos.x + n; x++) {
+    const { w, h } = dims(n);
+    for (let y = pos.y - 1; y <= pos.y + h; y++) for (let x = pos.x - 1; x <= pos.x + w; x++) {
       if (s.map.tiles[y]?.[x] === TILE.ROCK || s.map.terrain?.[y]?.[x] === 'wall') return true;
     }
     return false;
@@ -587,6 +588,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     banner(`${m.name}'s turn`);
     await startOfMonsterTurn(m);
     if (m.dead) return true;
+    if (target && !immobile(m)) turnBody(m, target.pos);
     if (!moveOnly && target && target.hp > 0) {
       const power = choosePower(m, target);
       if (power) { await castPower(m, power, target); await sleep(PAUSE_MS / 2); return true; }
@@ -746,13 +748,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (p.kind === 'darts') {
       const bits = [];
       for (let i = 0; i < p.count && target.hp > 0; i++) { await shootProjectile(from, to, look.color); const r = roll(p.dice); bits.push(hurt(target, r.total)); }
-      showVfx('arcane', to, (target.size ?? 1) / 2, 400);
+      showVfx('arcane', to, spanOf(target.size ?? 1) / 2, 400);
       log(`${m.name} casts ${p.name}: ${bits.length} darts strike ${target.name} for ${bits.join(' + ')} = ${bits.reduce((a, b) => a + b, 0)} force damage.`, 'bad');
       return;
     }
     if (p.kind === 'save') {
       await shootProjectile(from, to, look.color);
-      showVfx(look.vfx, to, (target.size ?? 1) / 2, 500);
+      showVfx(look.vfx, to, spanOf(target.size ?? 1) / 2, 500);
       const sv = saveOf(target, p.save, p.dc);
       const r = p.dice ? roll(p.dice) : null;
       const dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
@@ -795,13 +797,31 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     redraw();
   }
 
+  /**
+   * A long body (3x2, 4x3...) swings round to lie along the line toward what it is after,
+   * keeping its centre where it was, if the turned block fits (walls, other creatures).
+   */
+  function turnBody(m, toward) {
+    const d = dims(m.size ?? 1); if (d.w === d.h) return;
+    const c = centerOf(m.pos, d);
+    const wantEW = Math.abs(toward.x - c.x) >= Math.abs(toward.y - c.y);
+    if (wantEW === d.w > d.h) return;
+    const nd = rotated(d);
+    const pos = { x: Math.round(c.x - (nd.w - 1) / 2), y: Math.round(c.y - (nd.h - 1) / 2) };
+    const blocked = new Set([...occupied(m), ...terrainBlocked()]);
+    if (!cellsOf(pos, nd).every((q) => isFloor(q.x, q.y) && !blocked.has(cellKey(q.x, q.y)))) return;
+    m.size = nd; m.pos = pos;
+    m.facing = facingToward(c, toward);
+    if (canSee(m)) { redraw(); }
+  }
+
   /** Start of its turn: recharge rolls, and a fiery aura scorching everyone close by. */
   async function startOfMonsterTurn(m) {
     if (m.powers?.length) for (const p of rollRecharge(m.powers, m.uses, (n) => rollDie(n) - 1)) if (canSee(m)) log(`${m.name}'s ${p.name} is ready again.`, 'warn');
     if (m.aura) {
       const near = [...partyAlive(), ...alive()].filter((e) => e !== m && blockDistance(m.pos, m.size ?? 1, e.pos, e.size ?? 1) <= m.aura.size);
       if (near.length) {
-        showVfx(boltFor(m.aura.type).vfx, centerOf(m.pos, m.size ?? 1), (m.size ?? 1) / 2 + m.aura.size, 500);
+        showVfx(boltFor(m.aura.type).vfx, centerOf(m.pos, m.size ?? 1), spanOf(m.size ?? 1) / 2 + m.aura.size, 500);
         const r = roll(m.aura.dice);
         log(`${m.name}'s ${m.aura.name} scorches ${near.map((e) => `${e.name} (${hurt(e, r.total)})`).join(', ')}: ${m.aura.dice} = ${r.total} ${m.aura.type}.`, 'bad');
         await sleep(PAUSE_MS / 2);
@@ -928,7 +948,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       if (s.mode !== 'combat') {
         let prev = before;
         // Allies of one square join the end of the line; bigger ones catch up afterwards.
-        for (const h of [...partyAlive(), ...allies().filter((a) => (a.size ?? 1) === 1 && !a.hold && !immobile(a))]) {
+        for (const h of [...partyAlive(), ...allies().filter((a) => spanOf(a.size ?? 1) === 1 && !a.hold && !immobile(a))]) {
           if (h === s.hero) continue;
           const old = { ...h.pos };
           if (chebyshev(old, prev) > 0) { h.facing = facingToward(old, prev) >= 0 ? facingToward(old, prev) : h.facing; h.pos = { ...prev }; }
@@ -1149,12 +1169,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function bleed(e, n, death = false) {
     if (!(n > 0) || !s.map) return;
     if (!e.isHero && (BLOODLESS.has(BESTIARY_BY_ID[e.statId]?.type) || e.cond?.petrified)) return;
-    const size = e.size ?? 1;
+    const { w, h } = dims(e.size ?? 1);
     const share = Math.min(1, n / Math.max(1, e.maxHp));
-    const count = death ? size * size : 1 + (share >= 0.25 ? 1 : 0);
+    const count = death ? w * h : 1 + (share >= 0.25 ? 1 : 0);
     for (let i = 0; i < count; i++) {
-      const x = e.pos.x + (death ? i % size : Math.floor(Math.random() * size));
-      const y = e.pos.y + (death ? Math.floor(i / size) : Math.floor(Math.random() * size));
+      const x = e.pos.x + (death ? i % w : Math.floor(Math.random() * w));
+      const y = e.pos.y + (death ? Math.floor(i / w) : Math.floor(Math.random() * h));
       s.blood.push({
         x, y, ox: (Math.random() - 0.5) * 0.5, oy: (Math.random() - 0.5) * 0.5,
         r: death ? 0.55 + Math.random() * 0.2 : 0.18 + share * 0.5 + Math.random() * 0.1,
@@ -1203,7 +1223,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         const b = boltFor(weapon.type);
         play(b.sound, { volume: 0.8 });
         await shootProjectile(from, to, b.color);
-        showVfx(b.vfx, to, (target.size ?? 1) / 2, 500);
+        showVfx(b.vfx, to, spanOf(target.size ?? 1) / 2, 500);
       } else {
         const stone = /rock|boulder|stone/i.test(weapon.name);
         play(stone ? 'swing-miss' : 'bow-shot', { volume: 0.8 });
@@ -1402,22 +1422,25 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     drawPanel();
   }
 
-  /** A round token: the portrait in the middle, a coloured front arc + arrow, a dark back arc. */
+  /**
+   * A token. Square blocks (1x1, 2x2...) get a round token: the portrait in the middle, a coloured
+   * front arc + arrow and a dark back arc. Rectangular blocks (a 3x2 dragon) get a rounded
+   * rectangle of the same proportions, so the painting is never squashed: it is cropped to fit,
+   * and an arrow on the edge shows which way the creature faces.
+   */
   function token(e, { hero = false } = {}) {
-    const n = e.size ?? 1;
+    const d = dims(e.size ?? 1);
+    if (d.w !== d.h) return rectToken(e, d);
+    const n = d.w;
     const sz = S(); const r = sz * (n > 1 ? 0.44 : 0.36) * n; const R = r + 4;
     const state = woundState(e.hp, e.maxHp);
     const off = s.lunge?.id === e.id ? { x: s.lunge.dx * sz * 0.28, y: s.lunge.dy * sz * 0.28 } : { x: 0, y: 0 };
     const cx = (e.pos.x + n / 2) * sz + off.x; const cy = (e.pos.y + n / 2) * sz + off.y;
-    const img = hero ? e.look?.url : portraitOf(e);
-    const filter = hero ? (e.look?.filter ?? 'none') : e.cond?.petrified ? 'grayscale(1) brightness(0.85) contrast(1.2)' : 'none';
-    const ring = hero ? (e.look?.frameColor ?? '#e9c46a') : e.side === 'ally' ? '#5fbf6a' : e.side === 'captive' ? '#d4b35a' : e.calm ? '#9aa3ad' : '#c94a3a';
-    const hpFrac = Math.max(0, e.hp / e.maxHp);
-    const cls = `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}`;
+    const { img, filter, ring, hpFrac, cls } = tokenLook(e, hero, state);
     return `<g class="${cls}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<circle r="${R + 9}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<circle r="${R + 6}" class="tk-aim"/>` : ''}
-      ${e.aura && !e.dead ? `<image href="assets/vfx/${boltFor(e.aura.type).vfx}-${(Math.floor(Date.now() / 400) % 4) + 1}.jpg" x="${-(R + sz * e.aura.size * 0.6)}" y="${-(R + sz * e.aura.size * 0.6)}" width="${2 * (R + sz * e.aura.size * 0.6)}" height="${2 * (R + sz * e.aura.size * 0.6)}" class="vfx vfx-aura" preserveAspectRatio="xMidYMid slice"/>` : ''}
+      ${auraSvg(e, R, R)}
       ${hero && e === s.hero && s.members.length > 1 ? `<circle r="${R + 8}" class="tk-activering"/>` : ''}
       <g transform="rotate(${facingAngle(e.facing)})">
         <path d="M ${R} 0 A ${R} ${R} 0 0 1 ${-R} 0" class="tk-backarc"/>
@@ -1428,19 +1451,64 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     : `<circle r="${r}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
       <circle r="${r}" class="tk-hitflash"/>
       ${chainSvg(e, r)}
-      ${hero || state !== 'unhurt' ? `<rect x="${-r}" y="${-R - 16}" width="${r * 2}" height="7" rx="3" class="tk-hpbg"/><rect x="${-r}" y="${-R - 16}" width="${r * 2 * hpFrac}" height="7" rx="3" class="tk-hp ${hpFrac <= 0.5 ? 'low' : ''}"/>` : ''}
+      ${hero || state !== 'unhurt' ? hpBar(-r, -R - 16, r * 2, hpFrac) : ''}
+    </g>`;
+  }
+
+  function tokenLook(e, hero, state) {
+    return {
+      img: hero ? e.look?.url : portraitOf(e),
+      filter: hero ? (e.look?.filter ?? 'none') : e.cond?.petrified ? 'grayscale(1) brightness(0.85) contrast(1.2)' : 'none',
+      ring: hero ? (e.look?.frameColor ?? '#e9c46a') : e.side === 'ally' ? '#5fbf6a' : e.side === 'captive' ? '#d4b35a' : e.calm ? '#9aa3ad' : '#c94a3a',
+      hpFrac: Math.max(0, e.hp / e.maxHp),
+      cls: `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}${e.size && !isSquare(e.size) ? ' tk-rect' : ''}`,
+    };
+  }
+  const hpBar = (x, y, w, frac) => `<rect x="${x}" y="${y}" width="${w}" height="7" rx="3" class="tk-hpbg"/><rect x="${x}" y="${y}" width="${w * frac}" height="7" rx="3" class="tk-hp ${frac <= 0.5 ? 'low' : ''}"/>`;
+  function auraSvg(e, hw, hh) {
+    if (!e.aura || e.dead) return '';
+    const sz = S(); const ex = sz * e.aura.size * 0.6;
+    return `<image href="assets/vfx/${boltFor(e.aura.type).vfx}-${(Math.floor(Date.now() / 400) % 4) + 1}.jpg" x="${-(hw + ex)}" y="${-(hh + ex)}" width="${2 * (hw + ex)}" height="${2 * (hh + ex)}" class="vfx vfx-aura" preserveAspectRatio="none"/>`;
+  }
+
+  /** A rounded-rectangle token for a long body (w x h squares). */
+  function rectToken(e, d) {
+    const sz = S(); const state = woundState(e.hp, e.maxHp);
+    const hw = (d.w * sz) / 2 - 6; const hh = (d.h * sz) / 2 - 6; const rx = Math.min(hw, hh) * 0.4;
+    const off = s.lunge?.id === e.id ? { x: s.lunge.dx * sz * 0.28, y: s.lunge.dy * sz * 0.28 } : { x: 0, y: 0 };
+    const cx = (e.pos.x + d.w / 2) * sz + off.x; const cy = (e.pos.y + d.h / 2) * sz + off.y;
+    const { img, filter, ring, hpFrac, cls } = tokenLook(e, false, state);
+    // Facing: where a ray from the centre in the facing direction leaves the rectangle.
+    const f = FACINGS[e.facing]; const len = Math.hypot(f.dx, f.dy); const ux = f.dx / len; const uy = f.dy / len;
+    const t = 1 / Math.max(Math.abs(ux) / hw, Math.abs(uy) / hh);
+    const nx = ux * t; const ny = uy * t; const nose = sz * 0.2; const wing = sz * 0.14;
+    const box = (pad, cl) => `<rect x="${-hw - pad}" y="${-hh - pad}" width="${2 * (hw + pad)}" height="${2 * (hh + pad)}" rx="${rx + pad}" class="${cl}"/>`;
+    const clip = `tkc-${e.id}`;
+    return `<g class="${cls}" transform="translate(${cx} ${cy})">
+      ${s.selectedId === e.id ? box(9, 'tk-selring') : ''}
+      ${s.aiming === e.id ? box(6, 'tk-aim') : ''}
+      ${auraSvg(e, hw, hh)}
+      ${box(4, 'tk-rectback')}
+      <clipPath id="${clip}" clipPathUnits="userSpaceOnUse"><rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}"/></clipPath>
+      ${img ? `<image href="${esc(img)}" x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" clip-path="url(#${clip})" preserveAspectRatio="xMidYMid slice" style="filter:${filter}"/>`
+    : `<rect x="${-hw}" y="${-hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" class="tk-back"/><text y="${sz * 0.12}" class="tk-letter">${esc(e.name[0])}</text>`}
+      ${box(0, 'tk-rectframe').replace('class=', `style="stroke:${ring}" class=`)}
+      <path d="M ${nx + ux * nose} ${ny + uy * nose} L ${nx - uy * wing} ${ny + ux * wing} L ${nx + uy * wing} ${ny - ux * wing} Z" class="tk-nose" style="fill:${ring}"/>
+      ${box(0, 'tk-hitflash')}
+      ${chainSvg(e, Math.min(hw, hh))}
+      ${state !== 'unhurt' || e.side ? hpBar(-hw, -hh - 16, hw * 2, hpFrac) : ''}
     </g>`;
   }
 
   /** Chains for a bound creature: to the nearest wall, or a ring of shackles on the floor. */
   function chainSvg(e, r) {
     const b = e.cond?.bound; if (!b) return '';
-    const sz = S(); const n = e.size ?? 1;
+    const sz = S(); const { w, h } = dims(e.size ?? 1);
     if (b.to === 'wall') {
       const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0], [1, -1], [1, 1], [-1, 1], [-1, -1]];
-      const wall = dirs.find(([dx, dy]) => { const x = e.pos.x + (dx > 0 ? n : dx), y = e.pos.y + (dy > 0 ? n : dy); return s.map.tiles[y]?.[x] === TILE.ROCK || s.map.terrain?.[y]?.[x] === 'wall'; });
+      const wall = dirs.find(([dx, dy]) => { const x = e.pos.x + (dx > 0 ? w : dx), y = e.pos.y + (dy > 0 ? h : dy); return s.map.tiles[y]?.[x] === TILE.ROCK || s.map.terrain?.[y]?.[x] === 'wall'; });
       if (wall) {
-        const [dx, dy] = wall; const len = sz * n / 2 + 4; const ex = dx * len; const ey = dy * len;
+        const [dx, dy] = wall; const len = sz * (dx ? w : h) / 2 + 4; const ex = dx * len; const ey = dy * len;
         return `<line x1="${dx * r * 0.5}" y1="${dy * r * 0.5}" x2="${ex}" y2="${ey}" class="tk-chain"/><line x1="${-dx * r * 0.2 + dy * r * 0.6}" y1="${-dy * r * 0.2 + dx * r * 0.6}" x2="${ex + dy * 8}" y2="${ey + dx * 8}" class="tk-chain"/>`;
       }
     }
@@ -1570,7 +1638,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     }
     // Tokens
     for (const m of s.monsters) {
-      if (m.dead) { const c = centerOf(m.pos, m.size ?? 1); if (canSee(m) || s.revealed.has(cellKey(m.pos.x, m.pos.y))) out += `<text x="${(c.x + 0.5) * sz}" y="${(c.y + 0.5) * sz + 10}" class="tk-dead" style="font-size:${30 * (m.size ?? 1)}px">✕</text>`; continue; }
+      if (m.dead) { const c = centerOf(m.pos, m.size ?? 1); if (canSee(m) || s.revealed.has(cellKey(m.pos.x, m.pos.y))) out += `<text x="${(c.x + 0.5) * sz}" y="${(c.y + 0.5) * sz + 10}" class="tk-dead" style="font-size:${30 * Math.min(dims(m.size ?? 1).w, dims(m.size ?? 1).h)}px">✕</text>`; continue; }
       if (canSee(m)) out += token(m);
     }
     for (const h of party()) if (h !== s.hero) out += token(h, { hero: true });
@@ -2237,7 +2305,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           const head = `${s.hero.name} casts ${label}${rays > 1 ? ` (ray ${i + 1})` : ''} at the ${target.name.toLowerCase()}: spell attack d20 (${r.d20s.join(', ')}) ${signed(pseudo.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}.`;
           if (r.hit) {
             damageMonster(target, r.damage); flashHit(target); float(target.pos, `−${r.damage}`, 'good', r.crit);
-            showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), (target.size ?? 1) / 2);
+            showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), spanOf(target.size ?? 1) / 2);
             log(`${head} ${r.crit ? 'CRITICAL! ' : 'Hit! '}${r.damage} ${e.damageType} damage.`, 'good');
             if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120 });
           } else { float(target.pos, 'miss', 'muted'); log(`${head} Miss.`, 'info'); }
@@ -2279,7 +2347,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         const dice = item.kind === 'spell' ? spellDice(item, slot, lvl) : null;
         const dmgRoll = dice ? roll(dice) : null;
         if (e.shape === 'cone') { const f = FACINGS[s.hero.facing]; await showBlast({ x: s.hero.pos.x + f.dx * (e.size + 1) / 2, y: s.hero.pos.y + f.dy * (e.size + 1) / 2 }, (e.size - 1) / 2 + 0.5, item.color, vfxFor(item)); } else if (e.shape) await showBlast(item.target === 'point' ? centerOf(target.pos, target.size ?? 1) : center, e.size, item.color, vfxFor(item));
-        else if (target) { await shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color); showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), (target.size ?? 1) / 2); }
+        else if (target) { await shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color); showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), spanOf(target.size ?? 1) / 2); }
         const lines = [];
         for (const m of targets) {
           const sv = monsterRoll(m, e.save, dc);

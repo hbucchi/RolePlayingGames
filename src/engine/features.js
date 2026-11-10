@@ -12,7 +12,7 @@ import { TILE, isWalkable } from './dungeon.js';
 import { cellKey } from './movement.js';
 import { createMonster } from './combat.js';
 import { buildEncounter } from './progression.js';
-import { footprintOf, cellsOf } from './size.js';
+import { footprintOf, cellsOf, dims, orientFor } from './size.js';
 
 /** d20 + bonus vs DC. mode: 'normal' | 'advantage' | 'disadvantage'. */
 export function skillCheck(bonus, dc, { mode = 'normal', rng = cryptoRandomInt } = {}) {
@@ -133,16 +133,22 @@ export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = 
     const used = new Set();
     for (const stat of group) {
       // Big creatures fill a block of squares that must fit inside the room.
-      const fp = footprintOf(stat);
-      if (fp > r.w || fp > r.h) continue;
+      // Long bodies are laid along the room's longer side.
+      const facing = rng(8);
+      const fp = orientFor(footprintOf(stat), r.w >= r.h ? 2 : 4);
+      const { w, h } = dims(fp);
+      if (w > r.w || h > r.h) continue;
       let pos = null;
       for (let t = 0; t < 40; t++) {
-        const p = { x: r.x + rng(r.w - fp + 1), y: r.y + rng(r.h - fp + 1) };
+        const p = { x: r.x + rng(r.w - w + 1), y: r.y + rng(r.h - h + 1) };
         if (cellsOf(p, fp).every((c) => !used.has(cellKey(c.x, c.y)) && !avoid.has(cellKey(c.x, c.y)))) { pos = p; break; }
       }
       if (!pos) continue;
       for (const c of cellsOf(pos, fp)) used.add(cellKey(c.x, c.y));
-      monsters.push({ ...createMonster(stat, `m${++n}`, pos, rng(8)), roomDifficulty: difficulty });
+      const m = createMonster(stat, `m${++n}`, pos, facing);
+      m.size = fp; // keep the orientation that fits this room
+      if (w !== h) m.facing = w > h ? (facing < 4 ? 2 : 6) : (facing >= 2 && facing <= 5 ? 4 : 0);
+      monsters.push({ ...m, roomDifficulty: difficulty });
     }
   }
   return monsters;

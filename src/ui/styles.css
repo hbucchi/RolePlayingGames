@@ -653,3 +653,8 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .sb-portrait { width: 100%; max-width: 320px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; margin-bottom: 8px; }
 .hero-card .card-head { flex-wrap: wrap; row-gap: 4px; }
 .hero-card .card-head h3 { min-width: 0; font-size: .98rem; letter-spacing: 0; }
+
+/* Long bodies: rounded-rectangle tokens */
+.tk-rectback { fill: #120f0c; }
+.tk-rectframe { fill: none; stroke-width: 6; }
+.tk-rect .tk-selring, .tk-rect .tk-aim { fill: none; }

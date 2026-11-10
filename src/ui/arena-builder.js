@@ -7,7 +7,7 @@ import { renderArenaSVG } from '../engine/arena-render.js';
 import { BESTIARY, BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { monsterPortrait } from '../content/media.js';
-import { footprintOf, cellsOf } from '../engine/size.js';
+import { footprintOf, cellsOf, dims, orientFor, isSquare, sizeLabel } from '../engine/size.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const KEY = 'rpg.arenas.v1';
@@ -22,6 +22,8 @@ function storeArenas(list) { try { localStorage.setItem(KEY, JSON.stringify(list
 /** A fresh layout with a ring of grass and a pool, so a new arena is not a blank grey box. */
 /** Which side a placed creature fights on; bound creatures start chained where they stand. */
 const SIDES = { enemy: 'Enemy', ally: 'Ally (fights for you)', 'bound-captive': 'Captive, chained (free them!)', 'bound-enemy': 'Enemy, chained in place' };
+/** A placed creature's block, turned the way it was placed (long bodies face east or west when lying east-west). */
+const foeSize = (f) => orientFor(footprintOf(BESTIARY_BY_ID[f.statId]), f.facing ?? 4);
 const SIDE_RING = { enemy: '#c94a3a', ally: '#5fbf6a', 'bound-captive': '#d4b35a', 'bound-enemy': '#c94a3a' };
 
 export function defaultArena(w = 20, h = 16) {
@@ -39,26 +41,30 @@ export function defaultArena(w = 20, h = 16) {
 export function mountArenaBuilder(host, ctx) {
   const st = {
     setup: ctx.setup ?? defaultArena(), tool: 'paint', terrain: 'grass', heroPick: ctx.heroes[0]?.id ?? null,
-    foePick: 'goblin', foeFilter: '', side: 'enemy', painting: false, facing: 4,
+    foePick: 'goblin', foeFilter: '', side: 'enemy', lie: 'ew', painting: false, facing: 4,
   };
   const S = () => st.setup.map.cellSize;
   const save = () => ctx.onChange?.(st.setup);
 
   function occupiedBy(x, y) {
     for (const h of st.setup.heroes) if (h.pos.x === x && h.pos.y === y) return { kind: 'hero', ref: h };
-    for (const f of st.setup.foes) if (cellsOf(f.pos, footprintOf(BESTIARY_BY_ID[f.statId])).some((c) => c.x === x && c.y === y)) return { kind: 'foe', ref: f };
+    for (const f of st.setup.foes) if (cellsOf(f.pos, foeSize(f)).some((c) => c.x === x && c.y === y)) return { kind: 'foe', ref: f };
     return null;
   }
 
   function tokensSvg() {
     const sz = S(); let out = '';
     for (const f of st.setup.foes) {
-      const stat = BESTIARY_BY_ID[f.statId]; const n = footprintOf(stat); const img = monsterPortrait(f.statId);
-      const cx = (f.pos.x + n / 2) * sz; const cy = (f.pos.y + n / 2) * sz; const r = sz * 0.42 * n;
-      out += `<g class="ab-token foe"><rect x="${f.pos.x * sz + 3}" y="${f.pos.y * sz + 3}" width="${n * sz - 6}" height="${n * sz - 6}" rx="10" class="ab-foot"/>
-        <clipPath id="abc-${f.uid}"><circle cx="${cx}" cy="${cy}" r="${r}"/></clipPath>
-        ${img ? `<image href="${esc(img)}" x="${cx - r}" y="${cy - r}" width="${2 * r}" height="${2 * r}" clip-path="url(#abc-${f.uid})" preserveAspectRatio="xMidYMid slice"/>` : `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#5b2a22"/><text x="${cx}" y="${cy + 10}" class="ab-letter">${esc(stat.name[0])}</text>`}
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${SIDE_RING[f.side ?? 'enemy']}" stroke-width="5" ${f.side?.startsWith('bound') ? 'stroke-dasharray="8 5"' : ''}/></g>`;
+      const stat = BESTIARY_BY_ID[f.statId]; const d = dims(foeSize(f)); const img = monsterPortrait(f.statId);
+      const cx = (f.pos.x + d.w / 2) * sz; const cy = (f.pos.y + d.h / 2) * sz;
+      // Round tokens for square blocks, rounded rectangles for long bodies (never squashed).
+      const hw = d.w === d.h ? sz * 0.42 * d.w : d.w * sz / 2 - 6; const hh = d.w === d.h ? hw : d.h * sz / 2 - 6;
+      const rx = d.w === d.h ? hw : Math.min(hw, hh) * 0.4;
+      const ring = `fill="none" stroke="${SIDE_RING[f.side ?? 'enemy']}" stroke-width="5" ${f.side?.startsWith('bound') ? 'stroke-dasharray="8 5"' : ''}`;
+      out += `<g class="ab-token foe"><rect x="${f.pos.x * sz + 3}" y="${f.pos.y * sz + 3}" width="${d.w * sz - 6}" height="${d.h * sz - 6}" rx="10" class="ab-foot"/>
+        <clipPath id="abc-${f.uid}"><rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}"/></clipPath>
+        ${img ? `<image href="${esc(img)}" x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" clip-path="url(#abc-${f.uid})" preserveAspectRatio="xMidYMid slice"/>` : `<rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" fill="#5b2a22"/><text x="${cx}" y="${cy + 10}" class="ab-letter">${esc(stat.name[0])}</text>`}
+        <rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" ${ring}/></g>`;
     }
     for (const h of st.setup.heroes) {
       const info = ctx.heroes.find((x) => x.id === h.id); if (!info) continue;
@@ -87,7 +93,7 @@ export function mountArenaBuilder(host, ctx) {
   function foeOptions() {
     const q = st.foeFilter.trim().toLowerCase();
     const list = q ? FIGHTERS.filter((m) => m.name.toLowerCase().includes(q)) : FIGHTERS.filter((m) => DUNGEON_FOES.includes(m.id));
-    return list.slice(0, 120).map((m) => `<option value="${m.id}" ${m.id === st.foePick ? 'selected' : ''}>CR ${m.cr} · ${esc(m.name)} (${m.size}${footprintOf(m) > 1 ? `, ${footprintOf(m)}×${footprintOf(m)} squares` : ''})</option>`).join('');
+    return list.slice(0, 120).map((m) => `<option value="${m.id}" ${m.id === st.foePick ? 'selected' : ''}>CR ${m.cr} · ${esc(m.name)} (${m.size}${footprintOf(m) !== 1 ? `, ${sizeLabel(footprintOf(m))} squares` : ''})</option>`).join('');
   }
 
   function drawPanel() {
@@ -119,6 +125,7 @@ export function mountArenaBuilder(host, ctx) {
         <input type="search" placeholder="Search all ${FIGHTERS.length} creatures…" data-ab-input="foe-filter" value="${esc(st.foeFilter)}">
         <select data-ab-input="foe" size="6" class="ab-foes">${foeOptions()}</select>
         <label class="small">Side: <select data-ab-input="side">${Object.entries(SIDES).map(([k, v]) => `<option value="${k}" ${st.side === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+        ${!isSquare(footprintOf(BESTIARY_BY_ID[st.foePick])) ? `<label class="small">Long body lies: <select data-ab-input="lie"><option value="ew" ${st.lie === 'ew' ? 'selected' : ''}>east–west</option><option value="ns" ${st.lie === 'ns' ? 'selected' : ''}>north–south</option></select></label>` : ''}
         <button class="btn small ${st.tool === 'foe' ? 'primary' : ''}" data-ab="foe-tool">Place this creature</button>
         <p class="small muted">Large creatures fill 2×2 squares, Huge 3×3, Gargantuan 4×4.</p>
         ${st.setup.foes.length ? `<ul class="plain small ab-foe-list">${st.setup.foes.map((f) => `<li>${esc(BESTIARY_BY_ID[f.statId]?.name)}${f.side && f.side !== 'enemy' ? ` <i>(${SIDES[f.side].toLowerCase()})</i>` : ''} <span class="muted">(${f.pos.x}, ${f.pos.y})</span> <button class="linkish" data-ab="remove-foe" data-uid="${f.uid}">remove</button></li>`).join('')}</ul>` : ''}
@@ -169,10 +176,10 @@ export function mountArenaBuilder(host, ctx) {
       redraw(); return;
     }
     if (st.tool === 'foe') {
-      const n = footprintOf(BESTIARY_BY_ID[st.foePick]);
+      const n = orientFor(footprintOf(BESTIARY_BY_ID[st.foePick]), st.lie === 'ew' ? 2 : 4);
       const cells = cellsOf(c, n);
-      if (!cells.every((q) => standable(map, q.x, q.y) && !occupiedBy(q.x, q.y))) return ctx.notify?.(`A ${BESTIARY_BY_ID[st.foePick].name} needs ${n}×${n} clear squares here (its top-left corner goes where you click).`, 'bad');
-      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: 4, side: st.side });
+      if (!cells.every((q) => standable(map, q.x, q.y) && !occupiedBy(q.x, q.y))) return ctx.notify?.(`A ${BESTIARY_BY_ID[st.foePick].name} needs ${sizeLabel(n)} clear squares here (its top-left corner goes where you click).`, 'bad');
+      st.setup.foes.push({ uid: uid++, statId: st.foePick, pos: c, facing: isSquare(footprintOf(BESTIARY_BY_ID[st.foePick])) ? 4 : (st.lie === 'ew' ? 2 : 4), side: st.side });
       redraw();
     }
   }
@@ -227,6 +234,7 @@ export function mountArenaBuilder(host, ctx) {
       st.setup = { ...defaultArena(w, h), name: st.setup.name, id: st.setup.id };
       redraw();
     }
+    if (k === 'lie') { st.lie = e.target.value; st.tool = 'foe'; drawPanel(); }
     if (k === 'side') { st.side = e.target.value; st.tool = 'foe'; drawPanel(); }
     if (k === 'foe') { st.foePick = e.target.value; st.tool = 'foe'; host.querySelector('.ab-tool').textContent = toolLabel(); drawPanel(); }
   });

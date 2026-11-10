@@ -132,8 +132,12 @@ test('creature sizes: blocks, distance between blocks, reach and big movers', as
   const { createArenaMap, paintTerrain } = await import('../src/engine/terrain.js');
   assert.equal(footprintOf(BESTIARY_BY_ID.goblin), 1);
   assert.equal(footprintOf(BESTIARY_BY_ID.ogre), 2);
-  assert.equal(footprintOf(BESTIARY_BY_ID['adult-red-dragon']), 3);
-  assert.equal(footprintOf(BESTIARY_BY_ID['ancient-red-dragon']), 4);
+  // Dragons are long: rectangles, not squares.
+  assert.deepEqual(footprintOf(BESTIARY_BY_ID['young-red-dragon']), { w: 3, h: 2 });
+  assert.deepEqual(footprintOf(BESTIARY_BY_ID['adult-red-dragon']), { w: 4, h: 3 });
+  assert.deepEqual(footprintOf(BESTIARY_BY_ID['ancient-red-dragon']), { w: 5, h: 4 });
+  assert.equal(footprintOf(BESTIARY_BY_ID['wyrmling-red-dragon']), 1);
+  assert.equal(footprintOf(BESTIARY_BY_ID.roc), 4); // other Gargantuan creatures stay square
   assert.equal(footprintOf(BESTIARY_BY_ID['shadowflame-tyrant']), 2);
   assert.equal(cellsOf({ x: 1, y: 1 }, 2).length, 4);
   // A 2x2 troll at (5,5) and a hero at (7,5): the nearest troll square is (6,5), one square away.
@@ -145,6 +149,16 @@ test('creature sizes: blocks, distance between blocks, reach and big movers', as
   assert.equal(entityDistance(ogre, { pos: { x: 4, y: 3 } }), 1);
   const giant = createMonster(BESTIARY_BY_ID['hill-giant'], 'g', { x: 2, y: 2 });
   assert.equal(reachOf(giant), 1); // melee needs touch: adjacent squares only
+  // A 3x2 dragon facing east lies east-west; facing north it turns to 2x3.
+  const { orientFor, rotated, isSquare } = await import('../src/engine/size.js');
+  assert.deepEqual(orientFor({ w: 3, h: 2 }, 0), { w: 2, h: 3 });
+  assert.deepEqual(orientFor({ w: 3, h: 2 }, 6), { w: 3, h: 2 });
+  assert.deepEqual(rotated({ w: 4, h: 3 }), { w: 3, h: 4 });
+  assert.ok(isSquare(2) && !isSquare({ w: 3, h: 2 }));
+  assert.equal(cellsOf({ x: 0, y: 0 }, { w: 3, h: 2 }).length, 6);
+  // A 3x2 block at (5,5) spans x 5..7, y 5..6: a hero at (8,7) is touching it diagonally.
+  assert.equal(blockDistance({ x: 5, y: 5 }, { w: 3, h: 2 }, { x: 8, y: 7 }, 1), 1);
+  assert.equal(blockDistance({ x: 5, y: 5 }, { w: 3, h: 2 }, { x: 5, y: 9 }, 1), 3);
   // A 2x2 creature cannot squeeze through a one-square gap.
   const map = createArenaMap(10, 8);
   for (let y = 1; y < 7; y++) if (y !== 3) paintTerrain(map, 5, y, 'wall');

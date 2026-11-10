@@ -12,6 +12,7 @@
  * with Dijkstra's algorithm: always expand the cheapest unexplored square next, so the
  * first time a square is settled its cost is the minimum possible.
  */
+import { dims } from './size.js';
 import { isWalkable } from './dungeon.js';
 import { terrainCost } from './terrain.js';
 
@@ -33,9 +34,10 @@ export function speedToSquares(speedFeet, feetPerCell = 5) {
 
 /** Can a creature step from (x,y) by (dx,dy)? Blocks walls and diagonal corner-cutting. */
 export function canStep(map, x, y, dx, dy, blocked, size = 1) {
-  if (size > 1) {
-    // A big creature's whole block must fit at the new position (and slide past corners).
-    for (let oy = 0; oy < size; oy++) for (let ox = 0; ox < size; ox++) if (!canStep(map, x + ox, y + oy, dx, dy, blocked, 1)) return false;
+  const d = dims(size);
+  if (d.w > 1 || d.h > 1) {
+    // A big creature's whole block (square or rectangle) must fit at the new position.
+    for (let oy = 0; oy < d.h; oy++) for (let ox = 0; ox < d.w; ox++) if (!canStep(map, x + ox, y + oy, dx, dy, blocked, 1)) return false;
     return true;
   }
   const nx = x + dx; const ny = y + dy;

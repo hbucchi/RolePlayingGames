@@ -10,7 +10,7 @@
  * linger: ground left changed for a few rounds: 'fire' burns, 'ice' and 'rubble' slow,
  *         'poison' chokes.
  */
-import { blockDistance, cellsOf, centerOf } from './size.js';
+import { blockDistance, cellsOf, centerOf, spanOf } from './size.js';
 
 // The spells monsters actually cast, with what they do on this grid (ranges in squares).
 export const MONSTER_SPELLS = {
@@ -158,10 +158,10 @@ export function rollRecharge(powers, uses, rng) {
  *  - line: squares whose centre is within half a square of the line, out to `size`
  */
 export function areaCells(p, caster, toward, inBounds) {
-  const n = caster.size ?? 1; const o = centerOf(caster.pos, n);
+  const n = caster.size ?? 1; const o = centerOf(caster.pos, n); const span = spanOf(n);
   const own = new Set(cellsOf(caster.pos, n).map((c) => `${c.x},${c.y}`));
   const out = [];
-  const R = p.shape === 'radius' ? p.size : p.size + n;
+  const R = p.shape === 'radius' ? p.size : p.size + span;
   const cx = p.shape === 'radius' ? toward.x : o.x; const cy = p.shape === 'radius' ? toward.y : o.y;
   const dx = toward.x - o.x; const dy = toward.y - o.y; const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len; const uy = dy / len;
@@ -172,8 +172,8 @@ export function areaCells(p, caster, toward, inBounds) {
       let hit = false;
       if (p.shape === 'radius') hit = Math.max(Math.abs(x - toward.x), Math.abs(y - toward.y)) <= p.size;
       else if (p.shape === 'around') hit = blockDistance(caster.pos, n, { x, y }, 1) <= p.size;
-      else if (p.shape === 'cone') hit = along > 0 && along <= p.size + n / 2 && Math.abs(vx * uy - vy * ux) <= along * 0.5 + 0.5;
-      else if (p.shape === 'line') hit = along > 0 && along <= p.size + n / 2 && Math.abs(vx * uy - vy * ux) <= 0.5;
+      else if (p.shape === 'cone') hit = along > 0 && along <= p.size + span / 2 && Math.abs(vx * uy - vy * ux) <= along * 0.5 + 0.5;
+      else if (p.shape === 'line') hit = along > 0 && along <= p.size + span / 2 && Math.abs(vx * uy - vy * ux) <= 0.5;
       if (hit) out.push({ x, y });
     }
   }
