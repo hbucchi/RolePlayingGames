@@ -95,6 +95,17 @@ function stairsSvg(entrance, S) {
   return `<g class="stairs">${steps}</g>`;
 }
 
+/** Stairs going down into darkness: steps narrowing toward a black opening. */
+function stairsDownSvg(exit, S) {
+  const x = exit.x * S; const y = exit.y * S;
+  let steps = `<rect x="${x + 3}" y="${y + 3}" width="${S - 6}" height="${S - 6}" rx="4" fill="#0b0805" stroke="#3a2e22" stroke-width="3"/>`;
+  for (let i = 0; i < 5; i++) {
+    const inset = i * 5;
+    steps += `<rect x="${x + 7 + inset}" y="${y + 7 + i * 10}" width="${S - 14 - inset * 2}" height="8" fill="#9c8f78" stroke="#1d150d" stroke-width="2" opacity="${0.95 - i * 0.18}"/>`;
+  }
+  return `<g class="stairs-down">${steps}</g>`;
+}
+
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 /**
@@ -157,6 +168,7 @@ export function renderDungeonSVG(map, o = {}) {
   <path d="${wallD}" stroke="#0d0a07" stroke-width="8" stroke-linecap="square" fill="none"/>
   ${doors ? map.doors.map((d) => doorSvg(d, S, textures?.door)).join('') : ''}
   ${labels && map.entrance ? stairsSvg(map.entrance, S) : ''}
+  ${labels && map.exit ? stairsDownSvg(map.exit, S) : ''}
   ${roomLabels}
   ${coordText}
   <rect width="${W}" height="${H}" fill="url(#${id('vignette')})" pointer-events="none"/>

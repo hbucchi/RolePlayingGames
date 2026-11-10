@@ -23,6 +23,7 @@ import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } fr
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
 import { play, isMuted, setMuted } from './audio.js';
+import * as music from './music.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -113,6 +114,7 @@ function render() {
     monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
   };
   renderInto((views[state.view] ?? homeView)());
+  if (state.view !== 'dungeon') music.setMood('menu');
   if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
 }
@@ -124,6 +126,10 @@ function renderInto(body) {
         <span class="brand-mark" aria-hidden="true">✦</span>
         <span><span class="brand-title">${esc(setting.name)}</span><span class="brand-sub">Hero Forge</span></span>
       </button>
+ <div class="music-ctl">
+        <button class="sound-toggle" data-action="toggle-music" aria-pressed="${music.state().enabled}" title="${esc(musicTitle())}">${music.state().enabled ? '🎵' : '🎵'}<span class="sr-only">${music.state().enabled ? 'Turn music off' : 'Turn music on'}</span></button>
+        <input type="range" class="music-vol" min="0" max="100" value="${Math.round(music.state().volume * 100)}" data-music="volume" aria-label="Music volume" ${music.state().enabled ? '' : 'disabled'}>
+      </div>
       <button class="sound-toggle" data-action="toggle-sound" aria-pressed="${!isMuted()}" title="${isMuted() ? 'Sound off' : 'Sound on'}">${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span></button>
       ${state.view === 'home' ? `
       <nav class="tabs" role="tablist">
@@ -774,6 +780,13 @@ const actions = {
   'look-frame'(el) { setLook({ frame: el.dataset.id }); },
   'look-voice'(el) { setLook({ voice: el.dataset.id }); play(`hero-${el.dataset.id}-attack`); },
   'look-hear'() { const v = resolveAppearance(state.draft).voice; play(`hero-${v}-attack`); play(`hero-${v}-hurt`, { delay: 900 }); },
+  'toggle-music'(el) {
+    music.setEnabled(!music.state().enabled);
+    // Update in place: a re-render would reset a dungeon in progress.
+    el.setAttribute('aria-pressed', String(music.state().enabled));
+    el.innerHTML = `${music.state().enabled ? '🎵' : '🎵'}<span class="sr-only">${music.state().enabled ? 'Turn music off' : 'Turn music on'}</span>`;
+    const vol = root.querySelector('.music-vol'); if (vol) vol.disabled = !music.state().enabled;
+  },
   'toggle-sound'(el) {
     setMuted(!isMuted());
     // Update the button in place: re-rendering would reset a dungeon in progress.
@@ -1002,6 +1015,14 @@ root.addEventListener('input', (e) => {
   root.querySelectorAll('.look-editor img, .sheet-head .portrait img').forEach((img) => { img.style.filter = f; });
   const v = root.querySelector('.look-hue-val'); if (v) v.textContent = `${e.target.value}°`;
 });
+
+function musicTitle() {
+  const st = music.state();
+  if (!st.enabled) return 'Music off';
+  return st.track ? `Now playing: ${st.track.title} by ${st.track.author} (CC0, OpenGameArt.org)` : 'Music on (starts after your first click)';
+}
+music.onChange(() => { const b = root.querySelector('[data-action="toggle-music"]'); if (b) b.title = musicTitle(); });
+root.addEventListener('input', (e) => { if (e.target.dataset?.music === 'volume') music.setVolume(Number(e.target.value) / 100); });
 
 /** Bestiary filters re-render only the results list, so the search box keeps focus. */
 function updateBestiaryFilter(el) {

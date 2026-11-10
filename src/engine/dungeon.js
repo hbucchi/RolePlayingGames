@@ -424,5 +424,44 @@ function tryGenerate(seed, cfg) {
 
   // Everything must be reachable from the entrance.
   if (floodFill(map, map.entrance).size !== walkableCount(map)) return null;
+  map.exit = placeExit(map);
   return map;
+}
+
+/**
+ * The way down: stairs in the room whose centre is the longest walk from the entrance
+ * (breadth-first search distances), so finding them means exploring the dungeon.
+ */
+export function placeExit(map) {
+  const dist = new Map([[`${map.entrance.x},${map.entrance.y}`, 0]]);
+  const queue = [map.entrance];
+  while (queue.length) {
+    const { x, y } = queue.shift();
+    const d = dist.get(`${x},${y}`);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx; const ny = y + dy; const k = `${nx},${ny}`;
+      if (dist.has(k) || !isWalkable(map, nx, ny)) continue;
+      dist.set(k, d + 1); queue.push({ x: nx, y: ny });
+    }
+  }
+  // The farthest room (judged by its centre), then the farthest square in it that is clear
+  // of the room-number label and of doorways.
+  let room = null; let far = -1;
+  for (const r of map.rooms) {
+    if (r.entrance) continue;
+    const d = dist.get(`${r.x + Math.floor(r.w / 2)},${r.y + Math.floor(r.h / 2)}`) ?? -1;
+    if (d > far) { far = d; room = r; }
+  }
+  if (!room) return null;
+  const lx = room.x + room.w / 2; const ly = room.y + room.h / 2; // label centre, in squares
+  let best = null;
+  for (let y = room.y; y < room.y + room.h; y++) {
+    for (let x = room.x; x < room.x + room.w; x++) {
+      if (Math.abs(x + 0.5 - lx) < 1.2 && Math.abs(y + 0.5 - ly) < 1.2) continue;
+      if (map.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 1)) continue;
+      const d = dist.get(`${x},${y}`) ?? -1;
+      if (!best || d > best.distance) best = { x, y, roomId: room.id, distance: d };
+    }
+  }
+  return best ?? { x: room.x, y: room.y, roomId: room.id, distance: far };
 }

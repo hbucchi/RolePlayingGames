@@ -16,6 +16,7 @@ import {
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
 import { play, preload, monsterVoice, SOUND_KEYS } from './audio.js';
+import { setMood, stinger } from './music.js';
 import { formatModifier } from '../engine/abilities.js';
 import { sensesText } from '../engine/monsters.js';
 import { rollDie, roll } from '../engine/dice.js';
@@ -65,6 +66,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
         <label class="dg-seed" for="dg-seed">Dungeon #</label><input id="dg-seed" type="number" min="1" max="999999" data-dg="seed">
         <button class="btn small ghost" data-dg="seed-next" aria-label="Next dungeon">▶</button>
         <button class="btn small" data-dg="random">New dungeon</button>
+        <span class="dg-depth badge" title="How deep you are. Every two floors, foes get tougher.">Depth 1</span>
       </div>
       <div class="dg-group">
         <button class="btn small ghost" data-dg="zoom-out" aria-label="Zoom out">−</button>
@@ -147,18 +149,23 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     s.weaponIdx = Math.min(s.weaponIdx, Math.max(0, s.hero.weapons.length - 1));
   }
 
-  function newDungeon(seed) {
+  function newDungeon(seed, carry = null) {
+    if (!carry) s.depth = 1;
     s.seed = Math.max(1, Math.floor(seed) || 1);
     s.map = generateDungeon(s.seed);
     $('#dg-seed').value = s.seed;
     base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
     overlay.setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`);
-    resetDelve();
+    resetDelve(carry);
     // Start close to the hero: a fresh map is mostly unexplored darkness anyway.
     requestAnimationFrame(() => { setZoom(0.9); centerOn(s.hero.pos, false); });
   }
 
-  function resetDelve() {
+  /**
+   * Start (or restart) the current dungeon. `carry` = { hp, delve } when arriving by the stairs:
+   * wounds and the running tally come along; everything else on the new floor is fresh.
+   */
+  function resetDelve(carry = null) {
     loadHero();
     const h = s.def;
     const weapons = heroWeapons(h);
@@ -169,19 +176,23 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {},
     } : null;
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
-    // The dungeon's secrets are fixed by its number; its inhabitants are matched to the hero's level.
-    const level = h?.level ?? 1;
+    if (carry && s.hero) s.hero.hp = Math.min(s.hero.maxHp, carry.hp);
+    // The dungeon's secrets are fixed by its number; its inhabitants are matched to the hero's level,
+    // and every two floors deeper the danger rises as if the hero were a level higher.
+    const level = Math.min(20, (h?.level ?? 1) + Math.floor(((s.depth ?? 1) - 1) / 2));
     s.features = placeFeatures(s.map, s.seed, level);
-    const avoid = new Set(s.features.chests.map((c) => cellKey(c.x, c.y)));
+    const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y)]);
     s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid });
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
     s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
-    s.ammoSpent = {}; s.delve = { xp: 0, coins: 0, items: 0, kills: 0 }; s.phialUsed = false; s.invOpen = false;
-    s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false;
+    s.ammoSpent = {}; s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.phialUsed = false; s.invOpen = false;
+    s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false;
     $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true;
+    setMood('dungeon');
     startHeroTurn();
     const kinds = [...new Set(s.monsters.map((m) => m.name))];
-    log(`${s.hero?.name ?? 'Your hero'} (level ${level}) descends the stairs into dungeon #${s.seed}. Somewhere below: ${s.monsters.length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, and who knows what traps.`, 'info');
+    log(`${s.hero?.name ?? 'Your hero'} (level ${h?.level ?? 1}) ${carry ? 'climbs down' : 'descends the stairs'} into dungeon #${s.seed}, depth ${s.depth}. Somewhere here: ${s.monsters.length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, traps, and stairs leading further down. Find them.`, 'info');
+    $('.dg-depth').textContent = `Depth ${s.depth}`;
     updateVision();
     redraw();
   }
@@ -241,6 +252,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function updateVision() {
     s.visible = visibleSquares(s.map, s.hero.pos, opaque());
     if (s.features) passiveNotice();
+    if (s.map.exit && !s.exitSeen && s.visible.has(cellKey(s.map.exit.x, s.map.exit.y))) {
+      s.exitSeen = true;
+      if (s.log.length) { log('You spot a stairway leading further down!', 'good'); banner('Stairs down!'); }
+    }
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
     for (const m of alive()) {
@@ -265,6 +280,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     const isNew = s.mode !== 'combat';
     if (isNew) {
       s.mode = 'combat'; s.round = 1;
+      setMood('combat');
       const heroInit = rollInitiative(s.hero.dexMod);
       s.order = [{ id: 'hero', init: heroInit.total, roll: heroInit.d20 }];
       log(`${names} spotted! Roll for initiative. ${s.hero.name}: d20 (${heroInit.d20}) ${signed(s.hero.dexMod)} = ${heroInit.total}.`, 'warn');
@@ -286,6 +302,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function checkCombatOver() {
     if (s.mode === 'combat' && !alive().some((m) => m.aware)) {
       s.mode = 'explore'; s.order = [];
+      setMood('dungeon');
       log('The fight is over. You can explore freely again.', 'good');
       recoverAmmo();
       startHeroTurn();
@@ -606,6 +623,29 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   }
 
   // ---------------------------------------------------------------------------
+  // The way down
+  // ---------------------------------------------------------------------------
+
+  const onExit = () => s.map?.exit && chebyshev(s.hero.pos, s.map.exit) <= 1 && (s.revealAll || s.revealed.has(cellKey(s.map.exit.x, s.map.exit.y)));
+
+  /** Take the stairs: a deeper floor (a new dungeon), with your wounds, loot and tally carried along. */
+  function descend() {
+    if (!onExit() || s.busy) return;
+    if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
+    const bonus = 25 * s.depth * (s.def?.level ?? 1);
+    const carry = { hp: s.hero.hp, delve: s.delve };
+    carry.delve.deepest = Math.max(carry.delve.deepest ?? 1, s.depth + 1);
+    play('door-open', { volume: 0.6 });
+    const next = ((s.seed * 7919 + s.depth * 104729) % 99991) + 1;
+    s.depth += 1;
+    newDungeon(next, carry);
+    log(`New depth reached: +${bonus} XP for finding the way down.`, 'good');
+    awardXp(bonus);
+    banner(`Depth ${s.depth}`);
+    redraw();
+  }
+
+  // ---------------------------------------------------------------------------
   // Rewards: experience and loot
   // ---------------------------------------------------------------------------
 
@@ -688,11 +728,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
 
   function showEnd(kind) {
     s.mode = kind;
+    setMood('dungeon');
+    stinger(kind === 'victory' ? 'victory' : 'defeat');
     const el = $('.dg-endscreen');
     el.hidden = false;
     el.innerHTML = kind === 'victory'
-      ? `<div class="dg-endcard"><h2>Dungeon cleared</h2><p>Every foe in dungeon #${s.seed} has fallen. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
-        <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="random">Delve into a new dungeon</button><button class="btn ghost" data-dg="close-end">Keep exploring</button></div></div>`
+      ? `<div class="dg-endcard"><h2>Depth ${s.depth} cleared</h2><p>Every foe on this floor of dungeon #${s.seed} has fallen. The stairs down still wait somewhere${s.exitSeen ? ' (you have seen them)' : ''}. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
+        <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="close-end">Find the way down</button><button class="btn" data-dg="random">Start a new dungeon</button></div></div>`
       : `<div class="dg-endcard"><h2>${esc(s.hero.name)} has fallen</h2><p>The dark claims another hero... but legends are stubborn. Your experience and the loot you carried out are kept. Rest, and try again.</p><div class="row"><button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button></div></div>`;
   }
 
@@ -1219,6 +1261,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
   function nearbyThings() {
     if (!s.hero || !s.features) return [];
     const list = [];
+    if (onExit()) list.push({ kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
     for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
     for (const c of s.features.chests) if (adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
     for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
@@ -1409,6 +1452,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
     if (s.selectedId) { s.selectedId = null; }
     const k = cellKey(c.x, c.y);
     const known = s.revealAll || s.revealed.has(k);
+    if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { descend(); return; }
     const body = corpseAt(c.x, c.y);
     if (body && chebyshev(s.hero.pos, body.pos) <= 1) { s.target = { kind: 'corpse', id: body.id }; redraw(); return; }
     const chest = known && chestAt(c.x, c.y);
@@ -1496,7 +1540,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7 }) {
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
       case 'bandage': bandage(); break;
       case 'search': search(); break;
-      case 'pick-target': s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
+      case 'pick-target': if (el.dataset.kind === 'stairs') { descend(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
       case 'close-loot': s.target = null; redraw(); break;
       case 'open-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c); break; }
       case 'pick-lock': if (s.target) pickLock(s.target); break;

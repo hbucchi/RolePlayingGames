@@ -48,6 +48,11 @@ npm test       # rules-engine tests
 - **Dungeon skills:** pick locks (thieves' tools, DEX) or force them (Athletics, loud), search for traps and
   secret doors (Investigation, plus passive Perception as you walk), disarm traps, bind wounds with
   bandages (Medicine), drink potions. Chests, locked doors, traps and secret doors are seeded per dungeon.
+- **Stairs down:** every dungeon has a way deeper, in the room farthest from the entrance (by walking
+  distance). Take it to reach the next depth, a new dungeon, keeping your wounds and loot. Every two
+  floors the foes get tougher.
+- **Music:** public-domain (CC0) background music from OpenGameArt.org that follows the action
+  (menu, dungeon, battle, victory and defeat), with cross-fades, an on/off button and volume.
 - **Leveled encounters:** each room's foes are picked from 31 Westlands creatures using the DMG encounter
   budget for your level (level 1 meets pit-runts, spiderlings and crag bats; level 20 meets trolls and
   Hooded Riders).
@@ -124,6 +129,11 @@ To add a new world, create `src/content/<world>/` with the same shape as `westla
 | Carrying capacity | STR score × 15 lb (50 coins = 1 lb) |
 
 ## Licences and credits
+
+- **Music** (all CC0 / public domain, from [OpenGameArt.org](https://opengameart.org)); credits given with thanks:
+  RandomMind: *Medieval: Exploration*, *Medieval: Minstrel Dance*, *Fantasy: Lament for a Warrior's Soul*,
+  *Medieval: Battle*, *Medieval: Victory Theme*, *Medieval: Defeat Theme*; yd: *Dungeon Ambience*;
+  Paul Wortmann: *Dark Cavern Ambient*.
 
 - Game mechanics of creatures marked "SRD 5.1" come from the *System Reference Document 5.1* by
   Wizards of the Coast LLC, available at https://dnd.wizards.com/resources/systems-reference-document,

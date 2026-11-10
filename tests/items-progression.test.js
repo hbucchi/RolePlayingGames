@@ -179,3 +179,18 @@ test('skill checks: the formula behind the percentages', () => {
   const c = skillCheck(3, 15, { rng: () => 11 }); // d20 = 12
   assert.equal(c.total, 15); assert.ok(c.ok);
 });
+
+test('every dungeon has stairs down in the room farthest from the entrance', async () => {
+  const { placeExit } = await import('../src/engine/dungeon.js');
+  for (let seed = 1; seed <= 30; seed++) {
+    const map = generateDungeon(seed);
+    assert.ok(map.exit, `seed ${seed}`);
+    assert.notEqual(map.tiles[map.exit.y][map.exit.x], 0);
+    const room = map.rooms.find((r) => r.id === map.exit.roomId);
+    assert.ok(!room.entrance);
+    assert.deepEqual(placeExit(map), map.exit);
+    const f = placeFeatures(map, seed, 1);
+    assert.ok(!f.chests.some((c) => c.x === map.exit.x && c.y === map.exit.y));
+    assert.ok(!f.traps.some((t) => t.x === map.exit.x && t.y === map.exit.y));
+  }
+});

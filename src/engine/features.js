@@ -62,7 +62,7 @@ export function placeFeatures(map, seed, level = 1) {
   const rng = seededRng(((seed + 101) * 2246822519) >>> 0);
   const tier = Math.floor(level / 3);
   const doorKeys = new Set(map.doors.map((d) => cellKey(d.x, d.y)));
-  const taken = new Set([cellKey(map.entrance.x, map.entrance.y)]);
+  const taken = new Set([cellKey(map.entrance.x, map.entrance.y), ...(map.exit ? [cellKey(map.exit.x, map.exit.y)] : [])]);
   const nearDoor = (x, y) => map.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 1);
 
   // Secret doors: only doors whose loss keeps every square reachable (doors on loops), so a

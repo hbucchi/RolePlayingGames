@@ -206,9 +206,7 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
     const reach = reachableSquares(map, m.pos, m.speed, { blocked });
     const far = [...reach.values()].sort((a, b) => chebyshev(b, hero.pos) - chebyshev(a, hero.pos) || a.cost - b.cost)[0];
     if (far && chebyshev(far, hero.pos) > dist) {
-      const steps = [{ type: 'flee' }, { type: 'move', path: far.path }];
-      if (ranged && chebyshev(far, hero.pos) <= ranged.long && sees(far)) steps.push({ type: 'attack', weapon: ranged });
-      return steps;
+      return [{ type: 'flee' }, { type: 'move', path: far.path }]; // a coward runs; it does not stop to shoot
     }
   }
 

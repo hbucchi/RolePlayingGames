@@ -544,3 +544,8 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-log li.heal { color: var(--good); }
 .dg-log li.level { color: var(--xp); font-weight: 700; }
 .dg-panel > section:empty { display: none; }
+.music-ctl { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
+.music-ctl + .sound-toggle { margin-left: 6px; }
+.music-vol { width: 80px; accent-color: var(--accent); }
+@media (max-width: 520px) { .music-vol { width: 56px; } }
+.sound-toggle[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
