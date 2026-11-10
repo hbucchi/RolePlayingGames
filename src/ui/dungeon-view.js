@@ -17,10 +17,10 @@ import {
   immobile, conditionLabels, escapeBonus, canWrestle, BOUND_TEXT,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { monsterPortrait, bodyUrl, BODY_TINT } from '../content/media.js';
+import { monsterPortrait, bodyUrl, bodyScale, BODY_TINT } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
-import { getFigures, setFigures, figuresControl } from './settings.js';
+import { getFigures, getSetting, setSetting, settingsControls, PACE_FACTOR } from './settings.js';
 import { formatModifier } from '../engine/abilities.js';
 import { sensesText } from '../engine/monsters.js';
 import { rollDie, roll } from '../engine/dice.js';
@@ -42,8 +42,15 @@ import { inventoryHtml, lootHtml, coinsHtml, itemIcon } from './inventory-view.j
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-const STEP_MS = reduceMotion ? 0 : 110;
-const PAUSE_MS = reduceMotion ? 0 : 420;
+// Monster turns: a step of movement, and the pause after an action. The Monster turns setting
+// stretches both (and the flight of arrows and spells) so the eye can follow.
+let STEP_MS = 0; let PAUSE_MS = 0; let PACE = 1;
+function applyPace() {
+  PACE = PACE_FACTOR[getSetting('pace')] ?? 1.4;
+  STEP_MS = reduceMotion ? 0 : Math.round(110 * PACE);
+  PAUSE_MS = reduceMotion ? 0 : Math.round(420 * PACE);
+}
+applyPace();
 const pct = (p) => `${Math.round(p * 100)}%`;
 const signed = (n) => (n >= 0 ? `+${n}` : `${n}`);
 
@@ -106,6 +113,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     <div class="dg-layout">
       <div class="dg-mapwrap">
         <div class="dg-banner" aria-live="polite"></div>
+        <div class="dg-reviewbar" hidden role="status"><span>☠ <b>Defeated.</b> The battle is frozen: drag, zoom and hover to study it, and read the battle log.</span><button class="btn small primary" data-dg="end-again">Options</button></div>
         <div class="dg-viewport" tabindex="0" aria-label="Dungeon map. Drag to pan, scroll or pinch to zoom.">
           <div class="dg-stage">
             <div class="dg-base"></div>
@@ -294,7 +302,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
     s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.invOpen = false;
     s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false;
-    $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true;
+    $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true; $('.dg-reviewbar').hidden = true; s.captiveRun = null;
     setMood(arena ? 'combat' : 'dungeon');
     startHeroTurn();
     const names = party().map((h) => h.name).join(', ') || 'Your hero';
@@ -741,7 +749,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const look = boltFor(p.type);
     m.facing = facingToward(m.pos, target.pos);
     banner(`${m.name}: ${p.name}!`);
-    s.aiming = m.id; drawOverlay(); await sleep(reduceMotion ? 0 : 420); s.aiming = null;
+    s.aiming = m.id; drawOverlay(); await sleep(reduceMotion ? 0 : Math.round(420 * PACE)); s.aiming = null;
     play(p.breath ? cry(m, 'attack') : look.sound, { volume: 0.85 });
     const from = centerOf(m.pos, m.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
     const verb = p.spell ? 'casts' : 'uses';
@@ -982,7 +990,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         return; // the trap stops you in your tracks
       }
       const spotted = updateVision();
-      redraw(); await sleep(STEP_MS);
+      redraw(); await sleep(reduceMotion ? 0 : 110); // your own heroes walk at a brisk pace
       if (spotted.length) {
         s.moveLeft = Math.max(0, s.moveLeft - costAt(p));
         s.busy = false;
@@ -1124,7 +1132,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   async function shootProjectile(from, to, color = null, shape = 'arrow') {
     if (reduceMotion) return;
     const dist = Math.hypot(to.x - from.x, to.y - from.y);
-    const ms = Math.min(1400, Math.max(450, dist * 125));
+    const ms = Math.min(1400, Math.max(450, dist * 125)) * Math.min(PACE, 1.4);
     s.projectile = { from, to, t: 0, color, shape };
     drawOverlay();
     const head = overlay.querySelector('.dg-proj-head'); const trail = overlay.querySelector('.dg-proj-trail');
@@ -1161,7 +1169,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   async function lunge(attacker, target) {
     if (reduceMotion) return;
     const dx = Math.sign(target.pos.x - attacker.pos.x); const dy = Math.sign(target.pos.y - attacker.pos.y);
-    s.lunge = { id: attacker.id, dx, dy }; drawOverlay(); await sleep(120);
+    s.lunge = { id: attacker.id, dx, dy }; drawOverlay(); await sleep(Math.round(120 * (attacker.isHero ? 1 : PACE)));
     s.lunge = null; drawOverlay();
   }
 
@@ -1223,7 +1231,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Take aim for a moment, then loose: the shot is easy to follow from shooter to target.
       const from = centerOf(attacker.pos, attacker.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
       attacker.facing = facingToward(attacker.pos, target.pos);
-      s.aiming = attacker.id; drawOverlay(); await sleep(reduceMotion ? 0 : 280); s.aiming = null;
+      s.aiming = attacker.id; drawOverlay(); await sleep(reduceMotion ? 0 : Math.round(280 * PACE)); s.aiming = null;
       if (weapon.spell) {
         const b = boltFor(weapon.type);
         play(b.sound, { volume: 0.8 });
@@ -1414,7 +1422,89 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     el.innerHTML = kind === 'victory'
       ? `<div class="dg-endcard"><h2>Depth ${s.depth} cleared</h2><p>Every foe on this floor of dungeon #${s.seed} has fallen. The stairs down still wait somewhere${s.exitSeen ? ' (you have seen them)' : ''}. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
         <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="close-end">Find the way down</button><button class="btn" data-dg="random">Start a new dungeon</button></div></div>`
-      : `<div class="dg-endcard"><h2>${esc(s.hero.name)} has fallen</h2><p>The dark claims another hero... but legends are stubborn. Your experience and the loot you carried out are kept. Rest, and try again.</p><div class="row"><button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button></div></div>`;
+      : defeatCard();
+    if (kind === 'defeat' && !arena && getSetting('defeat') === 'captive') showCaptured();
+  }
+
+  /** The buttons after a defeat: study the frozen battle, or start again when you choose. */
+  function defeatButtons() {
+    return `<div class="row wrap">
+      <button class="btn" data-dg="review">Look over the battlefield</button>
+      ${arena ? '<button class="btn primary" data-dg="retry">Restart the bout</button><button class="btn ghost" data-dg="leave-arena">Back to the builder</button>'
+    : '<button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button><button class="btn ghost" data-action="home">Return to the menu</button>'}
+    </div>`;
+  }
+  function defeatCard() {
+    const names = party().map((h) => h.name);
+    return `<div class="dg-endcard"><h2>${esc(names.length > 1 ? 'The party has fallen' : `${names[0]} has fallen`)}</h2>
+      <p>The dark claims another hero... but legends are stubborn. ${arena ? 'It was only practice.' : 'Your experience and the loot you carried out are kept.'}</p>
+      <p class="small muted">Look over the battlefield to see how it ended: the map stays exactly as it was, and the battle log tells the story blow by blow.</p>
+      ${defeatButtons()}</div>`;
+  }
+
+  /**
+   * Taken captive (a mod setting): the party wakes in chains in a goblin jailer's cell. A short
+   * scene plays: the jailer's whip cracks, a hero cries out, the goblin cackles. Escaping will be
+   * the next chapter.
+   */
+  async function showCaptured() {
+    const el = $('.dg-endscreen');
+    const heroesIn = party().slice(0, 4);
+    const sz = 64; const W = 7; const H = 5; const run = Symbol('captive');
+    s.captiveRun = run;
+    const xs = heroesIn.map((_, i) => 1 + (i + 0.5) * (5 / heroesIn.length));
+    const heroSvg = heroesIn.map((h, i) => {
+      const cx = xs[i] * sz; const cy = 1.55 * sz; const body = s.view === 'bodies' ? bodyUrl(h.race) : null;
+      const pic = body
+        ? `<image href="${esc(body)}" x="${-sz * 0.65}" y="${-sz * 0.65}" width="${sz * 1.3}" height="${sz * 1.3}" class="cap-body"/>`
+        : `<clipPath id="cap-c${i}"><circle r="${sz * 0.4}"/></clipPath><image href="${esc(h.look?.url ?? '')}" x="${-sz * 0.4}" y="${-sz * 0.4}" width="${sz * 0.8}" height="${sz * 0.8}" clip-path="url(#cap-c${i})"/>`;
+      return `<line x1="${cx - 14}" y1="${sz}" x2="${cx - 10}" y2="${cy - 8}" class="tk-chain"/><line x1="${cx + 14}" y1="${sz}" x2="${cx + 10}" y2="${cy - 8}" class="tk-chain"/>
+        <g class="cap-hero" data-i="${i}" transform="translate(${cx} ${cy})">${pic}<circle r="${sz * 0.45}" class="cap-flash"/></g>`;
+    }).join('');
+    const goblin = bodyUrl('goblin');
+    el.innerHTML = `<div class="dg-endcard captive"><h2>Taken captive</h2>
+      <p>You wake in chains, hanging from the wall of a goblin gaol. Your weapons are gone. A grinning jailer uncoils his whip.</p>
+      <svg class="cap-scene" viewBox="0 0 ${W * sz} ${H * sz}" role="img" aria-label="The party chained to a dungeon wall while a goblin jailer cracks his whip">
+        <image href="assets/textures/floor-flagstone.jpg" x="0" y="0" width="${W * sz}" height="${H * sz}" preserveAspectRatio="xMidYMid slice"/>
+        <image href="assets/textures/rock-bedrock.jpg" x="0" y="0" width="${W * sz}" height="${sz}" preserveAspectRatio="xMidYMid slice"/>
+        <rect x="0" y="${sz - 6}" width="${W * sz}" height="10" fill="rgba(0,0,0,.45)"/>
+        ${heroSvg}
+        <path class="cap-whip" d="M 0 0"/>
+        <g class="cap-goblin" transform="translate(${3.5 * sz} ${4 * sz})"><image href="${esc(goblin)}" x="${-sz * 0.6}" y="${-sz * 0.6}" width="${sz * 1.2}" height="${sz * 1.2}"/></g>
+        <rect width="${W * sz}" height="${H * sz}" class="cap-vignette"/>
+      </svg>
+      <ol class="cap-log small"></ol>
+      <div class="row wrap"><button class="btn" disabled title="Coming in a later update">Try to escape (coming soon)</button></div>
+      ${defeatButtons()}</div>`;
+    const svg = el.querySelector('.cap-scene'); const logEl = el.querySelector('.cap-log');
+    const say = (t) => { const li = document.createElement('li'); li.textContent = t; logEl.prepend(li); };
+    const lashes = Math.min(6, Math.max(3, heroesIn.length * 2));
+    const still = () => s.captiveRun === run && !el.hidden && s.mode === 'defeat';
+    const verbs = ['cracks the whip across', 'lashes', 'brings the whip down on', 'strikes'];
+    for (let k = 0; k < lashes; k++) {
+      await sleep(900);
+      if (!still()) return;
+      const i = k % heroesIn.length; const h = heroesIn[i];
+      const gx = xs[i] * sz; const gy = 3.1 * sz;
+      svg.querySelector('.cap-goblin').setAttribute('transform', `translate(${gx} ${gy})`);
+      await sleep(500);
+      if (!still()) return;
+      const whip = svg.querySelector('.cap-whip');
+      whip.setAttribute('d', `M ${gx + 10} ${gy - 20} Q ${gx + 60} ${gy - 120} ${gx} ${1.55 * sz + 6}`);
+      whip.classList.remove('crack'); void whip.getBoundingClientRect(); whip.classList.add('crack');
+      play('whip-crack', { volume: 0.9 });
+      await sleep(160);
+      const hero = svg.querySelector(`.cap-hero[data-i="${i}"]`);
+      hero.classList.remove('hit'); void hero.getBoundingClientRect(); hero.classList.add('hit');
+      play(`hero-${h.voice ?? 'low'}-hurt`, { volume: 0.9 });
+      if (k % 2 === 1) play('goblin-laugh', { delay: 500, volume: 0.8 });
+      say(`The jailer ${verbs[k % verbs.length]} ${h.name}. ${k % 2 === 1 ? 'He cackles.' : ''}`);
+    }
+    await sleep(900);
+    if (!still()) return;
+    svg.querySelector('.cap-goblin').setAttribute('transform', `translate(${6.5 * sz} ${4.6 * sz})`);
+    play('goblin-laugh', { volume: 0.7 });
+    say('Bored at last, the jailer wanders off laughing, his keys jangling at his belt... Somewhere, a guard snores. (Escaping comes in a later update.)');
   }
 
   // ---------------------------------------------------------------------------
@@ -1487,7 +1577,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const cx = (e.pos.x + d.w / 2) * sz + off.x; const cy = (e.pos.y + d.h / 2) * sz + off.y;
     // The sprite's own box when facing north (wing-spread bodies are wider than long).
     const north = dims(orientFor(e.size ?? 1, 0));
-    const scale = spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04;
+    const scale = (spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04) * bodyScale(hero ? e.race : e.statId);
     const bw = north.w * sz * scale; const bh = north.h * sz * scale;
     const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
     const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (!hero && BODY_TINT[e.statId]) || 'none';
@@ -2974,7 +3064,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (!open) return;
     box.innerHTML = `<div class="dg-settings-card">
       <div class="foe-head"><h3>Settings</h3><button class="btn icon small" data-dg="close-settings" aria-label="Close settings">✕</button></div>
-      ${figuresControl(s.view, 'data-dg="figures"')}
+      ${settingsControls('data-dg="setting"', undefined, 'game')}
       <p class="small muted">Also set on the start screen. Creatures without a body yet keep their token.</p>
     </div>`;
   }
@@ -3219,6 +3309,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'seed-next': newDungeon(s.seed + 1); break;
       case 'random': newDungeon(1 + Math.floor(Math.random() * 99999)); break;
       case 'retry': resetDelve(); centerOn(s.hero.pos); break;
+      case 'review': s.captiveRun = null; $('.dg-endscreen').hidden = true; $('.dg-reviewbar').hidden = false; fit(); break;
+      case 'end-again': $('.dg-reviewbar').hidden = true; $('.dg-endscreen').hidden = false; if (getSetting('defeat') !== 'captive' || arena) $('.dg-endscreen').innerHTML = defeatCard(); else showCaptured(); break;
       case 'close-end': $('.dg-endscreen').hidden = true; s.mode = 'explore'; redraw(); break;
       case 'zoom-in': setZoom(s.zoom * 1.25); break;
       case 'zoom-out': setZoom(s.zoom / 1.25); break;
@@ -3289,7 +3381,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         break;
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
-      case 'figures': s.view = el.value; setFigures(s.view); redraw(); break;
+      case 'setting':
+        setSetting(el.dataset.setting, el.value);
+        if (el.dataset.setting === 'figures') { s.view = el.value; redraw(); }
+        if (el.dataset.setting === 'pace') applyPace();
+        break;
       case 'party': {
         const boxes = [...host.querySelectorAll('[data-dg="party"]')];
         let ids = boxes.filter((b) => b.checked).map((b) => b.value);
@@ -3301,6 +3397,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       default:
     }
   });
+
+  // Developer hook for automated tests (only with ?debug in the address): end the fight in defeat.
+  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); } };
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }

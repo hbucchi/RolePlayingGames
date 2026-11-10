@@ -48,6 +48,7 @@ export function monsterVoice(stat) {
   if (!stat) return 'goblin';
   if (/spider|ettercap|weaver/i.test(stat.id)) return 'spider';
   if (/bat/.test(stat.id)) return 'bat';
+  if (/^amazon-/.test(stat.id)) return 'hero-high'; // the Amazons' war cries
   if (stat.id === 'shadowflame-tyrant' || /demon|balor/.test(stat.id)) return 'demon';
   if (stat.type === 'dragon' || /dragon|drake|wyrm/.test(stat.id)) return 'dragon';
   if (/wolf|worg|warg/.test(stat.id)) return 'wolf';
@@ -62,6 +63,7 @@ export const SOUND_KEYS = [
   'spider-attack', 'spider-hurt', 'spider-death', 'bat-attack', 'bat-hurt', 'bat-death',
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
+  'whip-crack', 'goblin-laugh',
   'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',
 ];
 

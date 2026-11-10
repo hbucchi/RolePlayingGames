@@ -34,6 +34,7 @@ export const MONSTER_PORTRAITS = {
   ].map((id) => [id, id])),
   orc: 'orc', ogre: 'ogre', 'shadowflame-tyrant': 'shadowflame-tyrant', balor: 'shadowflame-tyrant', 'winter-wolf': 'winter-wolf',
   'captive-princess': 'captive-princess', 'test-dragon': 'red-dragon',
+  'amazon-spear-maiden': 'amazon-spear-maiden', 'amazon-archer': 'amazon-archer', 'amazon-huntress': 'amazon-huntress', 'amazon-war-queen': 'amazon-war-queen',
   // Dragons share a few paintings by colour and age.
   'young-fire-drake': 'red-dragon', 'ember-wyrm': 'red-dragon', 'grey-ice-drake': 'white-dragon', pseudodragon: 'dragon-wyrmling',
   ...Object.fromEntries(['black', 'blue', 'brass', 'bronze', 'copper', 'gold', 'green', 'red', 'silver', 'white'].flatMap((c) => {
@@ -77,6 +78,7 @@ export const BODIES = {
   'great-goblin-of-the-mountain-halls': 'body-goblin',
   'hollow-hill-lurker': 'body-lurker',
   wight: 'body-wight', 'cairn-wight': 'body-wight',
+  'amazon-spear-maiden': 'body-amazon-spear', 'amazon-archer': 'body-amazon-archer', 'amazon-huntress': 'body-amazon-huntress', 'amazon-war-queen': 'body-amazon-queen',
   'hooded-rider-of-the-shadow': 'body-wraith', 'dread-sovereign-of-the-hooded-riders': 'body-wraith',
 };
 /** Colour shifts so one body serves several kinds (a grey stone troll, a pale snow troll...). */
@@ -96,6 +98,9 @@ export const BODY_TINT = {
   'great-goblin-of-the-mountain-halls': 'saturate(0.7) brightness(0.9)', 'cairn-wight': 'grayscale(0.6) brightness(0.8)',
   'dread-sovereign-of-the-hooded-riders': 'contrast(1.3) drop-shadow(0 0 5px #b8c4ff)',
 };
+/** Bodies whose picture includes a long weapon (spear, bow) are drawn larger, so the figure itself fills its square. */
+export const BODY_SCALE = { 'body-amazon-spear': 1.55, 'body-amazon-queen': 1.5, 'body-amazon-archer': 1.35, 'body-amazon-huntress': 1.2, 'body-sorcerer': 1.15, 'body-necromancer': 1.15 };
+export const bodyScale = (key) => BODY_SCALE[BODIES[key]] ?? 1;
 export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
 
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);

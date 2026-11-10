@@ -678,3 +678,31 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-settings-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 12px 14px; display: grid; gap: 8px; }
 .dg-settings-card h3 { margin: 0; }
 .dg-settings-card .foe-head { display: flex; justify-content: space-between; align-items: center; }
+
+/* Defeat: look over the frozen battle */
+.dg-reviewbar { position: absolute; z-index: 4; left: 12px; right: 12px; top: 10px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  padding: 8px 12px; border-radius: 12px; background: rgb(20 14 10 / .82); color: #f3e7cf; font-size: .9rem; box-shadow: 0 4px 16px rgb(0 0 0 / .35); }
+
+/* Taken captive */
+.dg-endcard.captive { max-width: min(640px, calc(100vw - 32px)); }
+.cap-scene { width: 100%; height: auto; border-radius: 12px; display: block; background: #120f0c; }
+.cap-scene .cap-body { filter: drop-shadow(4px 6px 4px rgb(0 0 0 / .6)); }
+.cap-goblin { transition: transform .45s ease-in-out; }
+.cap-goblin image { filter: drop-shadow(4px 6px 4px rgb(0 0 0 / .6)); transform: rotate(0deg); }
+.cap-whip { fill: none; stroke: #4a2e1a; stroke-width: 4; stroke-linecap: round; opacity: 0; }
+.cap-whip.crack { animation: capwhip .35s ease-out; }
+@keyframes capwhip { 0% { opacity: 1; stroke-dasharray: 0 400; } 60% { opacity: 1; stroke-dasharray: 400 0; } 100% { opacity: 0; stroke-dasharray: 400 0; } }
+.cap-flash { fill: #ff2a1a; opacity: 0; pointer-events: none; }
+.cap-hero.hit .cap-flash { animation: tkflash .45s ease-out; }
+.cap-hero.hit { animation: capshake .35s ease-out; }
+@keyframes capshake { 0%, 100% { translate: 0 0; } 25% { translate: -3px 1px; } 50% { translate: 3px -1px; } 75% { translate: -2px 0; } }
+.cap-vignette { fill: none; stroke: rgb(0 0 0 / .55); stroke-width: 60; pointer-events: none; }
+.cap-log { list-style: none; padding: 0; margin: 4px 0; max-height: 7.5em; overflow: auto; display: grid; gap: 2px; }
+@media (prefers-reduced-motion: reduce) { .cap-whip.crack, .cap-hero.hit, .cap-hero.hit .cap-flash { animation: none; } .cap-goblin { transition: none; } }
+
+/* Settings on the start screen */
+.home-settings { margin: 18px auto 0; max-width: 980px; text-align: left; }
+.home-settings summary { cursor: pointer; font-family: var(--font-display); text-align: center; margin-bottom: 8px; }
+.home-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.dg-settings-card .figures-choice + .figures-choice { margin-top: 2px; }
+.dg-settings { max-height: calc(100vh - 90px); overflow: auto; }
