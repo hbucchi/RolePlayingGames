@@ -19,6 +19,11 @@ export const TERRAINS = {
   shallow: { name: 'Shallow water', cost: 2, texture: 'assets/terrain/shallow.jpg', color: '#6fa6b8', note: 'difficult terrain' },
   river: { name: 'Deep water', cost: Infinity, texture: 'assets/terrain/river.jpg', color: '#24507a', note: 'cannot be crossed on foot' },
   wall: { name: 'Wall', wall: true, texture: 'assets/textures/rock-bedrock.jpg', color: '#2b251f', note: 'blocks movement and sight' },
+  // For towns, inns and woods (drawn in code over a base texture, see arena-render.js):
+  planks: { name: 'Wooden floor', cost: 1, texture: 'assets/textures/door-oak.png', single: true, color: '#8a6238' },
+  table: { name: 'Table or counter', cost: Infinity, texture: 'assets/textures/door-oak.png', single: true, color: '#5a3d22', furniture: true, note: 'blocks movement, not sight' },
+  tree: { name: 'Trees', wall: true, texture: 'assets/terrain/grass.jpg', color: '#2f4a22', drawn: 'tree', note: 'blocks movement and sight' },
+  roof: { name: 'Building', wall: true, texture: 'assets/terrain/castle.jpg', color: '#7a3b2a', drawn: 'roof', note: 'a house: blocks movement and sight' },
 };
 export const TERRAIN_IDS = Object.keys(TERRAINS);
 
@@ -64,7 +69,7 @@ export function paintTerrain(map, x, y, id) {
 export const standable = (map, x, y) => map.tiles[y]?.[x] !== undefined && map.tiles[y][x] !== TILE.ROCK && terrainCost(map, x, y) !== Infinity;
 
 /** Compact form for saving: rows of single-letter codes. */
-const CODE = { floor: '.', castle: 'c', cobbles: 'o', grass: 'g', sand: 's', blood: 'b', mud: 'm', snow: 'n', shallow: 'w', river: 'r', wall: '#' };
+export const CODE = { floor: '.', castle: 'c', cobbles: 'o', grass: 'g', sand: 's', blood: 'b', mud: 'm', snow: 'n', shallow: 'w', river: 'r', wall: '#', planks: 'p', table: 't', tree: 'T', roof: 'R' };
 const FROM_CODE = Object.fromEntries(Object.entries(CODE).map(([k, v]) => [v, k]));
 export const encodeTerrain = (map) => map.terrain.map((row) => row.map((id) => CODE[id] ?? '.').join(''));
 export function decodeArena(rows) {

@@ -47,19 +47,36 @@ export function installRender(ctx) {
         <image href="assets/items/chain-mail.jpg" x="${-k * 0.12}" y="${-k * 0.2}" width="${k * 0.5}" height="${k * 0.5}" mask="url(#blood-mask)" preserveAspectRatio="xMidYMid slice" transform="rotate(35)" style="filter:brightness(.75)"/>
       </g>`;
     }
-    const url = bodyUrl(hero ? m.race : m.statId);
+    const tokensView = s.view !== 'bodies';
+    const url = tokensView ? null : bodyUrl(hero ? m.race : m.statId);
     const turn = facingAngle(m.facing ?? 0) + (h % 2 ? 90 : -90) + ((h % 41) - 20);
-    const dark = `${hero ? 'none' : bodyTint(m.statId)} grayscale(.35) brightness(.55) sepia(.35) contrast(1.15)`.replace(/^none /, '');
-    const north = dims(orientFor(m.size ?? 1, 0));
-    const scale = (spanOf(m.size ?? 1) === 1 ? 1.2 : 1) * bodyScale(hero ? m.race : m.statId);
-    const bw = north.w * sz * scale; const bh = north.h * sz * scale;
-    const pic = url
-      ? `<image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet" style="filter:${dark}"/>`
-      : (() => { const img = hero ? m.look?.url : ctx.portraitOf(m); const r = Math.min(d.w, d.h) * sz * 0.4;
-        return img ? `<clipPath id="rm-${esc(m.id)}"><ellipse rx="${r}" ry="${r * 0.62}"/></clipPath><image href="${esc(img)}" x="${-r}" y="${-r}" width="${2 * r}" height="${2 * r}" clip-path="url(#rm-${esc(m.id)})" preserveAspectRatio="xMidYMid slice" style="filter:${dark}"/>` : ''; })();
+    const blood = hero ? 'red' : ctx.bloodOf(m) ?? null;
+    const own = hero ? 'none' : bodyTint(m.statId);
+    const look = `${own === 'none' ? '' : `${own} `}brightness(.85) saturate(.9)`;
+    const id = `cm-${esc(m.id)}`;
+    // Blood painted on the body itself (the sprite's own outline masks it), in its own colour.
+    const smears = (w, hgt) => (blood ? [0, 1, 2, 3, 4].map((k) => {
+      const q = (h >> (k * 3)) % 97; return `<circle cx="${((q % 10) / 10 - 0.45) * w}" cy="${((q % 7) / 7 - 0.45) * hgt}" r="${(0.1 + (q % 5) * 0.03) * Math.min(w, hgt)}"/>`;
+    }).join('') : '');
+    let pic;
+    if (url) {
+      const north = dims(orientFor(m.size ?? 1, 0));
+      const scale = (spanOf(m.size ?? 1) === 1 ? 1.2 : 1) * bodyScale(hero ? m.race : m.statId);
+      const bw = north.w * sz * scale; const bh = north.h * sz * scale;
+      pic = `<mask id="${id}" style="mask-type:alpha"><image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet"/></mask>
+        <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet" style="filter:${look}"/>
+        <g mask="url(#${id})" fill="url(#bl-${blood ?? 'red'})" opacity=".85">${smears(bw, bh)}</g>`;
+    } else {
+      // Tokens: the creature's own round portrait, toppled, bloodied and marked as slain.
+      const img = hero ? m.look?.url : ctx.portraitOf(m); const r = Math.min(d.w, d.h) * sz * 0.38;
+      pic = `<clipPath id="${id}"><circle r="${r}"/></clipPath>
+        ${img ? `<image href="${esc(img)}" x="${-r}" y="${-r}" width="${2 * r}" height="${2 * r}" clip-path="url(#${id})" preserveAspectRatio="xMidYMid slice" style="filter:${hero || portraitTint(m.statId) === 'none' ? '' : `${portraitTint(m.statId)} `}grayscale(.5) brightness(.7)"/>` : `<circle r="${r}" class="tk-back"/>`}
+        <g clip-path="url(#${id})" fill="url(#bl-${blood ?? 'red'})" opacity=".8">${smears(2 * r, 2 * r)}</g>
+        <circle r="${r}" class="remains-ring"/><text y="${r * 0.35}" class="remains-skull" style="font-size:${r}px">☠</text>`;
+    }
     return `<g class="remains ${hero ? 'fallen-hero' : ''}" transform="translate(${cx} ${cy})">
       ${sel ? `<ellipse rx="${d.w * sz * 0.5}" ry="${d.h * sz * 0.5}" class="tk-selring"/>` : ''}
-      <g transform="rotate(${turn})">${pic}</g>
+      <g transform="rotate(${turn}) scale(1 .9)">${pic}</g>
     </g>`;
   }
 

@@ -576,6 +576,12 @@ export function installPanels(ctx) {
     const hov = s.hover;
     if (!hov || !s.hero) { box.innerHTML = '<p class="muted small">Click a creature to attack it, talk to it, shove it or study it (Shift+click attacks at once). Click chests, locked doors, traps and bodies next to you. Hover to check distances.</p>'; return; }
     const foe = ctx.alive().find((m) => covers(m, hov) && ctx.canSee(m));
+    const fallen = !foe && s.monsters.find((m) => m.dead && covers(m, hov));
+    if (fallen) {
+      box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(fallen) ? `<img src="${esc(ctx.portraitOf(fallen))}" alt="" style="filter:grayscale(.6)">` : ''}<div><h3>☠ ${esc(fallen.name)}</h3>
+        <p class="small">${fallen.side === 'ally' ? 'Your fallen friend' : 'Slain'} · ${ctx.edist(s.hero, fallen) * 5} ft away</p><p class="small muted">Click to search the body.</p></div></div>`;
+      return;
+    }
     if (foe && foe.side) {
       box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(foe) ? `<img src="${esc(ctx.portraitOf(foe))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
         <p class="small">${foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe) * 5} ft away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;

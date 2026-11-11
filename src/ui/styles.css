@@ -844,3 +844,9 @@ summary::before { content: '▸'; transition: transform .15s; }
 details[open] > summary::before { transform: rotate(90deg); }
 summary:hover { border-color: var(--gold); }
 summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* Location maps: furniture and roof edges (arena-render.js). */
+.ar-table { fill: #4a2f18; fill-opacity: .55; stroke: #2a1a0c; stroke-width: 3; }
+.ar-eave { stroke: #3a1a10; stroke-width: 3; }
+.remains-ring { fill: none; stroke: #4a0b0b; stroke-width: 3; }
+.remains-skull { text-anchor: middle; fill: #f2e6d0; opacity: .8; paint-order: stroke; stroke: #000; stroke-width: 2px; }
