@@ -1,3 +1,4 @@
+import { packed } from './asset-pack.js';
 import { FAMILY_PORTRAITS, FAMILY_BODIES, FAMILY_TINTS } from './art-families.js';
 /**
  * Portraits and their look. Images were generated with ElevenLabs from each character's
@@ -7,7 +8,7 @@ import { FAMILY_PORTRAITS, FAMILY_BODIES, FAMILY_TINTS } from './art-families.js
  */
 
 export const PORTRAIT_VARIANTS = 4;
-export const portraitUrl = (key, n = 1) => `assets/portraits/${key}-${n}.jpg`;
+export const portraitUrl = (key, n = 1) => packed(`assets/portraits/${key}-${n}.jpg`);
 
 export const PORTRAITS = {
   halric: 'Halric Greyfell', brannoc: 'Brannoc Ironbrow', pippa: 'Pippa Underhedge', lirien: 'Lírien of the Wood',
@@ -110,7 +111,7 @@ for (const [id, tint] of Object.entries(FAMILY_TINTS)) BODY_TINT[id] ??= tint;
 export const PORTRAIT_TINT = Object.fromEntries(Object.entries(FAMILY_TINTS).filter(([id]) => MONSTER_PORTRAITS[id] === FAMILY_PORTRAITS[id]));
 export const portraitTint = (statId) => PORTRAIT_TINT[statId] || 'none';
 
-export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
+export const bodyUrl = (key) => (BODIES[key] ? packed(`assets/bodies/${BODIES[key]}.png`) : null);
 
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
 

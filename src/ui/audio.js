@@ -3,6 +3,8 @@
  * plays each time, so repeated hits don't sound mechanical. Browsers only allow audio after
  * the player has interacted with the page, which is always true by the time combat starts.
  */
+import { packed } from '../content/asset-pack.js';
+
 const VARIANTS = 4;
 const KEY = 'rpg.sound.muted';
 
@@ -24,7 +26,7 @@ export function play(key, { volume = 0.9, delay = 0 } = {}) {
   if (n === last.get(key)) n = (n % VARIANTS) + 1;
   last.set(key, n);
   const start = () => {
-    const a = new Audio(`assets/sounds/${key}-${n}.mp3`);
+    const a = new Audio(packed(`assets/sounds/${key}-${n}.mp3`));
     a.volume = volume;
     a.play().catch(() => { /* blocked or missing: stay silent */ });
   };
@@ -35,7 +37,7 @@ export function play(key, { volume = 0.9, delay = 0 } = {}) {
 export function preload(keys) {
   for (const k of keys) {
     for (let n = 1; n <= VARIANTS; n++) {
-      const a = new Audio(); a.preload = 'auto'; a.src = `assets/sounds/${k}-${n}.mp3`;
+      const a = new Audio(); a.preload = 'auto'; a.src = packed(`assets/sounds/${k}-${n}.mp3`);
     }
   }
 }
