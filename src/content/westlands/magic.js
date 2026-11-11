@@ -8,7 +8,8 @@
  * foe, 'cone' in front of you, 'around' you. time: action | bonus | reaction | free.
  */
 
-const S = (o) => ({ kind: 'spell', time: 'action', concentration: false, ...o });
+const S = (o) => ({ kind: 'spell', time: 'action', concentration: false, ...o, range: spellRange(o.range ?? 0) }); // play-scale reach, see engine/range.js
+import { spellRange } from '../../engine/range.js';
 const A = (o) => ({ kind: 'ability', time: 'action', ...o });
 
 export const SPELLS = [

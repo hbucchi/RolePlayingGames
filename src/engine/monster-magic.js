@@ -10,6 +10,7 @@
  * linger: ground left changed for a few rounds: 'fire' burns, 'ice' and 'rubble' slow,
  *         'poison' chokes.
  */
+import { spellRange } from './range.js';
 import { blockDistance, cellsOf, centerOf, spanOf } from './size.js';
 
 // The spells monsters actually cast, with what they do on this grid (ranges in squares).
@@ -27,7 +28,7 @@ export const MONSTER_SPELLS = {
   'acid arrow': { kind: 'bolt', dice: '4d4', type: 'acid', range: 18, level: 2, linger: 'poison', lingerRounds: 2, lingerRadius: 0 },
   shatter: { kind: 'area', shape: 'radius', size: 2, range: 12, save: 'con', dice: '3d8', type: 'thunder', half: true, level: 2, linger: 'rubble', lingerRounds: 4 },
   fireball: { kind: 'area', shape: 'radius', size: 4, range: 30, save: 'dex', dice: '8d6', type: 'fire', half: true, level: 3, linger: 'fire', lingerRounds: 2 },
-  'lightning bolt': { kind: 'area', shape: 'line', size: 20, save: 'dex', dice: '8d6', type: 'lightning', half: true, level: 3, linger: 'rubble', lingerRounds: 2 },
+  'lightning bolt': { kind: 'area', shape: 'line', size: 12, save: 'dex', dice: '8d6', type: 'lightning', half: true, level: 3, linger: 'rubble', lingerRounds: 2 },
   fear: { kind: 'area', shape: 'cone', size: 6, save: 'wis', type: 'none', rider: 'flee', level: 3 },
   'ice storm': { kind: 'area', shape: 'radius', size: 4, range: 60, save: 'dex', dice: '6d6', type: 'cold', half: true, level: 4, linger: 'ice', lingerRounds: 10 },
   blight: { kind: 'save', save: 'con', dice: '8d8', type: 'necrotic', range: 6, level: 4, half: true },
@@ -90,7 +91,8 @@ export function parseAreaAction(action) {
 export function parseAura(traits = []) {
   for (const t of traits) {
     const m = /start of each of its turns, each creature within (\d+) feet of it takes \d+ \((\d+d\d+(?: [+-] \d+)?)\) (\w+) damage/.exec(t.text ?? '');
-    if (m) return { name: t.name, size: Number(m[1]) / 5, dice: m[2].replace(/ /g, ''), type: m[3] };
+    if (m) return { name: t.name, size: spellRange(Number(m[1]) / 5), // breath reaches 60 ft at most (range.js)
+      dice: m[2].replace(/ /g, ''), type: m[3] };
   }
   return null;
 }
@@ -181,4 +183,4 @@ export function areaCells(p, caster, toward, inBounds) {
 }
 
 /** How far it can be aimed from (squares). Cones, lines and rings start at the caster. */
-export const powerRange = (p) => (p.kind === 'area' && p.shape !== 'radius' ? p.size : p.range ?? 12);
+export const powerRange = (p) => (p.kind === 'area' && p.shape !== 'radius' ? p.size : spellRange(p.range ?? 12)); // play-scale reach, see range.js

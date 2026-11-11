@@ -11,7 +11,7 @@
 import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
 import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
-import { lineOfSight, coverBetween } from './vision.js';
+import { lineOfSight, coverBetween, rangedCover, COVER_AC } from './vision.js';
 import { footprintOf, cellsOf, blockDistance, centerOf, dims, orientFor } from './size.js';
 
 /** Distance between two creatures, measured between their nearest squares (big creatures fill blocks). */
@@ -71,6 +71,8 @@ export function isBehind(attackerPos, target) {
 // Weapons and attacks
 // ---------------------------------------------------------------------------
 
+import { playRange, spellRange, THROWN_NAMES, ENDLESS_THROWN, THROWS_CARRIED } from './range.js';
+
 export const chebyshev = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
 /** Normalise a weapon into { name, toHit, damage, type, melee, ranged, normal, long } (ranges in squares). */
@@ -79,16 +81,20 @@ export function weaponFromHeroAttack(a) {
   const range = props.find((p) => /^range /.test(p));
   const thrown = props.find((p) => /^thrown /.test(p));
   const spec = (range ?? thrown)?.split(' ')[1];
-  const [normal, long] = spec ? spec.split('/').map((n) => Number(n) / 5) : [0, 0];
+  const [n0, l0] = spec ? spec.split('/').map((n) => Number(n) / 5) : [0, 0];
+  const [normal, long] = playRange(n0, l0, { thrown: !range && !!thrown });
   return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: 1 };
 }
 
 export function weaponFromMonsterAction(action) {
   const at = action.attack;
-  const [normal, long] = at.range ? at.range.split('/').map((n) => Number(n) / 5) : [0, 0];
+  // Thrown: a melee-or-thrown weapon, or a ranged one that is obviously thrown (javelins, rocks).
+  const thrown = at.kind === 'mrw' || (at.kind === 'rw' && (THROWN_NAMES.test(action.name) || ENDLESS_THROWN.test(action.name)));
+  const [n0, l0] = at.range ? at.range.split('/').map((n) => Number(n) / 5) : [0, 0];
+  const [normal, long] = at.kind === 'rs' ? [spellRange(n0 || l0), spellRange(n0 || l0)] : playRange(n0, l0, { thrown });
   const main = at.damage[0];
   return { name: action.name, toHit: at.toHit, damage: main.dice, type: main.type, melee: ['mw', 'mrw', 'ms'].includes(at.kind), ranged: ['rw', 'mrw', 'rs'].includes(at.kind), normal, long, extra: at.damage.slice(1), reach: 1, statReach: Math.max(1, Math.round((at.reach ?? 5) / 5)),
-    spell: ['rs', 'ms'].includes(at.kind) };
+    spell: ['rs', 'ms'].includes(at.kind), thrown, throws: thrown && !ENDLESS_THROWN.test(action.name) ? THROWS_CARRIED : Infinity };
 }
 
 export function hitChance(toHit, ac, mode = 'normal') {
@@ -154,9 +160,9 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
     usingRanged = true;
     const own = new Set([...cellsOf(attacker.pos, attacker.size ?? 1), ...cellsOf(target.pos, target.size ?? 1)].map((c) => cellKey(c.x, c.y)));
     const others = new Set([...occupied].filter((k) => !own.has(k)));
-    cover = coverBetween(sight.from, sight.to, opaque, others);
-    if (cover === 'total') return null;
-    if (cover === 'half') ac += 2;
+    cover = rangedCover(cellsOf(attacker.pos, attacker.size ?? 1), cellsOf(target.pos, target.size ?? 1), opaque, others);
+    if (cover === 'total') return null; // no clear shot
+    ac += COVER_AC[cover];
     if (dist > weapon.normal) dis.push('long range');
     if (enemiesOf(attacker).some((e) => entityDistance(e, attacker) <= 1)) dis.push('enemy adjacent');
   } else {
@@ -279,12 +285,19 @@ export function rollInitiative(dexMod, rng = cryptoRandomInt) {
  */
 export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt }) {
   const melee = m.weapons.find((w) => w.melee);
-  const ranged = m.weapons.find((w) => w.ranged && !w.melee) ?? null;
+  // Javelins and daggers run out (a creature carries a couple); bows and rocks do not.
+  const ranged = m.weapons.find((w) => w.ranged && !w.melee && (w.throws ?? Infinity) > 0)
+    ?? m.weapons.find((w) => w.ranged && w.thrown && (w.throws ?? Infinity) > 0) ?? null;
+  // Archers (bows, crossbows, slings, spells) prefer to shoot; brutes with a thrown weapon prefer
+  // to charge, and throw only when they cannot reach melee this turn.
+  const prefersRanged = !!ranged && (!melee || !ranged.thrown);
   const n = m.size ?? 1;
   const reachSq = reachOf(m);
   const dAt = (pos) => blockDistance(pos, n, hero.pos, hero.size ?? 1);
   const dist = dAt(m.pos);
   const sees = (pos) => !!bestSight({ pos, size: n }, hero, opaque)?.visible;
+  // A clear enough shot from there: seen, and not behind total cover (corners, see rangedCover).
+  const canShoot = (pos) => sees(pos) && rangedCover(cellsOf(pos, n), cellsOf(hero.pos, hero.size ?? 1), opaque) !== 'total';
   const move = (budget) => reachableSquares(map, m.pos, budget, { blocked, size: n });
 
   // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
@@ -300,14 +313,14 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
     const wounded = m.hp <= m.maxHp / 2;
     if (ranged && m.nimble && (wounded || rng(100) < 35)) {
       const reach = move(m.speed);
-      const spots = [...reach.values()].filter((c) => dAt(c) >= 3 && sees(c));
+      const spots = [...reach.values()].filter((c) => dAt(c) >= 3 && canShoot(c));
       spots.sort((a, b) => dAt(b) - dAt(a) || a.cost - b.cost);
       if (spots.length) return [{ type: 'disengage' }, { type: 'move', path: spots[0].path }, { type: 'attack', weapon: ranged }];
     }
     return [{ type: 'attack', weapon: melee }];
   }
 
-  if (ranged && sees(m.pos) && dist <= ranged.long) return [{ type: 'attack', weapon: ranged }];
+  if (ranged && prefersRanged && canShoot(m.pos) && dist <= ranged.long) return [{ type: 'attack', weapon: ranged }];
 
   // Close in: find the cheapest square within reach of the hero, then walk part of the way.
   const all = move(200);
@@ -316,12 +329,12 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
     if (dAt(c) > reachSq || dAt(c) < 1) continue;
     if (!best || c.cost < best.cost) best = c;
   }
-  if (!best) return [{ type: 'wait' }];
+  if (!best) return ranged && canShoot(m.pos) && dist <= ranged.long ? [{ type: 'attack', weapon: ranged }] : [{ type: 'wait' }];
   const path = best.path.slice(0, m.speed + 1);
   const end = path[path.length - 1];
   const steps = [{ type: 'move', path }];
   if (dAt(end) <= reachSq && melee) steps.push({ type: 'attack', weapon: melee });
-  else if (ranged && sees(end) && dAt(end) <= ranged.long) steps.push({ type: 'attack', weapon: ranged });
+  else if (ranged && canShoot(end) && dAt(end) <= ranged.long) steps.push({ type: 'attack', weapon: ranged });
   return steps;
 }
 

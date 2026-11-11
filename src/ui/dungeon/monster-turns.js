@@ -118,7 +118,11 @@ export function installMonsterTurns(ctx) {
       }
       if (step.type === 'attack') {
         m.facing = facingToward(m.pos, target.pos);
-        await ctx.doAttack(m, target, step.weapon);
+        const w = step.weapon;
+        const thrownNow = w.thrown && ctx.edist(m, target) > (w.reach ?? 1);
+        await ctx.doAttack(m, target, w);
+        // A thrown javelin is gone: a creature carries only a couple (rocks are everywhere).
+        if (thrownNow && Number.isFinite(w.throws) && --w.throws === 0) ctx.log(`${m.name} has nothing left to throw (${w.name.toLowerCase()}).`, 'info');
         if (target.hp <= 0) return true;
       }
     }
@@ -248,7 +252,7 @@ export function installMonsterTurns(ctx) {
     const from = centerOf(m.pos, m.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
     const verb = p.spell ? 'casts' : 'uses';
     if (p.kind === 'bolt') {
-      await ctx.doAttack(m, target, { name: p.name, toHit: p.toHit, damage: p.dice, type: p.type, ranged: true, melee: false, normal: p.range, long: p.range, spell: true });
+      await ctx.doAttack(m, target, { name: p.name, toHit: p.toHit, damage: p.dice, type: p.type, ranged: true, melee: false, normal: powerRange(p), long: powerRange(p), spell: true });
       return;
     }
     if (p.kind === 'darts') {

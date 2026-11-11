@@ -135,3 +135,82 @@ export function coverBetween(a, b, opaque, occupied = new Set()) {
   }
   return 'none';
 }
+
+// ---------------------------------------------------------------------------
+// Cover for shots and spells (5e Dungeon Master's Guide): pick the corner of the attacker's
+// square with the best view and draw lines to the 4 corners of the target's square. Count the
+// lines a wall blocks: 0 = no cover, 1-2 = half cover (+2 AC), 3 = three-quarters (+5 AC),
+// 4 = total cover (no shot). Slipping diagonally between two walls that meet at a corner blocks.
+// Corners are pulled in a little so a line grazing a wall's edge does not count as passing it.
+// ---------------------------------------------------------------------------
+const INSET = 0.04;
+const CORNERS = [[INSET, INSET], [1 - INSET, INSET], [INSET, 1 - INSET], [1 - INSET, 1 - INSET]];
+
+/** Does a straight line between two points cross a wall? (cells in `own` never block) */
+export function lineBlocked(x0, y0, x1, y1, opaque, own) {
+  const steps = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 20));
+  let px = Math.floor(x0); let py = Math.floor(y0);
+  for (let i = 1; i <= steps; i++) {
+    const cx = Math.floor(x0 + ((x1 - x0) * i) / steps); const cy = Math.floor(y0 + ((y1 - y0) * i) / steps);
+    if (cx === px && cy === py) continue;
+    if (cx !== px && cy !== py && opaque(cx, py) && opaque(px, cy)) return true; // squeezing between two walls
+    if (!own.has(cellKey(cx, cy)) && opaque(cx, cy)) return true;
+    px = cx; py = cy;
+  }
+  return false;
+}
+
+/** How many of the 4 target corners a wall hides, from the attacker's best corner (0-4). */
+export function cornersBlocked(a, b, opaque, own = new Set([cellKey(a.x, a.y), cellKey(b.x, b.y)])) {
+  let best = 4;
+  for (const [ax, ay] of CORNERS) {
+    let blocked = 0;
+    for (const [bx, by] of CORNERS) if (lineBlocked(a.x + ax, a.y + ay, b.x + bx, b.y + by, opaque, own)) blocked++;
+    best = Math.min(best, blocked);
+    if (!best) break;
+  }
+  return best;
+}
+
+/**
+ * Does the straight line between two square centres scrape past a wall corner (cross diagonally
+ * where one of the two side squares is a wall) or run through one? Then the target is partly
+ * behind that corner: at least half cover, even if a lean from the best corner would show it all.
+ */
+export function centreGrazes(a, b, opaque, own) {
+  const x0 = a.x + 0.5; const y0 = a.y + 0.5; const x1 = b.x + 0.5; const y1 = b.y + 0.5;
+  const steps = Math.max(2, Math.ceil(Math.hypot(x1 - x0, y1 - y0) * 40));
+  let px = a.x; let py = a.y;
+  for (let i = 1; i <= steps; i++) {
+    const cx = Math.floor(x0 + ((x1 - x0) * i) / steps + 1e-9); const cy = Math.floor(y0 + ((y1 - y0) * i) / steps + 1e-9);
+    if (cx === px && cy === py) continue;
+    if (!own.has(cellKey(cx, cy)) && opaque(cx, cy)) return true;
+    if (cx !== px && cy !== py && (opaque(cx, py) || opaque(px, cy))) return true;
+    px = cx; py = cy;
+  }
+  return false;
+}
+
+export const COVER_AC = { none: 0, half: 2, 'three-quarters': 5, total: Infinity };
+const COVER_OF = ['none', 'half', 'half', 'three-quarters', 'total'];
+
+/**
+ * Cover between two creatures of any size: the best pair of squares counts. A creature standing
+ * on the line between them also gives half cover (`occupied`: cells of others).
+ */
+export function rangedCover(aCells, bCells, opaque, occupied = new Set()) {
+  const own = new Set([...aCells, ...bCells].map((c) => cellKey(c.x, c.y)));
+  let best = 'total'; let pair = null;
+  const rank = (c) => COVER_OF.indexOf(c);
+  for (const a of aCells) {
+    for (const b of bCells) {
+      let c = COVER_OF[cornersBlocked(a, b, opaque, own)];
+      if (c === 'none' && centreGrazes(a, b, opaque, own)) c = 'half';
+      if (rank(c) < rank(best)) { best = c; pair = [a, b]; }
+      if (best === 'none') break;
+    }
+    if (best === 'none') break;
+  }
+  if (best === 'none' && pair && coverBetween(pair[0], pair[1], () => false, occupied) === 'half') best = 'half';
+  return best;
+}
