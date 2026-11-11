@@ -3,6 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { rangedCover } from '../../engine/vision.js';
 import { lowestSlot, spellDice, inspirationDie, arcaneRecovery, spellCount, addDice, wanderingCheck, shortRest, longRest } from '../../engine/magic.js';
 import { lineOfSight } from '../../engine/vision.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
@@ -76,6 +77,8 @@ export function installMagic(ctx) {
       if (!target) { ctx.banner(`Select a target first: click a foe, then cast ${item.name}.`); return; }
       if (ctx.edist(s.hero, target) > item.range) { ctx.banner(`${target.name} is out of reach (reach ${item.range} squares).`); return; }
       if (!lineOfSight(s.hero.pos, target.pos, ctx.opaque()).visible) { ctx.banner('You need a clear line of sight.'); return; }
+      // A spell aimed at a far target cannot pass through someone standing in the way.
+      if (item.target === 'enemy' && item.range > 1 && rangedCover(cellsOf(s.hero.pos, 1), cellsOf(target.pos, target.size ?? 1), ctx.opaque(), ctx.occupied()) === 'total') { ctx.banner(`Someone is in the way: no clear shot at ${target.name}.`); return; }
       if (item.effect.humanoidOnly && BESTIARY_BY_ID[target.statId].type !== 'humanoid') { ctx.banner(`${item.name} only works on humanoids.`); return; }
       if (item.effect.onFail === 'enthrall' && !['humanoid', 'beast'].includes(BESTIARY_BY_ID[target.statId].type)) { ctx.banner(`${item.name} only works on humanoids and beasts.`); return; }
       if (item.effect.onFail === 'enthrall' && target.side) { ctx.banner('It is already on your side.'); return; }

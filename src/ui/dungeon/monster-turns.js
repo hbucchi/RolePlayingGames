@@ -3,7 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
-import { lineOfSight } from '../../engine/vision.js';
+import { lineOfSight, rangedCover } from '../../engine/vision.js';
 import { immobile, planMonsterTurn, facingToward, rollInitiative } from '../../engine/combat.js';
 import { GROUND, areaCells, canUse, powerRange, spend, rollRecharge } from '../../engine/monster-magic.js';
 import { cellKey } from '../../engine/movement.js';
@@ -152,7 +152,7 @@ export function installMonsterTurns(ctx) {
     if (immobile(m)) speed = 0;
     speed = Math.max(0, speed - used);
     const threats = m.side === 'ally' ? ctx.fighting().filter((f) => !f.dead) : [...ctx.partyAlive(), ...ctx.allies()];
-    let plan = planMonsterTurn({ m: { ...m, speed, style: styleOf(m) }, hero: target, map: s.map, opaque: ctx.opaque(), blocked: new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]), threats });
+    let plan = planMonsterTurn({ m: { ...m, speed, style: styleOf(m) }, hero: target, map: s.map, opaque: ctx.opaque(), blocked: new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]), threats, creatures: new Set(ctx.occupied(m)) });
     if (moveOnly) plan = plan.filter((p) => p.type === 'move');
     let disengaged = false;
     if (!plan.length || (plan.length === 1 && plan[0].type === 'wait')) return false;
@@ -265,11 +265,14 @@ export function installMonsterTurns(ctx) {
     const enemies = new Set(ctx.enemiesOf(m));
     const sees = lineOfSight(m.pos, target.pos, ctx.opaque()).visible;
     if (!sees) return null;
+    // Nobody in the way? (A creature between them blocks a single-target spell like a wall.)
+    const clear = rangedCover(cellsOf(m.pos, m.size ?? 1), cellsOf(target.pos, target.size ?? 1), ctx.opaque(), new Set(ctx.occupied(m))) !== 'total';
     const d = ctx.edist(m, target);
     let best = null;
     for (const p of m.powers) {
       if (!canUse(p, m.uses)) continue;
       if (d > powerRange(p) + (p.shape === 'radius' ? 0 : 0)) continue;
+      if (!clear && p.kind !== 'area' && p.kind !== 'wall') continue; // bolts, darts and single-target spells need a clear shot
       let score;
       if (p.kind === 'area') {
         const hit = creaturesIn(powerCells(m, p, target), m);

@@ -31,7 +31,7 @@ import { playRange } from '../engine/range.js';
 import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { setSetting, settingsControls } from './settings.js';
+import { setSetting, settingsControls, applyTheme } from './settings.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
 import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
@@ -39,6 +39,7 @@ import * as music from './music.js';
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
 const root = document.getElementById('app');
+applyTheme(); // the Colours setting: automatic, light or dark
 const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const state = {

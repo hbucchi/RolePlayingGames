@@ -62,8 +62,8 @@ test('cover: shots past corners are harder, blocked lines are impossible', () =>
     [{ x: 0, y: 1 }, { x: 5, y: 1 }, [[1, 0], [2, 0], [3, 0]], 'none'],    // along a wall, not past it
   ];
   for (const [a, b, w, want] of cases) assert.equal(rangedCover([a], [b], walls(w)), want, `${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
-  // A creature in the way gives half cover on open ground.
-  assert.equal(rangedCover([{ x: 0, y: 0 }], [{ x: 4, y: 0 }], walls([]), new Set(['2,0'])), 'half');
+  // A creature squarely in the way blocks the shot completely (bodies are solid, like walls).
+  assert.equal(rangedCover([{ x: 0, y: 0 }], [{ x: 4, y: 0 }], walls([]), new Set(['2,0'])), 'total');
 });
 
 import { attackOptions } from '../src/engine/combat.js';
@@ -74,4 +74,28 @@ test('a bow with reach 8 hits at 8 squares and cannot hit at 10', () => {
   assert.ok(at(8), 'in reach');
   assert.deepEqual(at(8).dis, [], 'no long-range penalty inside the reach');
   assert.equal(at(10), null, 'beyond the reach');
+});
+
+test('creatures block shots like walls: no shooting through a body', () => {
+  const bow = { name: 'Shortbow', toHit: 5, damage: '1d6+3', type: 'piercing', melee: false, ranged: true, normal: 8, long: 8, reach: 1 };
+  const archer = { pos: { x: 0, y: 2 }, size: 1, facing: 2, weapons: [bow] };
+  const target = { pos: { x: 6, y: 2 }, size: 1, ac: 12, facing: 6 };
+  const shot = (others) => attackOptions({ attacker: archer, target, weapon: bow, opaque: () => false, occupied: new Set(others), enemiesOf: () => [] });
+  assert.ok(shot([]), 'clear line');
+  assert.equal(shot([]).cover, 'none');
+  assert.equal(shot(['3,2']), null, 'someone squarely in the way: no shot');
+  assert.equal(rangedCover([{ x: 0, y: 2 }], [{ x: 6, y: 2 }], () => false, new Set(['3,2'])), 'total');
+  const partly = shot(['3,1']);
+  assert.ok(partly && partly.cover === 'none' || partly?.cover === 'half', 'someone beside the line: at most partial cover');
+  const diag = attackOptions({ attacker: { ...archer, pos: { x: 0, y: 0 } }, target: { ...target, pos: { x: 4, y: 4 } }, weapon: bow, opaque: () => false, occupied: new Set(['2,2']), enemiesOf: () => [] });
+  assert.equal(diag, null, 'a body on the diagonal blocks too');
+});
+
+test('a monster archer will not plan a shot through its own friends', () => {
+  const map = createArenaMap(16, 10, 'floor');
+  const goblin = createMonster(BESTIARY_BY_ID.goblin, 'g1', { x: 2, y: 5 });
+  const hero = { pos: { x: 8, y: 5 }, size: 1 };
+  const friend = new Set(['5,5']);
+  const plan = planMonsterTurn({ m: goblin, hero, map, opaque: () => false, blocked: friend, creatures: friend, rng: () => 99 });
+  assert.ok(!(plan.length === 1 && plan[0].type === 'attack'), 'it does not just shoot through the friend');
 });

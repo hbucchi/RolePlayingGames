@@ -283,7 +283,7 @@ export function rollInitiative(dexMod, rng = cryptoRandomInt) {
  * hack with the scimitar or (if wounded, or sometimes anyway) use Nimble Escape to slip away
  * and shoot; otherwise close the distance.
  */
-export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt, threats = null }) {
+export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt, threats = null, creatures = new Set() }) {
   const style0 = m.style ?? fightingStyle(null);
   // Something as big as a house cannot hide behind a pillar.
   const style = Math.max(dims(m.size ?? 1).w, dims(m.size ?? 1).h) > 3 ? { ...style0, seeksCover: false } : style0;
@@ -300,11 +300,12 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
   const dist = dAt(m.pos);
   const sees = (pos) => !!bestSight({ pos, size: n }, hero, opaque)?.visible;
   // A clear enough shot from there: seen, and not behind total cover (corners, see rangedCover).
-  const canShoot = (pos) => sees(pos) && rangedCover(cellsOf(pos, n), cellsOf(hero.pos, hero.size ?? 1), opaque) !== 'total';
+  // Other creatures (`creatures`: the squares they fill) block a shot like walls do.
+  const canShoot = (pos) => sees(pos) && rangedCover(cellsOf(pos, n), cellsOf(hero.pos, hero.size ?? 1), opaque, creatures) !== 'total';
   const move = (budget) => reachableSquares(map, m.pos, budget, { blocked, size: n });
   // How well a square hides it from everyone who could shoot at it (the worst case counts).
   const foes = threats?.length ? threats : [hero];
-  const coverAt = (pos) => Math.min(...foes.map((f) => COVER_RANK[rangedCover(cellsOf(f.pos, f.size ?? 1), cellsOf(pos, n), opaque)] ?? 0));
+  const coverAt = (pos) => Math.min(...foes.map((f) => COVER_RANK[rangedCover(cellsOf(f.pos, f.size ?? 1), cellsOf(pos, n), opaque, creatures)] ?? 0));
 
   // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
   // Beasts bolt and the cunning slip away when the fight is going badly (see tactics.js).

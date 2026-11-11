@@ -195,23 +195,25 @@ export const COVER_AC = { none: 0, half: 2, 'three-quarters': 5, total: Infinity
 const COVER_OF = ['none', 'half', 'half', 'three-quarters', 'total'];
 
 /**
- * Cover between two creatures of any size: the best pair of squares counts. A creature standing
- * on the line between them also gives half cover (`occupied`: cells of others).
+ * Cover between two creatures of any size: the best pair of squares counts.
+ * Other creatures (`occupied`: the squares they fill) are as solid as walls for a shot: an arrow
+ * or a spell cannot pass through a body. Squarely behind someone is total cover (no shot at all);
+ * partly behind someone is partial cover, exactly like shooting past a corner.
  */
 export function rangedCover(aCells, bCells, opaque, occupied = new Set()) {
   const own = new Set([...aCells, ...bCells].map((c) => cellKey(c.x, c.y)));
-  let best = 'total'; let pair = null;
+  const solid = occupied.size ? (x, y) => opaque(x, y) || (occupied.has(cellKey(x, y)) && !own.has(cellKey(x, y))) : opaque;
+  let best = 'total';
   const rank = (c) => COVER_OF.indexOf(c);
   for (const a of aCells) {
     for (const b of bCells) {
-      let c = COVER_OF[cornersBlocked(a, b, opaque, own)];
-      if (c === 'none' && centreGrazes(a, b, opaque, own)) c = 'half';
-      if (rank(c) < rank(best)) { best = c; pair = [a, b]; }
+      let c = COVER_OF[cornersBlocked(a, b, solid, own)];
+      if (c === 'none' && centreGrazes(a, b, solid, own)) c = 'half';
+      if (rank(c) < rank(best)) best = c;
       if (best === 'none') break;
     }
     if (best === 'none') break;
   }
-  if (best === 'none' && pair && coverBetween(pair[0], pair[1], () => false, occupied) === 'half') best = 'half';
   return best;
 }
 

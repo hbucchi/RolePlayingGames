@@ -3,6 +3,8 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { cellsOf } from '../../engine/size.js';
+import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
 import { cellKey } from '../../engine/movement.js';
@@ -51,6 +53,8 @@ export function installAttacks(ctx) {
     if (!s.visible.has(cellKey(target.pos.x, target.pos.y))) return 'You can\'t see it.';
     if (d > 1 && !maxRange) return 'Too far for a melee weapon. Move next to it first.';
     if (d > maxRange) return `Out of reach: it is ${d} squares away; your reach is ${maxRange}.`;
+    // Visible and in reach, but no shot: is someone standing in the way?
+    if (rangedCover(cellsOf(s.hero.pos, 1), cellsOf(target.pos, target.size ?? 1), ctx.opaque()) !== 'total') return `Someone is in the way: no clear shot at ${target.name}.`;
     return 'No clear line of sight.';
   }
 

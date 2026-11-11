@@ -5,12 +5,21 @@
  *   'bodies' bodies seen from above where we have them (tokens otherwise), 'tokens' portrait tokens
  * pace    – how fast monsters move and strike on their turns: 'slow', 'normal' or 'fast'
  * dice    – which rolls are shown as tumbling dice: 'heroes', 'all' or 'off'
+ * theme   – colours: 'auto' follows the device's light or dark mode, or force 'light' / 'dark'
  * defeat  – what happens when every hero falls (a mod setting):
  *   'death' the usual defeat screen, 'captive' the party is taken prisoner instead
  */
-const KEYS = { figures: 'rpg.view', pace: 'rpg.pace', dice: 'rpg.dice', defeat: 'rpg.defeat' };
+const KEYS = { theme: 'rpg.theme', figures: 'rpg.view', pace: 'rpg.pace', dice: 'rpg.dice', defeat: 'rpg.defeat' };
 
 export const SETTINGS = {
+  theme: {
+    legend: 'Colours', fallback: 'auto',
+    choices: [
+      { id: 'auto', label: 'Automatic', hint: 'Light or dark, following your device.' },
+      { id: 'light', label: 'Light', hint: 'Parchment and ink.' },
+      { id: 'dark', label: 'Dark', hint: 'Candlelight in a dark hall: easy on the eyes at night.' },
+    ],
+  },
   figures: {
     legend: 'Creatures on the map', fallback: 'bodies',
     choices: [
@@ -53,6 +62,19 @@ export function getSetting(name) {
 export function setSetting(name, value) {
   if (!SETTINGS[name]?.choices.some((c) => c.id === value)) return;
   try { localStorage.setItem(KEYS[name], value); } catch { /* storage blocked: lasts this visit only */ }
+  if (name === 'theme') applyTheme(value);
+}
+
+/**
+ * Colours. The stylesheet has a light and a dark palette: with no data-theme on <html> it follows
+ * the device (prefers-color-scheme); data-theme="light" or "dark" overrides that either way.
+ */
+export function applyTheme(value = getSetting('theme')) {
+  const root = document.documentElement;
+  // Only undo a theme the game set itself (a host page may set its own data-theme).
+  if (value === 'light' || value === 'dark') { root.dataset.theme = value; root.dataset.themeByGame = '1'; } else if (root.dataset.themeByGame) { delete root.dataset.theme; delete root.dataset.themeByGame; }
+  const dark = value === 'dark' || (value !== 'light' && window.matchMedia?.('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#17130f' : '#3a2412');
 }
 export const getFigures = () => getSetting('figures');
 export const setFigures = (v) => setSetting('figures', v);
