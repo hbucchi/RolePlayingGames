@@ -285,6 +285,15 @@ main:has(.dungeon-host) { max-width: 1480px; }
 /* map overlay */
 .fog-dark { fill: #050407; }
 .fog-dim { fill: #050407; fill-opacity: .55; }
+/* Fog squares fade between hidden, remembered (dim) and in sight, so nothing pops or blinks. */
+.fog { fill: #050407; transition: fill-opacity .6s ease; pointer-events: none; }
+.fog.f-clear, .fog.f-dim { transition-duration: .9s; } /* coming into view: a slow, soft reveal */
+.fog.f-dark { fill-opacity: 1; }
+.fog.f-dim { fill-opacity: .55; }
+.fog.f-clear { fill-opacity: 0; }
+.dg-reach { animation: reach-in .35s ease-out; }
+@keyframes reach-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fog { transition: none; } .dg-reach { animation: none; } }
 .door-closed { fill: #6b4423; stroke: #1c0f06; stroke-width: 4; }
 .door-closed.door-iron { fill: #5d6266; stroke: #15181a; }
 .door-plank { stroke: #3a220f; stroke-width: 3; }

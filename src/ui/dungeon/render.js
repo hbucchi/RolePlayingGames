@@ -297,15 +297,17 @@ export function installRender(ctx) {
       }
       return false;
     };
-    let dark = ''; let dim = '';
+    // One square of fog per cell, always in the same order, so a redraw only changes each square's
+    // class (dark, dim or clear) and CSS fades it: rooms come into view gently, never in one frame.
+    let out = '';
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const k = cellKey(x, y);
-        if (!shown(x, y)) dark += `M${x * sz} ${y * sz}h${sz}v${sz}h${-sz}z`;
-        else if (!s.visible.has(k) && s.map.tiles[y][x] !== TILE.ROCK) dim += `M${x * sz} ${y * sz}h${sz}v${sz}h${-sz}z`;
+        const state = !shown(x, y) ? 'f-dark' : !s.visible.has(k) && s.map.tiles[y][x] !== TILE.ROCK ? 'f-dim' : 'f-clear';
+        out += `<rect x="${x * sz}" y="${y * sz}" width="${sz}" height="${sz}" class="fog ${state}"/>`;
       }
     }
-    return `<path d="${dim}" class="fog-dim"/><path d="${dark}" class="fog-dark"/>`;
+    return `<g class="fog-layer" data-tid="layer-fog" shape-rendering="crispEdges">${out}</g>`;
   }
 
   /**
@@ -364,7 +366,7 @@ export function installRender(ctx) {
       <radialGradient id="bl-black"><stop offset="0" stop-color="#2c2427"/><stop offset=".65" stop-color="#151012"/><stop offset="1" stop-color="#080607" stop-opacity=".85"/></radialGradient>
       <radialGradient id="bl-green"><stop offset="0" stop-color="#6b8f1f"/><stop offset=".65" stop-color="#456614"/><stop offset="1" stop-color="#25380a" stop-opacity=".85"/></radialGradient>
       <mask id="blood-mask" maskContentUnits="objectBoundingBox"><ellipse cx="0.5" cy="0.5" rx="0.5" ry="0.36" fill="url(#blood-grad)"/><ellipse cx="0.62" cy="0.42" rx="0.22" ry="0.3" fill="url(#blood-grad)"/></mask></defs>`;
-    out += ctx.drawBlood();
+    out += `<g data-tid="layer-blood">${ctx.drawBlood()}</g>`;
     for (const fx of s.effects) {
       if (fx.kind !== 'ice' && fx.kind !== 'rubble') continue;
       for (const c of fx.cells) {
@@ -375,11 +377,14 @@ export function installRender(ctx) {
           : `<image href="assets/textures/rock-bedrock.jpg" x="${c.x * sz - sz * 0.1}" y="${c.y * sz - sz * 0.1}" width="${sz * 1.2}" height="${sz * 1.2}" mask="url(#blood-mask)" class="ground-rubble" transform="rotate(${(c.x * 53 + c.y * 31) % 360} ${(c.x + 0.5) * sz} ${(c.y + 0.5) * sz})" preserveAspectRatio="xMidYMid slice"/>`;
       }
     }
-    out += drawDoors();
+    // Layers are named (data-tid) so each is always matched to itself when the map is updated,
+    // whatever changes before it (a door opening adds a shape, blood comes and goes...).
+    out += `<g data-tid="layer-doors">${drawDoors()}</g>`;
     // Reachable squares
-    for (const c of s.reach.values()) if (c.cost > 0) out += `<rect x="${c.x * sz + 4}" y="${c.y * sz + 4}" width="${sz - 8}" height="${sz - 8}" rx="7" class="dg-reach"/>`;
+    // Movement squares, keyed by cell: a square that stays keeps its element; new ones fade in.
+    out += `<g class="reach-layer" data-tid="layer-reach">${[...s.reach.values()].filter((c) => c.cost > 0).map((c) => `<rect data-tid="r${c.x},${c.y}" x="${c.x * sz + 4}" y="${c.y * sz + 4}" width="${sz - 8}" height="${sz - 8}" rx="7" class="dg-reach"/>`).join('')}</g>`;
     out += drawFog();
-    out += drawFeatures();
+    out += `<g data-tid="layer-features">${drawFeatures()}</g>`;
     // Hover: path preview, or attack preview on a monster
     const hov = s.hover;
     const foe = hov && ctx.foes().find((m) => covers(m, hov) && ctx.canSee(m));
