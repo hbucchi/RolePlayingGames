@@ -21,6 +21,7 @@ import { createRoster, exportCharacter, importCharacter } from '../engine/storag
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
+import { mountStory, resolveBattle, savedRun } from './story-view.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { setSetting, settingsControls } from './settings.js';
@@ -127,10 +128,12 @@ function render() {
       <p class="muted">Build a battlefield, choose who fights, and play a practice bout. Arena bouts never cost your heroes anything, and give no XP or loot.</p>
       <div id="arena-host"></div>`,
     'arena-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
+    story: () => '<div id="story-host"></div>',
+    'story-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
   };
   renderInto((views[state.view] ?? homeView)());
-  if (state.view !== 'dungeon' && state.view !== 'arena-fight') music.setMood('menu');
+  if (!['dungeon', 'arena-fight', 'story-fight'].includes(state.view)) music.setMood('menu');
   if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
   if (state.view === 'arena') {
     mountArenaBuilder(root.querySelector('#arena-host'), {
@@ -144,6 +147,20 @@ function render() {
     mountDungeon(root.querySelector('#dungeon-host'), {
       heroes: explorerHeroes(), api: heroApi, arena: structuredClone(state.arenaFight),
       onLeave: () => { state.view = 'arena'; render(); },
+    });
+  }
+  if (state.view === 'story') {
+    mountStory(root.querySelector('#story-host'), {
+      storyId: state.storyId, heroes: explorerHeroes(), api: heroApi, notify: toast,
+      onFight: (setup) => { state.storyFight = setup; state.view = 'story-fight'; render(); window.scrollTo(0, 0); },
+      onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures' }); render(); },
+    });
+  }
+  if (state.view === 'story-fight') {
+    mountDungeon(root.querySelector('#dungeon-host'), {
+      heroes: explorerHeroes(), api: heroApi, arena: structuredClone(state.storyFight),
+      onLeave: () => { state.view = 'story'; render(); },
+      onOutcome: (won) => { resolveBattle(state.storyId, won, heroApi); state.view = 'story'; render(); window.scrollTo(0, 0); },
     });
   }
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
@@ -301,7 +318,8 @@ function adventuresView() {
             <div class="card-head"><h3>${esc(a.title)}</h3><span class="badge ${playable ? '' : 'soon'}">${playable ? 'Playable' : 'Coming soon'}</span></div>
             <p>${esc(a.blurb)}</p>
             <p class="muted small">Levels ${esc(a.levels)} · ${esc(a.length)}</p>
-            ${playable ? `<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
+            ${a.story ? `<button class="btn small primary" data-action="start-story" data-id="${esc(a.story)}">${savedRun(a.story) ? 'Continue the tale' : 'Begin the tale'}</button>`
+    : playable ? `<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
           </article>`;
   }).join('')}
       </div>
@@ -813,7 +831,7 @@ const actions = {
   setting(el) { setSetting(el.dataset.setting, el.value); toast('Setting saved.'); },
   home() {
     if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
-    if (['dungeon', 'arena', 'arena-fight'].includes(state.view)) state.tab = 'adventures';
+    if (['dungeon', 'arena', 'arena-fight', 'story', 'story-fight'].includes(state.view)) state.tab = 'adventures';
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
   },
@@ -855,6 +873,7 @@ const actions = {
     el.innerHTML = `${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span>`;
     if (!isMuted()) play('dice', { volume: 0.5 });
   },
+  'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
   'enter-dungeon'() {
     Object.assign(state, { view: 'dungeon' });

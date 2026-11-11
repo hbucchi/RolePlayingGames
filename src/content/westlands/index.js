@@ -22,7 +22,7 @@ export const westlands = {
       id: 'barrow-of-the-lost-king',
       title: 'The Barrow of the Lost King',
       blurb: 'Mists gather on the downs, and something old has woken beneath the standing stones.',
-      levels: '1-2', length: 'One evening', status: 'coming-soon',
+      levels: '1-2', length: 'One evening', status: 'playable', story: 'barrow-of-the-lost-king',
     },
     {
       id: 'the-burning-ford',

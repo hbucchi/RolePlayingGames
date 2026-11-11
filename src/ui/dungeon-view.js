@@ -67,7 +67,7 @@ const FOE_POOL = DUNGEON_FOES.map((id) => BESTIARY_BY_ID[id]).filter(Boolean);
  *   api.load(id) -> the hero's draft (with gear); api.derive(draft) -> combat stats;
  *   api.save(draft) -> the saved draft (a ready-made hero is adopted on its first save).
  */
-export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null }) {
+export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null, onOutcome = null }) {
   const s = {
     seed: initialSeed, map: null, grid: true, revealAll: !!arena, rule: 'standard', zoom: 0.5,
     partyIds: arena ? arena.heroes.map((h) => h.id) : heroes.slice(0, 1).map((h) => h.id), members: [], active: 0,
@@ -92,7 +92,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       </div>
       <div class="dg-group dg-arenabar" ${arena ? '' : 'hidden'}>
         <b>${esc(arena?.name ?? 'Arena')}</b>
-        <button class="btn small" data-dg="leave-arena">← Back to the builder</button>
+        <button class="btn small" data-dg="leave-arena">${arena?.story ? '← Back to the story' : '← Back to the builder'}</button>
         <button class="btn small ghost" data-dg="retry">Restart bout</button>
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
@@ -223,6 +223,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     ordinal: { get: () => ordinal },
     overlay: { get: () => overlay },
     party: { get: () => party },
+    onOutcome: { get: () => onOutcome },
     defeatButtons: { get: () => defeatButtons }, // for defeat-mode mods
     partyAlive: { get: () => partyAlive },
     partyDown: { get: () => partyDown },
@@ -1185,7 +1186,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'random': newDungeon(1 + Math.floor(Math.random() * 99999)); break;
       case 'retry': resetDelve(); centerOn(s.hero.pos); break;
       case 'review': s.captiveRun = null; $('.dg-endscreen').hidden = true; $('.dg-reviewbar').hidden = false; fit(); break;
-      case 'end-again': $('.dg-reviewbar').hidden = true; $('.dg-endscreen').hidden = false; { const mode = arena ? null : defeatMode(getSetting('defeat')); $('.dg-endscreen').innerHTML = defeatCard(); if (mode) mode(ctx); } break;
+      case 'end-again': $('.dg-reviewbar').hidden = true; $('.dg-endscreen').hidden = false; if (onOutcome) { showEnd('defeat'); break; } { const mode = arena ? null : defeatMode(getSetting('defeat')); $('.dg-endscreen').innerHTML = defeatCard(); if (mode) mode(ctx); } break;
       case 'close-end': $('.dg-endscreen').hidden = true; s.mode = 'explore'; redraw(); break;
       case 'zoom-in': setZoom(s.zoom * 1.25); break;
       case 'zoom-out': setZoom(s.zoom / 1.25); break;
@@ -1222,6 +1223,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
       case 'pick-hero': if (s.mode !== 'combat' && !s.busy && s.members[Number(el.dataset.i)]?.hero.hp > 0) { activate(Number(el.dataset.i)); startHeroTurn(); redraw(); centerOn(s.hero.pos); } break;
       case 'leave-arena': onLeave?.(); break;
+      case 'story-continue': onOutcome?.(s.mode === 'victory'); break;
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }
       case 'sneak': sneak(); break;

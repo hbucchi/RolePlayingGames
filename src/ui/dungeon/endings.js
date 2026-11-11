@@ -17,6 +17,13 @@ export function installEndings(ctx) {
     stinger(kind === 'victory' ? 'victory' : 'defeat');
     const el = $('.dg-endscreen');
     el.hidden = false;
+    if (ctx.onOutcome) { // a battle inside a story: the story goes on either way
+      el.innerHTML = `<div class="dg-endcard"><h2>${kind === 'victory' ? 'Victory!' : 'Defeated'}</h2>
+        <p>${kind === 'victory' ? 'The last foe falls.' : 'The dark closes in...'} The tale goes on.</p>
+        <div class="row wrap"><button class="btn primary" data-dg="story-continue">Continue the story</button>
+        ${kind === 'victory' ? '' : '<button class="btn" data-dg="review">Look over the battlefield</button><button class="btn ghost" data-dg="retry">Fight it again</button>'}</div></div>`;
+      return;
+    }
     el.innerHTML = kind === 'victory'
       ? `<div class="dg-endcard"><h2>Depth ${s.depth} cleared</h2><p>Every foe on this floor of dungeon #${s.seed} has fallen. The stairs down still wait somewhere${s.exitSeen ? ' (you have seen them)' : ''}. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
         <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="close-end">Find the way down</button><button class="btn" data-dg="random">Start a new dungeon</button></div></div>`

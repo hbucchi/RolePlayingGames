@@ -4,8 +4,9 @@
  */
 import { ABILITY_IDS } from './abilities.js';
 import { DRAFT_VERSION, makeId } from './character.js';
+import { createStore, FORMATS, migrateCharacter } from './saves.js';
 
-const KEY = 'rpg.roster.v1';
+const KEY = 'rpg.roster.v1'; // the key keeps its old name; the data inside is versioned (saves.js)
 
 function memoryBackend() {
   const m = new Map();
@@ -25,15 +26,9 @@ export function defaultBackend() {
 }
 
 export function createRoster(backend = defaultBackend()) {
-  const read = () => {
-    try {
-      const parsed = JSON.parse(backend.getItem(KEY) ?? '[]');
-      return Array.isArray(parsed) ? parsed.filter(isCharacterShape) : [];
-    } catch {
-      return [];
-    }
-  };
-  const write = (list) => backend.setItem(KEY, JSON.stringify(list));
+  const store = createStore(backend, KEY, FORMATS.roster);
+  const read = () => { const list = store.read(); return Array.isArray(list) ? list.filter(isCharacterShape) : []; };
+  const write = (list) => store.write(list);
 
   return {
     list: read,
@@ -70,7 +65,9 @@ export function exportCharacter(draft) {
 export function importCharacter(text) {
   let data;
   try { data = JSON.parse(text); } catch { throw new Error('That file is not valid JSON.'); }
-  const c = data?.format === 'rpg-character' ? data.character : data;
-  if (!isCharacterShape(c)) throw new Error('That file does not contain a character.');
+  const raw = data?.format === 'rpg-character' ? data.character : data;
+  if (!isCharacterShape(raw)) throw new Error('That file does not contain a character.');
+  if ((raw.version ?? 1) > DRAFT_VERSION) throw new Error('That character comes from a newer version of the game. Update the game to import it.');
+  const c = migrateCharacter(raw);
   return { ...c, id: makeId(), name: String(c.name).slice(0, 40) };
 }

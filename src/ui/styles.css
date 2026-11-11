@@ -706,3 +706,26 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .home-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
 .dg-settings-card .figures-choice + .figures-choice { margin-top: 2px; }
 .dg-settings { max-height: calc(100vh - 90px); overflow: auto; }
+
+/* ---- Stories ------------------------------------------------------------------------------ */
+.story { max-width: 46rem; margin: 0 auto; display: grid; gap: 18px; }
+.story-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; }
+.story-head h1 { margin: 0; text-wrap: balance; }
+.story-text { font-size: 1.15rem; line-height: 1.65; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 22px; box-shadow: var(--shadow); }
+.story-text p { margin: 0; }
+.story-text p::first-letter { font-family: var(--font-display); font-size: 2.4em; float: left; line-height: .9; margin: 4px 8px 0 0; color: var(--accent); }
+.story-choices { display: grid; gap: 10px; }
+.story-choice { display: grid; justify-items: start; text-align: left; gap: 2px; padding: 12px 16px; font-size: 1.05rem; }
+.story-choice small { color: var(--muted); font-size: .85rem; }
+.story-choice.primary small { color: inherit; }
+.story-gains { list-style: none; margin: 0; padding: 0; color: var(--gold); font-weight: 600; }
+.story-roll { margin: 0; padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--line); }
+.story-roll.good { border-color: var(--good); color: var(--good); }
+.story-roll.bad { border-color: var(--bad); color: var(--bad); }
+.story-log summary { cursor: pointer; color: var(--muted); }
+.story-end { text-align: center; padding: 12px; }
+.story-party { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.story-party legend { padding: 0 6px; }
+.party-pick { cursor: pointer; }
+.party-pick.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+.party-pick input { accent-color: var(--accent); }

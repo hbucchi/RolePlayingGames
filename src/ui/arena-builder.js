@@ -2,6 +2,7 @@
  * Arena builder: paint terrain square by square, place heroes and foes, save the layout and
  * start a bout. The battle itself runs in the same engine as the dungeon (dungeon-view.js).
  */
+import { createStore, FORMATS } from '../engine/saves.js';
 import { TERRAINS, createArenaMap, paintTerrain, encodeTerrain, decodeArena, standable } from '../engine/terrain.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { BESTIARY, BESTIARY_BY_ID } from '../content/bestiary/index.js';
@@ -14,10 +15,11 @@ const KEY = 'rpg.arenas.v1';
 const SIZES = [[12, 10], [16, 12], [20, 16], [24, 18], [32, 24]];
 const FIGHTERS = BESTIARY.filter((m) => m.actions.some((a) => a.attack)).sort((a, b) => a.crValue - b.crValue || a.name.localeCompare(b.name));
 
+const store = () => createStore(localStorage, KEY, FORMATS.arenas); // versioned, see engine/saves.js
 export function loadArenas() {
-  try { const v = JSON.parse(localStorage.getItem(KEY) ?? '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+  try { const v = store().read(); return Array.isArray(v) ? v : []; } catch { return []; }
 }
-function storeArenas(list) { try { localStorage.setItem(KEY, JSON.stringify(list)); return true; } catch { return false; } }
+function storeArenas(list) { try { return store().write(list); } catch { return false; } }
 
 /** A fresh layout with a ring of grass and a pool, so a new arena is not a blank grey box. */
 /** Which side a placed creature fights on; bound creatures start chained where they stand. */
