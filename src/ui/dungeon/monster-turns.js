@@ -95,7 +95,9 @@ export function installMonsterTurns(ctx) {
 
   /** Walk a creature along a path square by square: doors open, burning ground burns, a hero gets their swing. */
   async function walk(m, path, disengaged) {
-    for (const p of path.slice(1)) {
+    const steps = path.slice(1);
+    for (const [i, p] of steps.entries()) {
+      m.glide = steps.length === 1 ? 'single' : i === 0 ? 'start' : i === steps.length - 1 ? 'end' : 'mid';
       const wasAdjacent = ctx.edist(m, s.hero) <= 1;
       m.facing = facingToward(m.pos, p);
       m.pos = { x: p.x, y: p.y };

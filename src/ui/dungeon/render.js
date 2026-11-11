@@ -4,6 +4,7 @@
  * and to the functions of the other parts.
  */
 import { trapTile } from '../../engine/features.js';
+import { morphInto } from '../morph.js';
 import { dims, orientFor, spanOf, isSquare, centerOf } from '../../engine/size.js';
 import { bodyUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
 import { woundState, facingAngle, FACINGS, covers } from '../../engine/combat.js';
@@ -18,7 +19,9 @@ export function installRender(ctx) {
   // ---------------------------------------------------------------------------
 
   function redraw() {
-    s.reach = s.mode === 'combat' && s.order.length && !s.busy ? ctx.heroReach() : s.mode === 'explore' && !s.busy ? ctx.heroReach() : new Map();
+    // While a hero walks, the movement squares stay exactly where they were (no flicker); they are
+    // worked out afresh when the walk ends.
+    if (!s.walking) s.reach = s.mode === 'combat' && s.order.length && !s.busy ? ctx.heroReach() : s.mode === 'explore' && !s.busy ? ctx.heroReach() : new Map();
     drawOverlay();
     ctx.drawPanel();
     if (s.charsOpen) ctx.drawCharacters();
@@ -315,8 +318,15 @@ export function installRender(ctx) {
    * that offset to zero. Steps last exactly as long as a glide, so a walk is one continuous float.
    */
   const trips = new Map();
+  /**
+   * Easing per step of a walk, so it feels like a body moving: speeding up on the first square,
+   * steady in between, slowing to a stop on the last. Each curve meets the next at the same speed
+   * (a cubic-bezier's end slope is (1 - y2) / (1 - x2): 1 means "steady speed").
+   */
+  const EASE = { start: 'cubic-bezier(.45, 0, .7, .7)', mid: 'linear', end: 'cubic-bezier(.3, .3, .55, 1)', single: 'cubic-bezier(.45, 0, .55, 1)' };
   function glide() {
     const now = performance.now(); const sz = S();
+    const at = (tr) => { const p = tr.dur ? Math.min(1, (now - tr.t0) / tr.dur) : 1; return { x: tr.fx + (tr.tx - tr.fx) * p, y: tr.fy + (tr.ty - tr.fy) * p, p }; };
     for (const el of overlay.querySelectorAll('.tk-move')) {
       const id = el.dataset.tid;
       const e = id === String(s.hero?.id) ? s.hero : ctx.party().find((h) => String(h.id) === id) ?? s.monsters.find((m) => String(m.id) === id);
@@ -324,20 +334,22 @@ export function installRender(ctx) {
       const d = dims(e.size ?? 1);
       const tx = (e.pos.x + d.w / 2) * sz; const ty = (e.pos.y + d.h / 2) * sz;
       let t = trips.get(id);
-      const at = (tr) => { const p = tr.dur ? Math.min(1, (now - tr.t0) / tr.dur) : 1; return { x: tr.fx + (tr.tx - tr.fx) * p, y: tr.fy + (tr.ty - tr.fy) * p, p }; };
       if (!t || ctx.reduceMotion) { trips.set(id, { fx: tx, fy: ty, tx, ty, t0: now, dur: 0 }); continue; }
       if (t.tx !== tx || t.ty !== ty) {
         const cur = at(t);
         // A leap (teleport, a new floor) is not a walk: appear there at once.
-        if (Math.hypot(tx - cur.x, ty - cur.y) > sz * 2.6) { trips.set(id, { fx: tx, fy: ty, tx, ty, t0: now, dur: 0 }); continue; }
-        const dur = e.isHero ? ctx.HERO_STEP_MS : Math.max(ctx.STEP_MS, 120);
+        if (Math.hypot(tx - cur.x, ty - cur.y) > sz * 2.6) { el.getAnimations().forEach((a) => a.cancel()); trips.set(id, { fx: tx, fy: ty, tx, ty, t0: now, dur: 0 }); continue; }
+        const dur = e.isHero ? ctx.HERO_STEP_MS : Math.max(ctx.STEP_MS, 200);
         t = { fx: cur.x, fy: cur.y, tx, ty, t0: now, dur };
         trips.set(id, t);
+        el.getAnimations().forEach((a) => a.cancel());
+        el.animate([{ transform: `translate(${cur.x - tx}px, ${cur.y - ty}px)` }, { transform: 'translate(0px, 0px)' }], { duration: dur, easing: EASE[e.glide] ?? 'linear' });
+        continue;
       }
+      // Same square as before: the element kept its running glide. Only if it was rebuilt mid-glide
+      // does the rest of the trip need starting again.
       const cur = at(t);
-      if (cur.p >= 1) continue;
-      const left = t.dur * (1 - cur.p);
-      el.animate([{ transform: `translate(${cur.x - tx}px, ${cur.y - ty}px)` }, { transform: 'translate(0px, 0px)' }], { duration: left, easing: 'linear' });
+      if (cur.p < 1 && !el.getAnimations().length) el.animate([{ transform: `translate(${cur.x - tx}px, ${cur.y - ty}px)` }, { transform: 'translate(0px, 0px)' }], { duration: t.dur * (1 - cur.p), easing: 'linear' });
     }
   }
 
@@ -426,7 +438,8 @@ export function installRender(ctx) {
     }
     // Floating numbers
     for (const f of s.floats) out += `<text x="${(f.x + 0.5) * sz}" y="${f.y * sz}" class="dg-float ${f.kind} ${f.big ? 'big' : ''}">${esc(f.text)}</text>`;
-    overlay.innerHTML = out;
+    // Change only what differs from the last drawing: nothing flickers, tokens keep their glide.
+    morphInto(overlay, out);
     glide();
   }
 

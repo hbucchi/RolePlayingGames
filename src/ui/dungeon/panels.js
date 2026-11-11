@@ -3,6 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { morphInto } from '../morph.js';
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
 import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
 import { countOf, findItem, itemDef, formatCoins as formatCoinsShort } from '../../engine/items.js';
@@ -32,7 +33,7 @@ export function installPanels(ctx) {
     const combat = s.mode === 'combat';
     const heroTurn = combat && !s.busy;
     $('.dg-banner').classList.toggle('turn', heroTurn);
-    $('.dg-herocard').innerHTML = `${partyBar()}
+    morphInto($('.dg-herocard'), `${partyBar()}
       <div class="hc-head">
         <div><h3>${esc(h.name)}</h3><p class="muted small">${combat ? `Round ${s.round} · ${s.busy ? 'enemies are acting…' : 'your turn'}` : 'Exploring'}</p></div>
         <div class="hc-compass" title="Facing ${FACINGS[h.facing].name}">
@@ -63,8 +64,8 @@ export function installPanels(ctx) {
       </div>
       <label class="field small" for="dg-rule">Diagonal rule
         <select id="dg-rule" data-dg="rule">${Object.entries(DIAGONAL_RULES).map(([k, v]) => `<option value="${k}" ${k === s.rule ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
-      </label>`;
-    $('.dg-actionbar').innerHTML = actionBar();
+      </label>`);
+    morphInto($('.dg-actionbar'), actionBar());
     drawTargetInfo();
     drawPop();
     drawNearby();
@@ -491,7 +492,7 @@ export function installPanels(ctx) {
 
   function drawNearby() {
     const list = nearbyThings();
-    $('.dg-nearby').innerHTML = list.length ? `<h3>Within reach</h3><div class="nearby">${list.map((t) => `<button class="btn small ${s.target?.kind === t.kind && s.target.id === t.id ? 'primary' : ''}" data-dg="pick-target" data-kind="${t.kind}" data-id="${esc(t.id)}">${t.glyph} ${esc(t.label)}</button>`).join('')}</div>` : '';
+    morphInto($('.dg-nearby'), list.length ? `<h3>Within reach</h3><div class="nearby">${list.map((t) => `<button class="btn small ${s.target?.kind === t.kind && s.target.id === t.id ? 'primary' : ''}" data-dg="pick-target" data-kind="${t.kind}" data-id="${esc(t.id)}">${t.glyph} ${esc(t.label)}</button>`).join('')}</div>` : '');
   }
 
   /** Panel for a chest, locked door, trap or body. */

@@ -53,11 +53,11 @@ const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').mat
 // stretches both (and the flight of arrows and spells) so the eye can follow.
 let STEP_MS = 0; let PAUSE_MS = 0; let PACE = 1;
 /** One square of your own heroes' walk, in milliseconds (tokens glide across it in this time). */
-const HERO_STEP_MS = 190;
+const HERO_STEP_MS = 400;
 function applyPace() {
   PACE = PACE_FACTOR[getSetting('pace')] ?? 1.4;
   // One square of a monster's walk; tokens glide across it in exactly this time (render.js).
-  STEP_MS = reduceMotion ? 0 : Math.round(190 * PACE);
+  STEP_MS = reduceMotion ? 0 : Math.round(300 * PACE);
   PAUSE_MS = reduceMotion ? 0 : Math.round(420 * PACE);
 }
 applyPace();
@@ -772,10 +772,20 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     redraw();
   }
 
+  /** Walk the hero along a path. While walking, the map keeps its movement squares (no flicker). */
   async function moveHero(target) {
+    s.walking = true;
+    try { await walkHero(target); } finally { s.walking = false; for (const h of [...party(), ...allies()]) delete h.glide; redraw(); }
+  }
+
+  async function walkHero(target) {
     s.busy = true;
     const costAt = (p) => s.reach.get(cellKey(p.x, p.y))?.cost ?? target.cost;
-    for (const p of target.path.slice(1)) {
+    const steps = target.path.slice(1);
+    for (const [i, p] of steps.entries()) {
+      // How this step glides: speed up, keep going, slow down (render.js: EASE).
+      const phase = steps.length === 1 ? 'single' : i === 0 ? 'start' : i === steps.length - 1 ? 'end' : 'mid';
+      for (const h of [...party(), ...allies()]) h.glide = phase;
       const before = { ...s.hero.pos };
       const threats = s.disengaged ? [] : fighting().filter((m) => m.reaction && !helpless(m) && !m.cond?.petrified && edistP(m, before) <= reachOf(m));
       s.hero.facing = facingToward(before, p);
