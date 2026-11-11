@@ -3,6 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { rollDice, diceWanted } from '../dice.js';
 import { findItem, removeItem, itemDef } from '../../engine/items.js';
 import { play } from '../audio.js';
 import { roll, rollDie } from '../../engine/dice.js';
@@ -317,6 +318,12 @@ export function installActions(ctx) {
     const c = skillCheck(bonus, dc, { mode });
     const b = rollBoosts({ save });
     c.total += b.total; c.extra = b.text; c.ok = c.total >= dc; c.margin = c.total - dc;
+    // The dice play out beside the result (checks are told at once; the dice catch up).
+    if (diceWanted(true) && c.d20s?.length) {
+      const kept = c.d20s.indexOf(c.d20 ?? c.d20s[0]);
+      rollDice({ groups: [{ dice: c.d20s.map((v, i) => ({ sides: 20, value: v, dropped: c.d20s.length > 1 && i !== kept })), caption: `${bonus >= 0 ? '+' : ''}${bonus}${b.total ? ` +${b.total}` : ''} vs DC ${dc}` }],
+        verdict: c.ok ? 'Success' : 'Failure', verdictKind: c.ok ? 'good' : 'bad', parent: ctx.viewport.parentElement, fast: true });
+    }
     return c;
   }
 

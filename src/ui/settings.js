@@ -4,10 +4,11 @@
  * figures – how creatures are drawn on the map:
  *   'bodies' bodies seen from above where we have them (tokens otherwise), 'tokens' portrait tokens
  * pace    – how fast monsters move and strike on their turns: 'slow', 'normal' or 'fast'
+ * dice    – which rolls are shown as tumbling dice: 'heroes', 'all' or 'off'
  * defeat  – what happens when every hero falls (a mod setting):
  *   'death' the usual defeat screen, 'captive' the party is taken prisoner instead
  */
-const KEYS = { figures: 'rpg.view', pace: 'rpg.pace', defeat: 'rpg.defeat' };
+const KEYS = { figures: 'rpg.view', pace: 'rpg.pace', dice: 'rpg.dice', defeat: 'rpg.defeat' };
 
 export const SETTINGS = {
   figures: {
@@ -23,6 +24,14 @@ export const SETTINGS = {
       { id: 'slow', label: 'Slow', hint: 'Every step, shot and spell is easy to follow.' },
       { id: 'normal', label: 'Normal', hint: 'A steady pace.' },
       { id: 'fast', label: 'Fast', hint: 'For veterans who know what is coming.' },
+    ],
+  },
+  dice: {
+    legend: 'Dice', fallback: 'heroes',
+    choices: [
+      { id: 'heroes', label: 'Show my rolls', hint: 'Watch your heroes\' dice tumble and land. Click the dice to skip.' },
+      { id: 'all', label: 'Show every roll', hint: 'Monsters\' dice too: slower, but nothing is hidden.' },
+      { id: 'off', label: 'No dice', hint: 'Results only, in the battle log.' },
     ],
   },
   defeat: {

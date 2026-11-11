@@ -23,6 +23,7 @@ import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
 import { mountStory, resolveBattle, savedRun } from './story-view.js';
 import { levelUpDialog } from './level-up.js';
+import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { setSetting, settingsControls } from './settings.js';
@@ -700,7 +701,7 @@ function diceTray() {
   return `
     <aside class="dice-log" aria-live="polite">
       <div class="row"><strong>Dice tray</strong><span class="spacer"></span>
-        <button class="btn small ghost" data-action="free-roll" data-notation="1d20">d20</button>
+        ${[4, 6, 8, 10, 12, 20].map((n) => `<button class="btn small" data-action="free-roll" data-sides="${n}" title="Roll a d${n}">d${n}</button>`).join('')}
         ${state.diceLog.length ? '<button class="btn small ghost" data-action="clear-log">Clear</button>' : ''}</div>
       ${state.diceLog.length ? `<ol>${state.diceLog.map((e) => `<li class="${e.crit}"><span>${esc(e.label)}</span><span class="calc">${esc(e.calc)}</span><strong>${e.total}</strong></li>`).join('')}</ol>`
     : '<p class="muted small">Click a skill, save or attack to roll a d20 and add the bonus.</p>'}
@@ -823,8 +824,9 @@ function rollAbilitySlots(indices) {
   }, duration);
 }
 
-function logRoll(label, bonus) {
+async function logRoll(label, bonus) {
   const r = rollDie(20);
+  if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 20, value: r }], caption: `${bonus >= 0 ? '+' : '−'} ${Math.abs(bonus)} = ${r + bonus}` }], label, verdict: r === 20 ? 'Natural 20!' : r === 1 ? 'Natural 1' : `${r + bonus}`, verdictKind: r === 20 ? 'good' : r === 1 ? 'bad' : '' });
   const crit = r === 20 ? 'crit' : r === 1 ? 'fumble' : '';
   state.diceLog.unshift({ label, calc: `d20 (${r}) ${bonus >= 0 ? '+' : '−'} ${Math.abs(bonus)}`, total: r + bonus, crit });
   state.diceLog = state.diceLog.slice(0, 8);
@@ -1049,7 +1051,15 @@ const actions = {
     state.diceLog = state.diceLog.slice(0, 8);
     render();
   },
-  'free-roll'() { logRoll('d20', 0); },
+  async 'free-roll'(el) {
+    const n = Number(el.dataset.sides) || 20;
+    if (n === 20) { logRoll('d20', 0); return; }
+    const r = rollDie(n);
+    if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: n, value: r }] }], label: `d${n}`, verdict: String(r) });
+    state.diceLog.unshift({ label: `d${n}`, calc: `d${n} (${r})`, total: r, crit: '' });
+    state.diceLog = state.diceLog.slice(0, 8);
+    render();
+  },
   'clear-log'() { state.diceLog = []; render(); },
 };
 

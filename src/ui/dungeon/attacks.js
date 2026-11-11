@@ -10,6 +10,7 @@ import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
+import { rollDice, diceWanted, diceOf } from '../dice.js';
 
 export function installAttacks(ctx) {
   const { S, host, overlay, reduceMotion, s, signed, sleep, viewport } = ctx;
@@ -302,6 +303,13 @@ export function installAttacks(ctx) {
     if (attacker.cond?.mock) delete attacker.cond.mock;
     const who = attacker === s.hero ? s.hero.name : attacker.name;
     const whom = target === s.hero ? s.hero.name : target.name;
+    // Watch the dice land before the result is told (the Dice setting decides whose rolls).
+    if (diceWanted(!!attacker.isHero)) {
+      const kept = r.d20s.indexOf(r.d20);
+      const groups = [{ dice: r.d20s.map((v, i) => ({ sides: 20, value: v, dropped: r.d20s.length > 1 && i !== kept })), caption: `${signed(w.toHit)} vs AC ${opts.ac}${opts.mode !== 'normal' ? ` (${opts.mode})` : ''}` }];
+      if (r.hit && r.damageRoll?.rolls?.length) groups.push({ dice: diceOf(w.damage, r.damageRoll.rolls), caption: `${r.damage} ${weapon.type}` });
+      await rollDice({ groups, label: `${who} → ${whom}`, verdict: r.hit ? (r.crit ? 'Critical hit!' : 'Hit!') : r.d20 === 1 ? 'Natural 1!' : 'Miss', verdictKind: r.hit ? 'good' : 'bad', parent: viewport.parentElement, fast: !attacker.isHero });
+    }
     const dice = r.d20s.length > 1 ? `d20 (${r.d20s.join(', ')} → ${r.d20})` : `d20 (${r.d20})`;
     const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2 AC' : opts.cover === 'three-quarters' ? 'three-quarters cover +5 AC' : null].filter(Boolean);
     const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));

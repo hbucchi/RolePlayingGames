@@ -11,6 +11,7 @@ import { createArenaMap } from '../engine/terrain.js';
 import { rollDie } from '../engine/dice.js';
 import { makeItem, addItem, formatCoins, itemName } from '../engine/items.js';
 import { play } from './audio.js';
+import { rollDice, diceWanted } from './dice.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const skillName = (id) => SKILLS.find((s) => s.id === id)?.name ?? id;
@@ -125,10 +126,14 @@ export function mountStory(host, ctx) {
       const rollCheck = (skill, dc) => {
         const b = best(skill); const d = rollDie(20); const total = d + b.bonus; const success = total >= dc;
         play('dice', { volume: 0.6 });
-        lastRoll = { success, text: `${b.name}: ${skillName(skill)} d20 (${d}) ${b.bonus >= 0 ? '+' : '−'} ${Math.abs(b.bonus)} = ${total} vs DC ${dc}: ${success ? 'success' : 'failure'}` };
+        lastRoll = { success, d, bonus: b.bonus, dc, skill, text: `${b.name}: ${skillName(skill)} d20 (${d}) ${b.bonus >= 0 ? '+' : '−'} ${Math.abs(b.bonus)} = ${total} vs DC ${dc}: ${success ? 'success' : 'failure'}` };
         return { success, text: success ? 'success' : 'failure' };
       };
       const { progress, effects } = choose(story, run.progress, Number(el.dataset.i), { rollCheck });
+      if (lastRoll && diceWanted(true)) {
+        await rollDice({ groups: [{ dice: [{ sides: 20, value: lastRoll.d }], caption: `${lastRoll.bonus >= 0 ? '+' : '−'}${Math.abs(lastRoll.bonus)} vs DC ${lastRoll.dc}` }],
+          label: `${skillName(lastRoll.skill)} check`, verdict: lastRoll.success ? 'Success' : 'Failure', verdictKind: lastRoll.success ? 'good' : 'bad' });
+      }
       const r = await applyEffects(effects, run.party, ctx.api);
       run = { ...run, progress, party: r.ids ?? run.party, gained: r.lines ?? [] };
       saveRun(story.id, run); render();
