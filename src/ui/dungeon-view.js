@@ -31,6 +31,8 @@ import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { furnishDungeon } from '../engine/props.js';
 import { sellItem, haggleRate, whyUnsellable, BASE_RATE } from '../engine/trade.js';
+import { stockFor, buyItem, period as shopPeriod } from '../engine/shop.js';
+import { adventures, countAdventure, rareBought, markRareBought } from './shop-state.js';
 import { terrainCost } from '../engine/terrain.js';
 import { GOODS } from './trade-view.js';
 import { installCharacters } from './dungeon/characters.js';
@@ -208,6 +210,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     styleOf: { get: () => styleOf },
     keyFor: { get: () => keyFor },
     tradeRate: { get: () => tradeRate },
+    traderStock: { get: () => traderStock },
+    finishAdventure: { get: () => finishAdventure },
     enterCombat: { get: () => enterCombat },
     esc: { get: () => esc },
     drawCharacters: { get: () => drawCharacters },
@@ -467,7 +471,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
     s.selectedId = null; s.knowledge = {}; s.knownHp = new Set(); s.lastStudy = null; s.target = null; s.lastCheck = null;
     s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.invOpen = false;
-    s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false;
+    s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false; s.adventureCounted = false;
     $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true; $('.dg-reviewbar').hidden = true; s.captiveRun = null;
     setMood(place ? (place.music ?? 'dungeon') : arena ? 'combat' : 'dungeon');
     startHeroTurn();
@@ -733,7 +737,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       startHeroTurn();
       for (const m of allies()) if (m.cond?.taunt) delete m.cond.taunt;
       if (!foes().filter((m) => !m.calm).length) {
-        if (place) { const said = campaign?.event({ kind: 'cleared' }); if (said) log(said, 'good'); } else showEnd('victory');
+        if (place) { const said = campaign?.event({ kind: 'cleared' }); if (said) log(said, 'good'); finishAdventure(); } else showEnd('victory');
       }
     }
   }
@@ -1015,6 +1019,34 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     log(`${s.hero.name} haggles with ${m.name.split(',')[0]}: ${checkText('Persuasion', c)}. ${rate > BASE_RATE ? `The price rises to ${pct}%.` : rate < BASE_RATE ? `Offended, the trader drops to ${pct}%.` : 'The trader will not budge from half price.'}`, rate >= BASE_RATE ? 'good' : 'warn');
     redraw();
   }
+  /** A caravan's wares for the active hero (engine/shop.js). Each caravan keeps its own rare offer. */
+  const traderKey = (m) => m.name.split(',')[0];
+  function traderStock(m) {
+    const n = adventures();
+    return stockFor({ traderKey: traderKey(m), level: s.def?.level ?? 1, adventures: n, bought: rareBought(traderKey(m), shopPeriod(n).period), rate: tradeRate(m) });
+  }
+  function traderBuy(id, rare = false) {
+    const m = npcTalking(); if (!m) return;
+    const stock = traderStock(m);
+    if (rare && !stock.rare) return;
+    const r = buyItem(s.draft, rare ? stock.rare.inst : id, tradeRate(m));
+    if (!r.ok) { banner(r.message); return; }
+    if (rare) markRareBought(traderKey(m), stock.period);
+    play('coins', { volume: 0.7 });
+    log(`${s.hero.name} buys ${(r.inst.qty ?? 1) > 1 ? `${r.inst.qty} × ` : ''}${itemName(r.inst)} from ${traderKey(m)} for ${formatCoins(r.cost)}.`, 'loot');
+    persist(); refreshHero(); redraw();
+  }
+
+  /**
+   * An adventure is over (a dungeon floor cleared or left by the stairs, a story battle won, a
+   * campaign place cleared): traders count these to refresh their rare goods. Once per floor.
+   */
+  function finishAdventure() {
+    if (s.adventureCounted || (practice && !onOutcome)) return;
+    s.adventureCounted = true;
+    countAdventure();
+  }
+
   function traderSell(uid, qty) {
     const m = npcTalking(); if (!m) return;
     const inst = s.draft.inventory.find((x) => x.uid === uid); if (!inst) return;
@@ -1043,6 +1075,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (place) { leavePlace(); return; }
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
+    finishAdventure();
     saveActive();
     const carry = { delve: s.delve, members: s.members.map((m) => ({ hp: Math.max(1, m.hero.hp), res: m.res, buffs: m.buffs })),
       // Sworn friends follow you down; those only with you for a while stay behind.
@@ -1539,6 +1572,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'trade-haggle': traderHaggle(); break;
       case 'trade-sell': traderSell(el.dataset.uid, el.dataset.qty === 'all' ? null : Number(el.dataset.qty) || 1); break;
       case 'trade-sell-goods': traderSellGoods(); break;
+      case 'trade-tab': s.tradeTab = el.dataset.tab; redraw(); break;
+      case 'trade-shelf': s.tradeShelf = el.dataset.shelf; redraw(); break;
+      case 'trade-buy': traderBuy(el.dataset.id); break;
+      case 'trade-buy-rare': traderBuy(null, true); break;
       case 'story-continue': onOutcome?.(s.mode === 'victory'); break;
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }

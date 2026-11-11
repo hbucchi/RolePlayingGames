@@ -365,19 +365,20 @@ export function installPanels(ctx) {
   /** What a trader offers for the active hero's loot (trade-view.js), with haggling. */
   function sellSection(m) {
     const h = m.haggles?.[s.hero.id];
-    return tradeHtml({ gear: s.draft, rate: ctx.tradeRate(m), haggle: h ?? null, persuasion: s.hero.skills.persuasion ?? 0, heroName: s.hero.name, attr: 'data-dg', trader: m.name.split(',')[0] });
+    return tradeHtml({ gear: s.draft, rate: ctx.tradeRate(m), haggle: h ?? null, persuasion: s.hero.skills.persuasion ?? 0, heroName: s.hero.name, attr: 'data-dg', trader: m.name.split(',')[0],
+      tab: s.tradeTab ?? 'buy', shelf: s.tradeShelf, stock: ctx.traderStock(m) });
   }
 
   function npcPanel(m) {
     const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
     const pic = ctx.portraitOf(m);
     if (m.trader) {
-      // A travelling trader met in a dungeon: buys loot.
+      // A travelling trader met in a dungeon: sells gear and buys loot.
       const near = chebyshev(s.hero.pos, m.pos) <= 1;
       return `<div class="npc-card">
         <div class="foe-head">${pic ? `<img class="npc-pic" src="${esc(pic)}" alt="">` : ''}<h3>${esc(m.name)}</h3>${close}</div>
-        <p class="npc-say">“${s.mode === 'combat' ? 'Not now! Deal with them first!' : 'Well met, well met. Bring out what you found down there; I pay fair coin.'}”</p>
-        ${!near ? '<p class="small muted">Walk up to the trader to sell.</p>' : s.mode === 'combat' ? '' : sellSection(m)}
+        <p class="npc-say">“${s.mode === 'combat' ? 'Not now! Deal with them first!' : 'Well met, well met. Bring out what you found down there; I pay fair coin, and I have wares of my own.'}”</p>
+        ${!near ? '<p class="small muted">Walk up to the trader to trade.</p>' : s.mode === 'combat' ? '' : sellSection(m)}
       </div>`;
     }
     if (!ctx.campaign) return '';

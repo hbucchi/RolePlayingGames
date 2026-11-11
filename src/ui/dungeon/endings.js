@@ -13,6 +13,7 @@ export function installEndings(ctx) {
 
   function showEnd(kind) {
     s.mode = kind;
+    if (kind === 'victory') ctx.finishAdventure();
     setMood('dungeon');
     stinger(kind === 'victory' ? 'victory' : 'defeat');
     const el = $('.dg-endscreen');

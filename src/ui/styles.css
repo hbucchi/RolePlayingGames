@@ -1160,3 +1160,18 @@ html { -webkit-tap-highlight-color: transparent; }
 @keyframes totem-pulse { 50% { opacity: .45; transform: scale(.85); } }
 .rest-site.sel image { filter: drop-shadow(0 0 6px #ffe28a); }
 @media (prefers-reduced-motion: reduce) { .totem-glow { animation: none; } .mana-gem { transition: none; } }
+
+/* Buying from traders (trade-view.js buyHtml) */
+.trade-tabs, .trade-shelf-tabs { margin: 0; }
+.trade-shelf-tabs .chip { font-size: .8rem; }
+.trade-list.trade-shelf { max-height: 40vh; }
+.trade-price.dear { color: var(--muted); font-weight: 500; }
+.trade-rare { border: 1px solid var(--accent); border-radius: 10px; padding: 8px 10px; background: color-mix(in srgb, var(--accent) 8%, transparent); display: grid; gap: 4px; }
+.trade-rare p { margin: 0; }
+.trade-rare-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.trade-rare-item .trade-btns { align-items: center; gap: 8px; }
+.trade-norare { margin: 0; font-style: italic; }
+@media (max-width: 520px) {
+  .trade-rare-item { grid-template-columns: auto minmax(0, 1fr); } .trade-rare-item .trade-btns { grid-column: 1 / -1; justify-content: flex-end; }
+  .trade-list.trade-shelf li { grid-template-columns: auto minmax(0, 1fr) auto auto; } .trade-list.trade-shelf .trade-btns { grid-column: auto; }
+}

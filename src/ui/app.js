@@ -4,6 +4,8 @@
  */
 import { tradeHtml, GOODS } from './trade-view.js';
 import { sellItem, haggleRate, whyUnsellable, BASE_RATE } from '../engine/trade.js';
+import { stockFor, buyItem, period as shopPeriod } from '../engine/shop.js';
+import { adventures, rareBought, markRareBought } from './shop-state.js';
 import {
   ABILITIES, ABILITY_IDS, ABILITY_METHODS, POINT_BUY, abilityModifier, autoAssign,
   formatModifier, pointBuyScoreCost, pointBuyTotal,
@@ -357,13 +359,19 @@ function marketView() {
   const h = state.market.haggles[id];
   return `<section class="market">
     <div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">The Trading Post</h1>
-      <p class="muted small">Sell loot between adventures.</p></div>
+      <p class="muted small">Buy gear and sell loot between adventures.</p></div>
     <div class="chips market-heroes">${heroes.map((x) => `<button class="chip ${x.id === id ? 'sel' : ''}" data-action="market-hero" data-id="${esc(x.id)}" aria-pressed="${x.id === id}">${esc(x.label.split(',')[0])}</button>`).join('')}</div>
     ${d ? `<div class="card market-card-body">
       <div class="market-hero"><img src="${esc(heroLook(d).url ?? '')}" alt="" style="filter:${heroLook(d).filter ?? 'none'}"><div><h3>${esc(c.name)}</h3><p class="small muted">Level ${c.level} ${esc(c.race.name)} ${esc(c.cls.name)} · CHA ${c.scores.cha} (${c.mods.cha >= 0 ? '+' : ''}${c.mods.cha})</p></div></div>
-      ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader' })}
+      ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader', tab: state.market.tab ?? 'buy', shelf: state.market.shelf, stock: martaStock(c.level, h?.rate ?? BASE_RATE) })}
     </div>` : '<p class="muted">Make or adopt a hero first.</p>'}
   </section>`;
+}
+
+/** Marta's shelves for a hero of this level (engine/shop.js); her rare offer changes every 3 adventures. */
+function martaStock(level, rate) {
+  const n = adventures();
+  return stockFor({ traderKey: 'marta', level, adventures: n, bought: rareBought('marta', shopPeriod(n).period), rate });
 }
 
 /**
@@ -396,6 +404,18 @@ root.addEventListener('click', async (e) => {
     render(); return;
   }
   const rate = state.market.haggles[id]?.rate ?? BASE_RATE;
+  if (el.dataset.tr === 'trade-tab') { state.market.tab = el.dataset.tab; render(); return; }
+  if (el.dataset.tr === 'trade-shelf') { state.market.shelf = el.dataset.shelf; render(); return; }
+  if (el.dataset.tr === 'trade-buy' || el.dataset.tr === 'trade-buy-rare') {
+    const stock = martaStock(c.level, rate);
+    const rare = el.dataset.tr === 'trade-buy-rare';
+    if (rare && !stock.rare) return;
+    const r = buyItem(d, rare ? stock.rare.inst : el.dataset.id, rate);
+    if (!r.ok) { notify(r.message, 'bad'); return; }
+    if (rare) markRareBought('marta', stock.period);
+    keep(heroApi.save(d)); notify(`Bought ${(r.inst.qty ?? 1) > 1 ? `${r.inst.qty} × ` : ''}${itemName(r.inst)} for ${formatCoins(r.cost)}.`, 'ok');
+    render(); return;
+  }
   if (el.dataset.tr === 'trade-sell') {
     const inst = d.inventory.find((x) => x.uid === el.dataset.uid); const name = inst ? itemName(inst) : '';
     const r = sellItem(d, el.dataset.uid, rate, el.dataset.qty === 'all' ? null : 1);
@@ -424,8 +444,8 @@ function adventuresView() {
         </article>`).join('')}
         <article class="card adventure market-card">
           <div class="card-head"><h3>The Trading Post</h3><span class="badge">Playable</span></div>
-          <p>Between adventures, sell what you brought back: gems, trinkets, ore and hides, spare weapons. Traders pay half the price new; haggle with Charisma for more.</p>
-          <p class="muted small">Any level · sell loot for coin</p>
+          <p>Between adventures, buy arms, armour and supplies, and sell what you brought back. Traders pay half the price new; haggle with Charisma for a better deal. Now and then Marta has something magical.</p>
+          <p class="muted small">Any level · buy gear, sell loot</p>
           <button class="btn small primary" data-action="open-market">Visit the trading post</button>
         </article>
         <article class="card adventure arena-card">
@@ -1022,7 +1042,7 @@ const actions = {
   'close-settings-bg'(el, e) { if (e?.target === el) { state.settingsOpen = false; render(); } },
   'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
-  'open-market'() { Object.assign(state, { view: 'market', market: { heroId: explorerHeroes()[0]?.id ?? null, haggles: {}, draft: null } }); render(); window.scrollTo(0, 0); },
+  'open-market'() { Object.assign(state, { view: 'market', market: { heroId: explorerHeroes()[0]?.id ?? null, haggles: {}, draft: null, tab: 'buy' } }); render(); window.scrollTo(0, 0); },
   'market-hero'(el) { state.market.heroId = el.dataset.id; state.market.draft = null; render(); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
   'enter-dungeon'() {
