@@ -49,12 +49,7 @@ export function installPanels(ctx) {
       <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
       ${xpBar()}
       <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
-      <div class="hc-actions">
-        <button class="btn small" data-dg="inventory" title="Open your pack (I)">🎒 Pack</button>
-        <button class="btn small" data-dg="bandage" ${countOf(s.draft?.inventory ?? [], 'bandage') && !s.busy ? '' : 'disabled'} title="Medicine check (DC 10): heal 1d6 + Medicine${s.mode === 'combat' ? '. Uses your action.' : ''}">🩹 Bandage <span class="muted">${countOf(s.draft?.inventory ?? [], 'bandage')}</span> <span class="muted">${signed(h.skills.medicine ?? 0)}</span></button>
-        <button class="btn small" data-dg="search" ${s.busy ? 'disabled' : ''} title="Perception or Investigation (your better one) against hidden traps and secret doors nearby${s.mode === 'combat' ? '. Uses your action.' : ''}">🔍 Search <span class="muted">${signed(Math.max(h.skills.investigation ?? 0, h.skills.perception ?? 0))}</span></button>
-      </div>
-      ${restPanel()}
+
       ${s.lastCheck ? `<p class="study-result ${s.lastCheck.ok ? 'ok' : ''}">${esc(s.lastCheck.text)}</p>` : ''}
       ${magicPanel()}
       <h4>Weapons</h4>
@@ -64,17 +59,17 @@ export function installPanels(ctx) {
           <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `range ${w.normal * 5}/${w.long * 5} ft` : ''}</span>
         </button>`).join('')}</div>
       <div class="row wrap">
-        ${combat ? `<button class="btn small" data-dg="dash" ${s.actionUsed || s.busy ? 'disabled' : ''} title="Use your action to double your movement this turn">Dash</button>
-        <button class="btn small primary" data-dg="end-turn" ${s.busy ? 'disabled' : ''}>End turn</button>` : ''}
         <button class="btn small ghost" data-dg="retry" title="Restart this dungeon">Restart</button>
       </div>
       <label class="field small" for="dg-rule">Diagonal rule
         <select id="dg-rule" data-dg="rule">${Object.entries(DIAGONAL_RULES).map(([k, v]) => `<option value="${k}" ${k === s.rule ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
       </label>`;
+    $('.dg-actionbar').innerHTML = actionBar();
     drawTargetInfo();
     drawPop();
     drawNearby();
     if (s.invOpen) drawInventory();
+    holdLayout();
     $('.dg-initiative').innerHTML = combat ? `<h3>Initiative</h3><ol class="init">${s.order.map((o) => {
       const e = o.hero ? ctx.party().find((x) => x.id === o.id) : s.monsters.find((m) => m.id === o.id);
       if (!e || e.dead || (o.hero && e.hp <= 0)) return '';
@@ -82,6 +77,18 @@ export function installPanels(ctx) {
     }).join('')}</ol>` : '';
     $('.dg-log').innerHTML = s.log.map((l) => `<li class="${l.kind}">${esc(l.text)}</li>`).join('');
     $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
+  }
+
+  /**
+   * Keep the page from getting shorter while playing. If the panel shrinks (a shorter log, a
+   * closed info box), the browser would pull the page's scroll back and the map would jump under
+   * a still mouse, so a click would land a few squares off. Heights only ever grow here.
+   */
+  function holdLayout() {
+    for (const el of [host, $('.dg-actionbar')]) {
+      const h = el.offsetHeight;
+      if (h > (Number(el.dataset.minH) || 0)) { el.dataset.minH = String(h); el.style.minHeight = `${h}px`; }
+    }
   }
 
   function magicPanel() {
@@ -106,14 +113,32 @@ export function installPanels(ctx) {
       ${m.abilities.some((a) => a.passive) ? `<p class="small muted">Always on: ${m.abilities.filter((a) => a.passive).map((a) => `<span title="${esc(a.desc)}">${esc(a.name)}</span>`).join(', ')}</p>` : ''}`;
   }
 
-  function restPanel() {
-    if (!s.res) return '';
-    const combat = s.mode === 'combat';
-    return `<div class="hc-actions rest-row">
-      <button class="btn small" data-dg="sneak" ${combat ? 'disabled' : ''} title="Stealth check: foes whose passive Perception is lower will not notice you">${s.sneak ? `👣 Sneaking (${s.sneak.total})` : '👣 Sneak'}</button>
-      <button class="btn small" data-dg="rest-short" ${combat ? 'disabled' : ''} title="Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.">☾ Short rest <span class="muted">${s.res.hitDice} HD</span></button>
-      <button class="btn small" data-dg="rest-long" ${combat || s.longRested ? 'disabled' : ''} title="Full recovery, once per floor. 1 in 3 chance of wandering monsters.">☀ Long rest</button>
-    </div>`;
+  /**
+   * The hero's actions, as big buttons across the top of the map so nobody misses them: what
+   * the hero can do right now, with the keyboard shortcut and why a button is disabled.
+   */
+  function actionBar() {
+    const h = s.hero; if (!h || !s.res || s.mode === 'defeat' || s.mode === 'victory') return '';
+    const combat = s.mode === 'combat'; const myTurn = combat && !s.busy;
+    const inv = s.draft?.inventory ?? [];
+    const btn = (id, icon, label, { hint = '', why = '', primary = false, key = '', extra = '' } = {}) => `
+      <button class="act-btn ${primary ? 'primary' : ''}" data-dg="${id}" ${why ? 'disabled' : ''} title="${esc(why ? `${label}: ${why}` : hint)}">
+        <span class="act-ico" aria-hidden="true">${icon}</span><span class="act-label">${label}${extra ? ` <small>${extra}</small>` : ''}</span>${key ? `<kbd>${key}</kbd>` : ''}</button>`;
+    const busy = s.busy ? 'wait for the enemies to finish' : '';
+    const status = combat
+      ? (s.busy ? '<b>Enemies are acting…</b>' : `<b>${esc(h.name)}'s turn</b><span>Round ${s.round}</span>`)
+      : `<b>Exploring</b><span>${esc(h.name)} leads</span>`;
+    return `<div class="act-status ${myTurn ? 'mine' : ''}">${status}</div>
+      <div class="act-buttons">
+        ${combat ? btn('end-turn', '⏭', 'End turn', { primary: true, key: 'Space', why: busy, hint: 'Finish your turn: the next creature in the initiative order acts' }) : ''}
+        ${combat ? btn('dash', '💨', 'Dash', { why: busy || (s.actionUsed ? 'your action is spent' : ''), hint: 'Use your action to double your movement this turn' }) : ''}
+        ${btn('search', '🔍', 'Search', { key: 'F', why: busy, hint: `Perception or Investigation (your better one) against hidden traps and secret doors nearby${combat ? '. Uses your action.' : ''}` })}
+        ${btn('inventory', '🎒', 'Pack', { key: 'I', hint: 'Open your pack: equip, use potions, drop' })}
+        ${btn('bandage', '🩹', 'Bandage', { extra: `×${countOf(inv, 'bandage')}`, why: busy || (countOf(inv, 'bandage') ? '' : 'no bandages left'), hint: `Medicine check (DC 10): heal 1d6 + Medicine${combat ? '. Uses your action.' : ''}` })}
+        ${btn('sneak', '👣', s.sneak ? `Sneaking (${s.sneak.total})` : 'Sneak', { why: combat ? 'not during a fight' : '', hint: 'Stealth check: foes whose passive Perception is lower will not notice you' })}
+        ${btn('rest-short', '☾', 'Short rest', { extra: `${s.res.hitDice} HD`, why: combat ? 'not during a fight' : '', hint: 'Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.' })}
+        ${btn('rest-long', '☀', 'Long rest', { why: combat ? 'not during a fight' : s.longRested ? 'once per floor' : '', hint: 'Full recovery, once per floor. 1 in 3 chance of wandering monsters.' })}
+      </div>`;
   }
 
   // ---------------------------------------------------------------------------
@@ -569,5 +594,5 @@ export function installPanels(ctx) {
       ${c && c.cost === 0 ? `<p class="small">${esc(s.hero.name)} stands here, facing ${FACINGS[s.hero.facing].name}.</p>` : ''}` : '<p class="small muted">Unexplored darkness.</p>';
   }
 
-  return { drawPanel, magicPanel, restPanel, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo };
+  return { drawPanel, magicPanel, actionBar, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo };
 }

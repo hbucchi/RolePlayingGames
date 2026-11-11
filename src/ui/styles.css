@@ -680,7 +680,7 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-settings-card .foe-head { display: flex; justify-content: space-between; align-items: center; }
 
 /* Defeat: look over the frozen battle */
-.dg-reviewbar { position: absolute; z-index: 4; left: 12px; right: 12px; top: 10px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+.dg-reviewbar { position: absolute; z-index: 7; left: 12px; right: 12px; top: 10px; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
   padding: 8px 12px; border-radius: 12px; background: rgb(20 14 10 / .82); color: #f3e7cf; font-size: .9rem; box-shadow: 0 4px 16px rgb(0 0 0 / .35); }
 
 /* Taken captive */
@@ -729,3 +729,39 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .party-pick { cursor: pointer; }
 .party-pick.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
 .party-pick input { accent-color: var(--accent); }
+
+/* ---- Hero action bar (top of the map) ----------------------------------------------------- */
+.dg-actionbar {
+  position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  padding: 10px 12px; margin-bottom: 8px; border-radius: var(--radius);
+  background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow);
+}
+.dg-actionbar:empty { display: none; }
+.act-status { display: grid; line-height: 1.15; min-width: 9rem; padding-right: 12px; border-right: 1px solid var(--line); }
+.act-status b { font-family: var(--font-display); font-size: 1rem; }
+.act-status span { color: var(--muted); font-size: .85rem; }
+.act-status.mine b { color: var(--accent); }
+.act-buttons { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.act-btn {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px;
+  font: 600 1rem/1.1 var(--font-body); color: var(--ink); cursor: pointer;
+  background: linear-gradient(var(--card), var(--bg-2)); border: 1.5px solid var(--line); border-bottom-width: 3px;
+  border-radius: 9px; box-shadow: 0 1px 2px rgb(0 0 0 / .12); transition: transform .08s, border-color .15s, box-shadow .15s;
+}
+.act-btn:hover:not(:disabled) { border-color: var(--gold); box-shadow: 0 2px 8px rgb(0 0 0 / .18); transform: translateY(-1px); }
+.act-btn:active:not(:disabled) { transform: translateY(1px); border-bottom-width: 1.5px; }
+.act-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.act-btn:disabled { opacity: .45; cursor: not-allowed; }
+.act-btn .act-ico { font-size: 1.25rem; }
+.act-btn small { color: var(--muted); font-weight: 400; }
+.act-btn kbd { font: .7rem/1 ui-monospace, monospace; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: var(--bg); }
+.act-btn.primary { background: var(--accent); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 70%, #000); font-size: 1.1rem; padding: 6px 20px; }
+.act-btn.primary kbd { color: var(--accent-ink); border-color: currentColor; background: transparent; }
+.act-status.mine + .act-buttons .act-btn.primary:not(:disabled) { animation: act-glow 1.8s ease-in-out infinite; }
+@keyframes act-glow { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 10px rgb(0 0 0 / .2); } }
+@media (prefers-reduced-motion: reduce) { .act-btn.primary { animation: none !important; } }
+@media (max-width: 640px) {
+  .act-status { border-right: 0; padding-right: 0; width: 100%; }
+  .act-btn { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .act-btn kbd { display: none; }
+}

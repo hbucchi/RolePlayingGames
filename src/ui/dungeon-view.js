@@ -117,6 +117,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     </div>
     <div class="dg-layout">
       <div class="dg-mapwrap">
+        <div class="dg-actionbar" role="toolbar" aria-label="Hero actions"></div>
         <div class="dg-banner" aria-live="polite"></div>
         <div class="dg-reviewbar" hidden role="status"><span>☠ <b>Defeated.</b> The battle is frozen: drag, zoom and hover to study it, and read the battle log.</span><button class="btn small primary" data-dg="end-again">Options</button></div>
         <div class="dg-viewport" tabindex="0" aria-label="Dungeon map. Drag to pan, scroll or pinch to zoom.">
@@ -260,7 +261,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
   const { spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
   const { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, rest, sneak } = installMagic(ctx);
-  const { drawPanel, magicPanel, restPanel, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo } = installPanels(ctx);
+  const { drawPanel, magicPanel, actionBar, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo } = installPanels(ctx);
 
   // ---------------------------------------------------------------------------
   // Setup
@@ -1055,10 +1056,24 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: s.zoom };
       drag = null;
     } else {
-      drag = { x: e.clientX, y: e.clientY, sl: viewport.scrollLeft, st: viewport.scrollTop, moved: false };
+      // The square is fixed when the button goes down: if the page shifts before it comes up,
+      // the click still lands where the player aimed.
+      drag = { x: e.clientX, y: e.clientY, sl: viewport.scrollLeft, st: viewport.scrollTop, moved: false, cell: cellFromEvent(e) };
     }
   });
+  // Where the mouse last was, so the highlighted square can follow when the map or page scrolls
+  // under a mouse that is not moving.
+  let lastPointer = null;
+  const rehover = () => {
+    if (!lastPointer || !host.isConnected) return;
+    const c = cellFromEvent(lastPointer);
+    if ((c?.x ?? -1) === (s.hover?.x ?? -1) && (c?.y ?? -1) === (s.hover?.y ?? -1)) return;
+    s.hover = c; drawOverlay();
+  };
+  window.addEventListener('scroll', rehover, { passive: true });
+  viewport.addEventListener('scroll', rehover, { passive: true });
   viewport.addEventListener('pointermove', (e) => {
+    lastPointer = { clientX: e.clientX, clientY: e.clientY };
     if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && pointers.size === 2) {
       const [a, b] = [...pointers.values()];
@@ -1080,12 +1095,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     pointers.delete(e.pointerId);
     if (pointers.size < 2) pinch = null;
     viewport.classList.remove('panning');
-    if (drag && !drag.moved && e.type === 'pointerup') handleClick(cellFromEvent(e), e.shiftKey);
+    if (drag && !drag.moved && e.type === 'pointerup') handleClick(drag.cell ?? cellFromEvent(e), e.shiftKey);
     drag = null;
   };
   viewport.addEventListener('pointerup', endPointer);
   viewport.addEventListener('pointercancel', endPointer);
-  viewport.addEventListener('pointerleave', () => { if (!pointers.size) { s.hover = null; drawOverlay(); drawTargetInfo(); } });
+  viewport.addEventListener('pointerleave', () => { lastPointer = null; if (!pointers.size) { s.hover = null; drawOverlay(); drawTargetInfo(); } });
 
   function cellFromEvent(e) {
     const r = overlay.getBoundingClientRect();
@@ -1288,6 +1303,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
     else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === ' ' && s.mode === 'combat') { e.preventDefault(); host.querySelector('[data-dg="end-turn"]:not([disabled])')?.click(); }
+    else if (e.key === 'f' || e.key === 'F') host.querySelector('.dg-actionbar [data-dg="search"]:not([disabled])')?.click();
     else if (e.key === 'Escape' && !$('.dg-settings').hidden) toggleSettings(false);
     else if (e.key === 'Escape' && s.target) { s.target = null; redraw(); }
     else if (e.key === 'Escape' && s.pending) { s.pending = null; banner('Cancelled.'); redraw(); }
