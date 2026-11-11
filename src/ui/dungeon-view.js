@@ -30,6 +30,7 @@ import { getFigures, getSetting, setSetting, PACE_FACTOR } from './settings.js';
 import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { furnishDungeon } from '../engine/props.js';
+import { installCharacters } from './dungeon/characters.js';
 import { rollMonsterLoot } from '../engine/loot.js';
 import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
 import { freshResources, skillXp } from '../engine/magic.js';
@@ -144,6 +145,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     </div>
     <div class="dg-endscreen" hidden></div>
     <div class="dg-inv" hidden role="dialog" aria-label="Inventory"></div>
+    <div class="dg-chars" hidden role="dialog" aria-label="Characters"></div>
     <div class="dg-pop" hidden role="dialog" aria-modal="true"></div>
     <div class="dg-settings" id="dg-settings" hidden role="dialog" aria-label="Settings"></div>`;
 
@@ -193,6 +195,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     styleOf: { get: () => styleOf },
     enterCombat: { get: () => enterCombat },
     esc: { get: () => esc },
+    drawCharacters: { get: () => drawCharacters },
     fighting: { get: () => fighting },
     findMagic: { get: () => findMagic },
     finishIfDead: { get: () => finishIfDead },
@@ -268,6 +271,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     whyNot: { get: () => whyNot },
   });
   const { runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves } = installMonsterTurns(ctx);
+  const { drawCharacters } = installCharacters(ctx);
   const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
@@ -1294,6 +1298,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     switch (el.dataset.inv) {
       case 'close': s.invOpen = false; $('.dg-inv').hidden = true; viewport.focus(); return;
       case 'filter': s.invFilter = el.dataset.filter; break;
+      case 'doll': s.invDoll = el.dataset.doll; break;
       case 'select': s.invSel = uid || null; s.dropArm = null; break;
       case 'equip': {
         const r = equipItem(s.draft, uid, el.dataset.slot);
@@ -1377,6 +1382,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         break;
       }
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
+      case 'characters': s.charsOpen = !s.charsOpen; if (s.charsOpen) s.charIdx = s.active; drawCharacters(); break;
+      case 'chars-close': s.charsOpen = false; drawCharacters(); break;
+      case 'char-hero': s.charIdx = Number(el.dataset.i); drawCharacters(); break;
+      case 'char-tab': s.charTab = el.dataset.tab; drawCharacters(); break;
+      case 'char-part': s.charPart = el.dataset.part; drawCharacters(); break;
       case 'pick-hero': if (s.mode !== 'combat' && !s.busy && s.members[Number(el.dataset.i)]?.hero.hp > 0) { activate(Number(el.dataset.i)); startHeroTurn(); redraw(); centerOn(s.hero.pos); } break;
       case 'leave-arena': leavePlace(); break;
       case 'npc-opt': npcOption(Number(el.dataset.i)); break;
@@ -1461,6 +1471,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     else if (e.key === '+' || e.key === '=') setZoom(s.zoom * 1.25);
     else if (e.key === '-') setZoom(s.zoom / 1.25);
     else if (e.key === 'i' || e.key === 'I') { s.invOpen = !s.invOpen; redraw(); }
+    else if (e.key === 'c' || e.key === 'C') { s.charsOpen = !s.charsOpen; if (s.charsOpen) s.charIdx = s.active; drawCharacters(); }
+    else if (e.key === 'Escape' && s.charsOpen) { s.charsOpen = false; drawCharacters(); }
     else if (e.key === ' ' && s.mode === 'combat') { e.preventDefault(); host.querySelector('[data-dg="end-turn"]:not([disabled])')?.click(); }
     else if (e.key === 'f' || e.key === 'F') host.querySelector('.dg-actionbar [data-dg="search"]:not([disabled])')?.click();
     else if (e.key === 'Escape' && !$('.dg-settings').hidden) toggleSettings(false);

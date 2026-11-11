@@ -20,6 +20,7 @@ export function installRender(ctx) {
     s.reach = s.mode === 'combat' && s.order.length && !s.busy ? ctx.heroReach() : s.mode === 'explore' && !s.busy ? ctx.heroReach() : new Map();
     drawOverlay();
     ctx.drawPanel();
+    if (s.charsOpen) ctx.drawCharacters();
   }
 
   /**

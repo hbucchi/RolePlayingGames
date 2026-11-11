@@ -3,7 +3,7 @@
  * it returns HTML with data-inv attributes; the host wires the clicks to inventory actions.
  */
 import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/catalogue.js';
-import { SLOTS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor } from '../engine/items.js';
+import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor } from '../engine/items.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -15,7 +15,7 @@ export const FILTERS = [
   { id: 'res', name: 'Resources', cats: ['resource', 'gem'] },
 ];
 
-const SLOT_GLYPH = { mainHand: '⚔', offHand: '⛉', ranged: '🏹', body: '🛡', cloak: '🧥', neck: '📿', ring: '💍' };
+const SLOT_GLYPH = { mainHand: '⚔', offHand: '⛉', ranged: '🏹', body: '🛡', cloak: '🧥', neck: '📿', wrist1: '◯', wrist2: '◯', ring: '💍' };
 
 /** A square item tile: the painted icon if we have one, else a glyph. */
 export function itemIcon(inst, size = 'md') {
@@ -51,20 +51,36 @@ function statLine(inst) {
  * @param gear  { inventory, equipped, coins }
  * @param o     { str, selected, filter, editable, combat }
  */
-export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory' } = {}) {
+export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory', doll: dollTab = 'arms' } = {}) {
   const weight = carriedWeight(gear.inventory, gear.coins ?? 0);
   const cap = carryCapacity(str);
   const f = FILTERS.find((x) => x.id === filter) ?? FILTERS[0];
   const list = gear.inventory.filter((x) => !f.cats || f.cats.includes(ITEMS_BY_ID[x.id]?.cat));
   const sel = gear.inventory.find((x) => x.uid === selected) ?? null;
 
-  const doll = SLOTS.map((s) => {
+  // A selected ring, bracelet or necklace can be put straight onto an empty finger, wrist or neck.
+  const selGroup = sel && editable ? ITEMS_BY_ID[sel.id]?.slot : null;
+  const slotBtn = (s, short = s.name) => {
     const inst = gear.inventory.find((x) => x.uid === gear.equipped?.[s.id]);
+    const target = !inst && selGroup && SLOT_GROUPS[selGroup]?.includes(s.id);
+    if (target) return `<button class="slot target" data-inv="equip" data-slot="${s.id}" data-uid="${esc(sel.uid)}" title="Wear ${esc(itemName(sel))} here (${esc(s.name.toLowerCase())})"><span class="slot-empty" aria-hidden="true">＋</span><span class="slot-name">${esc(short)}</span></button>`;
     return `<button class="slot ${inst ? 'filled' : ''} ${sel && inst?.uid === sel.uid ? 'sel' : ''}" data-inv="select" data-uid="${inst ? esc(inst.uid) : ''}" ${inst ? '' : 'disabled'} title="${esc(s.name)}${inst ? `: ${esc(itemName(inst))}` : ' (empty)'}">
-      ${inst ? itemIcon(inst, 'sm') : `<span class="slot-empty" aria-hidden="true">${SLOT_GLYPH[s.id]}</span>`}
-      <span class="slot-name">${esc(s.name)}</span>
+      ${inst ? itemIcon(inst, 'sm') : `<span class="slot-empty" aria-hidden="true">${SLOT_GLYPH[s.id] ?? SLOT_GLYPH.ring}</span>`}
+      <span class="slot-name">${esc(short)}</span>
     </button>`;
-  }).join('');
+  };
+  const jewels = Object.values(gear.equipped ?? {}).filter((u) => JEWEL_SLOTS.some((j) => gear.equipped[j.id] === u)).length;
+  const hand = (h) => JEWEL_SLOTS.filter((j) => j.group === 'ring').slice(h * 5, h * 5 + 5).map((j) => slotBtn(j, j.name.split(' ').slice(1).join(' ').replace(' finger', ''))).join('');
+  const dollTabs = `<div class="doll-tabs" role="tablist">
+      <button class="chip ${dollTab === 'arms' ? 'sel' : ''}" data-inv="doll" data-doll="arms" aria-pressed="${dollTab === 'arms'}">⚔ Arms &amp; armour</button>
+      <button class="chip ${dollTab === 'jewels' ? 'sel' : ''}" data-inv="doll" data-doll="jewels" aria-pressed="${dollTab === 'jewels'}">💍 Jewellery${jewels ? ` (${jewels})` : ''}</button></div>`;
+  const doll = dollTab === 'jewels'
+    ? `<div class="jewel-doll">
+        <div class="jd-row">${slotBtn(JEWEL_SLOTS[0])}</div>
+        <div class="jd-row">${slotBtn(JEWEL_SLOTS[1])}${slotBtn(JEWEL_SLOTS[2])}</div>
+        <div class="jd-hands"><div class="jd-hand"><h5>Left hand</h5>${hand(0)}</div><div class="jd-hand"><h5>Right hand</h5>${hand(1)}</div></div>
+      </div>`
+    : SLOTS.map((s) => slotBtn(s)).join('');
 
   const tiles = list.length ? list.map((x) => `
     <button class="inv-tile ${x.uid === selected ? 'sel' : ''} ${isEquipped(gear, x.uid) ? 'worn' : ''}" data-inv="select" data-uid="${esc(x.uid)}" title="${esc(itemName(x))}">
@@ -105,7 +121,7 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
       </div>
     </div>
     <div class="inv-body">
-      <div class="paperdoll" aria-label="Equipped">${doll}</div>
+      <div class="paperdoll ${dollTab === 'jewels' ? 'jewels' : ''}" aria-label="Equipped">${dollTabs}${doll}</div>
       <div class="inv-bag">
         <div class="chips" role="tablist">${FILTERS.map((x) => `<button class="chip ${x.id === f.id ? 'sel' : ''}" data-inv="filter" data-filter="${x.id}" aria-pressed="${x.id === f.id}">${esc(x.name)}</button>`).join('')}</div>
         <div class="inv-grid">${tiles}</div>

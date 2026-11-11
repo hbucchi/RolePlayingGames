@@ -1063,6 +1063,32 @@
     "fountain"
    ],
    "prompt": "Top-down game sprites of dungeon and medieval furniture and objects for a realistic 2D role-playing game, every object seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPG maps), arranged in a 4 by 3 grid, each object alone and centered in its own equal cell with empty space around it, on a plain flat uniform light grey background, no floor, no cast shadows, no text, no borders. Realistic painted detail, warm natural colours, weathered wood, iron and stone. Row 1, left to right: a blacksmith forge: a stone hearth with glowing hot coals and a chimney hood, bellows at its side seen from above; a black iron blacksmith anvil on a wooden stump seen from above; a round sharpening grindstone wheel on a wooden frame seen from above; a wooden weapon rack holding swords, spears and axes, long and narrow seen from above. Row 2, left to right: a wooden mannequin stand wearing a steel breastplate and helmet seen from above; a heavy wooden workbench with hammers, tongs, files and metal pieces seen from above; a wooden quenching trough filled with dark water seen from above; an iron brazier full of burning coals and flames seen from above. Row 3, left to right: a carved stone altar with a white cloth, a golden chalice and two candles seen from above; a stone sarcophagus with a carved lid showing a sleeping knight seen from above; a broken stone pillar lying in rubble and fallen blocks seen from above; a round stone fountain basin with clear water seen from above."
+  },
+  {
+   "kind": "icon",
+   "name": "j1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "gold-ring",
+    "ring-of-protection",
+    "ruby-ring",
+    "sapphire-ring",
+    "fox-ring",
+    "sentinel-ring",
+    "copper-bangle",
+    "silver-bracelet",
+    "bracers-of-defence",
+    "silver-pendant",
+    "sun-amulet",
+    "amulet-of-warding"
+   ],
+   "note": "item icons: centre 232 px square of each cell, 128 px jpg in assets/items"
+  },
+  {
+   "kind": "ui",
+   "name": "body",
+   "note": "body figure for the Characters window: crop x 400-880 to assets/ui/body-figure.jpg"
   }
  ]
 }

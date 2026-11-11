@@ -8,10 +8,21 @@
  */
 import { ITEMS_BY_ID, ENCHANT, ENCHANT_RARITY, RARITY_ORDER } from '../content/items/catalogue.js';
 
+/** Arms and armour: the paper doll's first tab. */
 export const SLOTS = [
   { id: 'mainHand', name: 'Main hand' }, { id: 'offHand', name: 'Off hand' }, { id: 'ranged', name: 'Ranged' },
-  { id: 'body', name: 'Armour' }, { id: 'cloak', name: 'Cloak' }, { id: 'neck', name: 'Neck' }, { id: 'ring', name: 'Ring' },
+  { id: 'body', name: 'Armour' }, { id: 'cloak', name: 'Cloak' },
 ];
+/** Jewellery: the second tab. One necklace, a bracelet on each wrist, and a ring on each finger and thumb. */
+const FINGERS = ['thumb', 'index finger', 'middle finger', 'ring finger', 'little finger'];
+export const JEWEL_SLOTS = [
+  { id: 'neck', name: 'Necklace', group: 'neck' },
+  { id: 'wrist1', name: 'Left wrist', group: 'wrist' }, { id: 'wrist2', name: 'Right wrist', group: 'wrist' },
+  ...['Left', 'Right'].flatMap((hand, h) => FINGERS.map((f, i) => ({ id: `ring${h * 5 + i + 1}`, name: `${hand} ${f}`, group: 'ring' }))),
+];
+export const ALL_SLOTS = [...SLOTS, ...JEWEL_SLOTS];
+/** An item's slot kind and the slots of that kind (a ring may go on any of 10 fingers). */
+export const SLOT_GROUPS = { neck: ['neck'], wrist: ['wrist1', 'wrist2'], ring: JEWEL_SLOTS.filter((s) => s.group === 'ring').map((s) => s.id) };
 
 let counter = 0;
 export const newUid = () => `i${Date.now().toString(36)}${(counter++).toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -142,16 +153,22 @@ const equippedDef = (gear, slot) => {
 export function equipItem(gear, uid, wanted) {
   const inst = gear.inventory.find((x) => x.uid === uid);
   if (!inst) return { ok: false, message: 'You no longer have that.' };
-  const slot = slotFor(inst, wanted);
+  let slot = slotFor(inst, wanted);
   if (!slot) return { ok: false, message: `${itemName(inst)} cannot be equipped.` };
   gear.equipped ??= {};
+  // Rings, bracelets: the finger or wrist asked for, else the first free one, else the first.
+  const group = SLOT_GROUPS[slot];
+  if (group && group.length > 1) {
+    const here = Object.entries(gear.equipped).find(([, u]) => u === uid)?.[0];
+    slot = group.includes(wanted) ? wanted : group.includes(here) ? here : group.find((x) => !gear.equipped[x]) ?? group[0];
+  }
   const freed = [];
   for (const [s, u] of Object.entries(gear.equipped)) if (u === uid && s !== slot) { delete gear.equipped[s]; freed.push(s); }
   const def = itemDef(inst);
   if (slot === 'mainHand' && def.weapon?.twoHanded && gear.equipped.offHand) { delete gear.equipped.offHand; freed.push('offHand'); }
   if (slot === 'offHand' && equippedDef(gear, 'mainHand')?.weapon?.twoHanded) { delete gear.equipped.mainHand; freed.push('mainHand'); }
   gear.equipped[slot] = uid;
-  return { ok: true, slot, freed, message: `${itemName(inst)} equipped (${SLOTS.find((s) => s.id === slot).name.toLowerCase()}).` };
+  return { ok: true, slot, freed, message: `${itemName(inst)} equipped (${ALL_SLOTS.find((s) => s.id === slot).name.toLowerCase()}).` };
 }
 
 export function unequipSlot(gear, slot) {
@@ -165,6 +182,8 @@ export const equippedIn = (gear, slot) => gear.inventory.find((x) => x.uid === g
 
 /** Drop dangling references (an equipped item that was sold, used up or lost). */
 export function tidyEquipped(gear) {
+  // Older saves had a single ring slot: it is the left thumb now.
+  if (gear.equipped?.ring) { gear.equipped.ring1 ??= gear.equipped.ring; delete gear.equipped.ring; }
   for (const [slot, uid] of Object.entries(gear.equipped ?? {})) if (!gear.inventory.some((x) => x.uid === uid)) delete gear.equipped[slot];
   return gear;
 }
@@ -215,7 +234,7 @@ export function gearStats(gear, { mods, scores, pb, weaponProfs, armorProfs }) {
     if (!armorProficient(off, armorProfs)) notes.push('You are not trained with shields.');
   }
   let hpBonus = 0; const skillBonus = {}; let saveBonus = 0;
-  for (const slot of ['cloak', 'neck', 'ring']) {
+  for (const slot of ['cloak', ...JEWEL_SLOTS.map((j) => j.id), 'ring']) {
     const d = itemDef(eq(slot));
     if (!d) continue;
     ac += d.acBonus ?? 0;

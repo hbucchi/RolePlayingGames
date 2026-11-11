@@ -23,7 +23,7 @@ export const LOOT_PROFILES = {
   orc: {
     label: 'orc', coins: 1, magic: 0.015,
     items: [I('arrows', 0.3, 3, 10), I('scimitar', 0.1), I('shortbow', 0.05), I('iron-ore', 0.12), I('coal', 0.1), I('bones', 0.1),
-      I('chain-shirt', 0.02), I('shield', 0.04), I('bandage', 0.1), I('potion-healing', 0.04)],
+      I('chain-shirt', 0.02), I('shield', 0.04), I('bandage', 0.1), I('potion-healing', 0.04), I('copper-bangle', 0.04)],
   },
   spider: {
     label: 'spider', coins: 0.15, magic: 0.01, // coins and magic from the remains of its victims
@@ -35,11 +35,11 @@ export const LOOT_PROFILES = {
   beast: { label: 'beast', coins: 0, magic: 0, items: [I('hide', 0.5), I('bones', 0.4, 1, 2), I('feathers', 0.15, 2, 6)] },
   undead: {
     label: 'undead', coins: 0.7, magic: 0.03,
-    items: [I('bones', 0.6, 1, 3), I('cloth', 0.2), I('dagger', 0.05), I('longsword', 0.03), I('amber', 0.05), I('garnet', 0.05), I('silver-ore', 0.03)],
+    items: [I('bones', 0.6, 1, 3), I('cloth', 0.2), I('dagger', 0.05), I('longsword', 0.03), I('amber', 0.05), I('garnet', 0.05), I('silver-ore', 0.03), I('gold-ring', 0.05), I('silver-bracelet', 0.03), I('silver-pendant', 0.03)],
   },
   humanoid: {
     label: 'humanoid', coins: 1, magic: 0.02,
-    items: [I('dagger', 0.1), I('shortsword', 0.05), I('bandage', 0.2, 1, 3), I('rations', 0.2), I('potion-healing', 0.04), I('rope', 0.05), I('thieves-tools', 0.03), I('cloth', 0.1)],
+    items: [I('dagger', 0.1), I('shortsword', 0.05), I('bandage', 0.2, 1, 3), I('rations', 0.2), I('potion-healing', 0.04), I('rope', 0.05), I('thieves-tools', 0.03), I('cloth', 0.1), I('gold-ring', 0.04), I('silver-pendant', 0.03), I('copper-bangle', 0.05)],
   },
   troll: {
     label: 'troll', coins: 1.5, magic: 0.05,
@@ -47,7 +47,7 @@ export const LOOT_PROFILES = {
   },
   dragon: {
     label: 'dragon', coins: 5, magic: 0.25,
-    items: [I('gold-ore', 0.3, 1, 4), I('mithral-ore', 0.08), I('ruby', 0.2, 1, 2), I('emerald', 0.2, 1, 2), I('diamond', 0.08), I('sapphire', 0.25, 1, 3)],
+    items: [I('gold-ore', 0.3, 1, 4), I('mithral-ore', 0.08), I('ruby', 0.2, 1, 2), I('emerald', 0.2, 1, 2), I('diamond', 0.08), I('sapphire', 0.25, 1, 3), I('gold-ring', 0.2, 1, 3), I('silver-bracelet', 0.1)],
   },
   plant: {
     label: 'plant', coins: 0, magic: 0.005,

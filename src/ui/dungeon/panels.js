@@ -134,6 +134,7 @@ export function installPanels(ctx) {
         ${combat ? btn('dash', '💨', 'Dash', { why: busy || (s.actionUsed ? 'your action is spent' : ''), hint: 'Use your action to double your movement this turn' }) : ''}
         ${btn('search', '🔍', 'Search', { key: 'F', why: busy, hint: `Perception or Investigation (your better one) against hidden traps and secret doors nearby${combat ? '. Uses your action.' : ''}` })}
         ${btn('inventory', '🎒', 'Pack', { key: 'I', hint: 'Open your pack: equip, use potions, drop' })}
+        ${btn('characters', '👤', 'Characters', { key: 'C', hint: 'Each hero at a glance: summary, abilities, and the body part by part' })}
         ${btn('bandage', '🩹', 'Bandage', { extra: `×${countOf(inv, 'bandage')}`, why: busy || (countOf(inv, 'bandage') ? '' : 'no bandages left'), hint: `Medicine check (DC 10): heal 1d6 + Medicine${combat ? '. Uses your action.' : ''}` })}
         ${btn('sneak', '👣', s.sneak ? `Sneaking (${s.sneak.total})` : 'Sneak', { why: combat ? 'not during a fight' : '', hint: 'Stealth check: foes whose passive Perception is lower will not notice you' })}
         ${btn('rest-short', '☾', 'Short rest', { extra: `${s.res.hitDice} HD`, why: combat ? 'not during a fight' : '', hint: 'Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.' })}
@@ -609,7 +610,7 @@ export function installPanels(ctx) {
     if (!s.invOpen || !s.draft) return;
     box.innerHTML = `<div class="dg-inv-card">
       <button class="btn icon small dg-inv-close" data-inv="close" aria-label="Close inventory">✕</button>
-      ${inventoryHtml(s.draft, { str: s.def.str, selected: s.invSel, filter: s.invFilter, combat: s.mode === 'combat', title: `${s.hero.name}'s pack` })}
+      ${inventoryHtml(s.draft, { str: s.def.str, selected: s.invSel, filter: s.invFilter, doll: s.invDoll, combat: s.mode === 'combat', title: `${s.hero.name}'s pack` })}
       ${s.def.gearNotes?.length ? `<ul class="gear-notes small">${s.def.gearNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
     </div>`;
   }

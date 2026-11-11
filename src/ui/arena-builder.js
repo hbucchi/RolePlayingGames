@@ -34,6 +34,9 @@ export function defaultArena(w = 20, h = 16) {
   for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) if (x === 1 || y === 1 || x === w - 2 || y === h - 2) paintTerrain(map, x, y, 'grass');
   const cx = Math.floor(w / 2); const cy = Math.floor(h / 2);
   for (const [dx, dy] of [[0, 0], [-1, 0], [0, -1], [-1, -1]]) paintTerrain(map, cx + dx, cy + dy, 'shallow');
+  // A few pieces to start from (the furniture tool adds or removes more).
+  map.props = [{ kind: 'statue', x: 3, y: 3 }, { kind: 'statue', x: w - 4, y: 3 }, { kind: 'brazier', x: 3, y: h - 4 }, { kind: 'brazier', x: w - 4, y: h - 4 },
+    { kind: 'barrel', x: 2, y: Math.floor(h / 2) }, { kind: 'crates', x: w - 3, y: Math.floor(h / 2) }];
   return { name: 'New arena', map, heroes: [], foes: [] };
 }
 
@@ -109,59 +112,62 @@ export function mountArenaBuilder(host, ctx) {
     return list.slice(0, 120).map((m) => `<option value="${m.id}" ${m.id === st.foePick ? 'selected' : ''}>CR ${m.cr} · ${esc(m.name)} (${m.size}${footprintOf(m) !== 1 ? `, ${sizeLabel(footprintOf(m))} squares` : ''})</option>`).join('');
   }
 
+  /**
+   * The builder's controls. Everything that matters fits in the first screen: the Start button
+   * and the arena itself in a toolbar on top, then one compact card per tool, each a dropdown.
+   */
   function drawPanel() {
     const saved = loadArenas();
     const sizeNow = `${st.setup.map.width}x${st.setup.map.height}`;
+    const ready = st.setup.heroes.length && st.setup.foes.length;
+    const why = !st.setup.heroes.length ? 'Place at least one hero' : !st.setup.foes.length ? 'Place at least one creature' : '';
+    host.querySelector('.ab-top').innerHTML = `
+      <button class="btn primary big ab-fight" data-ab="fight" ${ready ? '' : 'disabled'} title="${esc(why || 'Fight on this map')}">⚔ Start the bout</button>
+      <label class="field small ab-name">Arena <input type="text" data-ab-input="name" maxlength="40" value="${esc(st.setup.name)}"></label>
+      <label class="field small">Size <select data-ab-input="size">${SIZES.map(([w, h]) => `<option value="${w}x${h}" ${`${w}x${h}` === sizeNow ? 'selected' : ''}>${w - 2} × ${h - 2}</option>`).join('')}</select></label>
+      <label class="field small">Saved <select data-ab-input="saved"><option value="">${saved.length ? `Load one of ${saved.length}…` : 'None yet'}</option>${saved.map((a) => `<option value="${a.id}">${esc(a.name)} (${a.rows[0].length - 2}×${a.rows.length - 2}, ${a.foes.length} foes)</option>`).join('')}</select></label>
+      <div class="ab-top-btns">
+        <button class="btn small" data-ab="save" title="Save this arena in this browser">💾 Save</button>
+        <button class="btn small ghost" data-ab="new" title="A fresh arena of this size">New</button>
+        <button class="btn small ghost" data-ab="clear" title="Wipe terrain, furniture and tokens">Clear</button>
+        ${st.setup.id && saved.some((a) => a.id === st.setup.id) ? `<button class="btn small ghost danger" data-ab="delete" data-id="${st.setup.id}" title="Delete the saved copy">🗑</button>` : ''}
+      </div>
+      ${why ? `<span class="small muted ab-why">${esc(why)} to start.</span>` : ''}`;
+    const t = (id) => (st.tool === id ? 'on' : '');
+    const stat = BESTIARY_BY_ID[st.foePick];
     host.querySelector('.ab-panel').innerHTML = `
-      <section class="panel">
-        <h3>Arena</h3>
-        <label class="field">Name <input type="text" data-ab-input="name" maxlength="40" value="${esc(st.setup.name)}"></label>
-        <div class="row wrap">
-          <label class="field small">Size
-            <select data-ab-input="size">${SIZES.map(([w, h]) => `<option value="${w}x${h}" ${`${w}x${h}` === sizeNow ? 'selected' : ''}>${w - 2} × ${h - 2} squares</option>`).join('')}</select>
-          </label>
-          <button class="btn small ghost" data-ab="clear">Clear terrain</button>
-        </div>
+      <section class="ab-card ${t('paint')}">
+        <button class="ab-card-head" data-ab="tool" data-tool="paint"><span>🖌 Paint terrain</span><small>click or drag</small></button>
+        <select data-ab-input="terrain">${Object.entries(TERRAINS).map(([id, x]) => `<option value="${id}" ${st.terrain === id ? 'selected' : ''}>${esc(x.name)}${x.cost === 2 ? ' (×2 move)' : x.cost === Infinity ? ' (no walking)' : x.wall ? ' (blocks)' : ''}</option>`).join('')}</select>
+        <span class="ab-swatch-now" style="background-image:url('${esc(st.terrain === 'floor' || st.terrain === 'wall' || TERRAINS[st.terrain].single ? TERRAINS[st.terrain].texture : TERRAINS[st.terrain].texture.replace('.jpg', '-1.jpg'))}')"></span>
       </section>
-      <section class="panel">
-        <h3>1 · Paint terrain</h3>
-        <p class="small muted">Pick a terrain, then click or drag across squares. Mud, snow and shallow water are difficult terrain (moving into them costs double). Deep water cannot be walked through; walls block movement and sight.</p>
-        <div class="ab-palette">${palette()}</div>
+      <section class="ab-card ${t('prop')}">
+        <button class="ab-card-head" data-ab="tool" data-tool="prop"><span>🪑 Furniture</span><small>top-left corner</small></button>
+        <select data-ab-input="prop">${Object.entries(PROPS).map(([id, x]) => `<option value="${id}" ${st.propPick === id ? 'selected' : ''}>${esc(x.name)} · ${x.w}×${x.h}${x.station ? ' ⚒' : ''}${x.block === 'slow' ? ' (slows)' : !x.block ? ' (walk over)' : ''}</option>`).join('')}</select>
+        <span class="ab-swatch-now prop" style="background-image:url('${esc(propImage(st.propPick))}')"></span>
+        <button class="btn small" data-ab="prop-rot" title="Turn the piece">↻ ${st.propRot}°</button>
       </section>
-      <section class="panel">
-        <h3>Furniture</h3>
-        <p class="small muted">Pick a piece, then click where its top-left corner goes. Tables, statues and forges block movement; chairs and rubble slow it. ⚒ marks crafting stations. The ✕ remove tool also takes furniture away.</p>
-        <div class="row wrap"><button class="btn small" data-ab="prop-rot">↻ Turn (${st.propRot}°)</button></div>
-        <div class="ab-palette">${propPalette()}</div>
+      <section class="ab-card ${t('hero')}">
+        <button class="ab-card-head" data-ab="tool" data-tool="hero"><span>🛡 Heroes</span><small>${st.setup.heroes.length}/4 placed</small></button>
+        <select data-ab-input="hero">${ctx.heroes.map((h) => `<option value="${esc(h.id)}" ${st.heroPick === h.id ? 'selected' : ''}>${esc(h.label.split(',')[0])}${st.setup.heroes.some((x) => x.id === h.id) ? ' ✓' : ''}</option>`).join('')}</select>
       </section>
-      <section class="panel">
-        <h3>2 · Place your party <span class="muted small">(${st.setup.heroes.length}/4)</span></h3>
-        <div class="chips">${ctx.heroes.map((h) => `<button class="chip ${st.tool === 'hero' && st.heroPick === h.id ? 'sel' : ''} ${st.setup.heroes.some((x) => x.id === h.id) ? 'placed' : ''}" data-ab="hero" data-id="${esc(h.id)}">${esc(h.label.split(',')[0])}${st.setup.heroes.some((x) => x.id === h.id) ? ' ✓' : ''}</button>`).join('')}</div>
-        <p class="small muted">Choose a hero, then click a square. Click a placed hero again to move them.</p>
+      <section class="ab-card ${t('foe')}">
+        <button class="ab-card-head" data-ab="tool" data-tool="foe"><span>🐉 Creatures</span><small>${st.setup.foes.length} placed</small></button>
+        <input type="search" placeholder="Search ${FIGHTERS.length} creatures…" data-ab-input="foe-filter" value="${esc(st.foeFilter)}">
+        <select data-ab-input="foe" class="ab-foes">${foeOptions()}</select>
+        <select data-ab-input="side" title="Which side it fights on">${Object.entries(SIDES).map(([k, v]) => `<option value="${k}" ${st.side === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+        ${stat && !isSquare(footprintOf(stat)) ? `<select data-ab-input="lie" title="Which way its long body lies"><option value="ew" ${st.lie === 'ew' ? 'selected' : ''}>Lies east–west</option><option value="ns" ${st.lie === 'ns' ? 'selected' : ''}>Lies north–south</option></select>` : ''}
+        <small class="muted">${stat ? `${esc(stat.size)}, ${sizeLabel(footprintOf(stat))} squares · CR ${stat.cr}` : ''}</small>
       </section>
-      <section class="panel">
-        <h3>3 · Place the creatures <span class="muted small">(${st.setup.foes.length})</span></h3>
-        <input type="search" placeholder="Search all ${FIGHTERS.length} creatures…" data-ab-input="foe-filter" value="${esc(st.foeFilter)}">
-        <select data-ab-input="foe" size="6" class="ab-foes">${foeOptions()}</select>
-        <label class="small">Side: <select data-ab-input="side">${Object.entries(SIDES).map(([k, v]) => `<option value="${k}" ${st.side === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-        ${!isSquare(footprintOf(BESTIARY_BY_ID[st.foePick])) ? `<label class="small">Long body lies: <select data-ab-input="lie"><option value="ew" ${st.lie === 'ew' ? 'selected' : ''}>east–west</option><option value="ns" ${st.lie === 'ns' ? 'selected' : ''}>north–south</option></select></label>` : ''}
-        <button class="btn small ${st.tool === 'foe' ? 'primary' : ''}" data-ab="foe-tool">Place this creature</button>
-        <p class="small muted">Large creatures fill 2×2 squares, Huge 3×3, Gargantuan 4×4.</p>
-        ${st.setup.foes.length ? `<ul class="plain small ab-foe-list">${st.setup.foes.map((f) => `<li>${esc(BESTIARY_BY_ID[f.statId]?.name)}${f.side && f.side !== 'enemy' ? ` <i>(${SIDES[f.side].toLowerCase()})</i>` : ''} <span class="muted">(${f.pos.x}, ${f.pos.y})</span> <button class="linkish" data-ab="remove-foe" data-uid="${f.uid}">remove</button></li>`).join('')}</ul>` : ''}
-        <button class="btn small ghost ${st.tool === 'erase' ? 'primary' : ''}" data-ab="erase-tool">✕ Remove tool (click a token)</button>
+      <section class="ab-card ${t('erase')}">
+        <button class="ab-card-head" data-ab="tool" data-tool="erase"><span>✕ Remove</span><small>click a token or a piece</small></button>
       </section>
-      <section class="panel">
-        <h3>Save &amp; load</h3>
-        <div class="row wrap"><button class="btn small" data-ab="save">Save arena</button><button class="btn small ghost" data-ab="new">New arena</button></div>
-        ${saved.length ? `<ul class="plain ab-saved">${saved.map((a) => `<li><b>${esc(a.name)}</b> <span class="muted small">${a.rows[0].length - 2}×${a.rows.length - 2} · ${a.foes.length} foes</span>
-          <button class="linkish" data-ab="load" data-id="${a.id}">load</button> · <button class="linkish" data-ab="delete" data-id="${a.id}">delete</button></li>`).join('')}</ul>` : '<p class="small muted">No saved arenas yet.</p>'}
-      </section>
-      <button class="btn primary big ab-fight" data-ab="fight" ${st.setup.heroes.length && st.setup.foes.length ? '' : 'disabled'}>⚔ Start the bout</button>`;
+      ${st.setup.foes.length ? `<details class="ab-card ab-placed"><summary>Placed creatures (${st.setup.foes.length})</summary><ul class="plain small ab-foe-list">${st.setup.foes.map((f) => `<li>${esc(BESTIARY_BY_ID[f.statId]?.name)}${f.side && f.side !== 'enemy' ? ` <i>(${SIDES[f.side].toLowerCase()})</i>` : ''} <span class="muted">(${f.pos.x}, ${f.pos.y})</span> <button class="linkish" data-ab="remove-foe" data-uid="${f.uid}">remove</button></li>`).join('')}</ul></details>` : ''}`;
   }
 
   function redraw() { drawMap(); drawPanel(); save(); }
 
-  host.innerHTML = `<div class="ab-layout"><div class="ab-mapwrap"><div class="ab-map" aria-label="Arena map: click or drag to paint"></div>
+  host.innerHTML = `<div class="ab-top"></div><div class="ab-layout"><div class="ab-mapwrap"><div class="ab-map" aria-label="Arena map: click or drag to paint"></div>
     <p class="small muted">Tool: <b class="ab-tool"></b></p></div><aside class="ab-panel"></aside></div>`;
 
   const toolLabel = () => ({ prop: `Place ${PROPS[st.propPick]?.name}`, paint: `Paint ${TERRAINS[st.terrain].name}`, hero: `Place ${ctx.heroes.find((h) => h.id === st.heroPick)?.label.split(',')[0] ?? 'hero'}`, foe: `Place ${BESTIARY_BY_ID[st.foePick]?.name}`, erase: 'Remove a token' }[st.tool]);
@@ -231,6 +237,7 @@ export function mountArenaBuilder(host, ctx) {
   host.addEventListener('click', (e) => {
     const el = e.target.closest('[data-ab]'); if (!el) return;
     const a = el.dataset.ab;
+    if (a === 'tool') st.tool = el.dataset.tool;
     if (a === 'terrain') { st.tool = 'paint'; st.terrain = el.dataset.id; }
     if (a === 'hero') { st.tool = 'hero'; st.heroPick = el.dataset.id; }
     if (a === 'prop') { st.tool = 'prop'; st.propPick = el.dataset.id; }
@@ -271,11 +278,24 @@ export function mountArenaBuilder(host, ctx) {
     if (k === 'lie') { st.lie = e.target.value; st.tool = 'foe'; drawPanel(); }
     if (k === 'side') { st.side = e.target.value; st.tool = 'foe'; drawPanel(); }
     if (k === 'foe') { st.foePick = e.target.value; st.tool = 'foe'; host.querySelector('.ab-tool').textContent = toolLabel(); drawPanel(); }
+    // Picking from a dropdown also picks up that tool.
+    if (k === 'terrain') { st.terrain = e.target.value; st.tool = 'paint'; }
+    if (k === 'prop') { st.propPick = e.target.value; st.tool = 'prop'; }
+    if (k === 'hero') { st.heroPick = e.target.value; st.tool = 'hero'; }
+    if (k === 'saved' && e.target.value) {
+      const rec = loadArenas().find((x) => x.id === e.target.value);
+      if (rec) { st.setup = { id: rec.id, name: rec.name, map: Object.assign(decodeArena(rec.rows), { props: (rec.props ?? []).filter((p) => PROPS[p.kind]) }), heroes: rec.heroes.filter((h) => ctx.heroes.some((x) => x.id === h.id)), foes: rec.foes.filter((f) => BESTIARY_BY_ID[f.statId]) }; ctx.notify?.(`Loaded "${rec.name}".`, 'ok'); redraw(); }
+    }
+    if (['terrain', 'prop', 'hero'].includes(k)) { host.querySelector('.ab-tool').textContent = toolLabel(); drawPanel(); }
   });
   host.addEventListener('input', (e) => {
     const k = e.target.dataset.abInput;
     if (k === 'name') { st.setup.name = e.target.value; save(); }
-    if (k === 'foe-filter') { st.foeFilter = e.target.value; host.querySelector('.ab-foes').innerHTML = foeOptions(); }
+    if (k === 'foe-filter') {
+      st.foeFilter = e.target.value; host.querySelector('.ab-foes').innerHTML = foeOptions();
+      // The first match becomes the pick, so a search then a click on the map just works.
+      const first = host.querySelector('.ab-foes option'); if (first) { st.foePick = first.value; st.tool = 'foe'; host.querySelector('.ab-tool').textContent = toolLabel(); }
+    }
   });
 
   host.querySelector('.ab-tool').textContent = toolLabel();

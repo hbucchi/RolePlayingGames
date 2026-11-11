@@ -129,8 +129,8 @@ function render() {
     start: startView,
     sheet: sheetView,
     dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
-    arena: () => `<div class="row sheet-actions"><button class="btn ghost" data-action="home">← Adventures</button><h1 class="arena-title">Arena</h1></div>
-      <p class="muted">Build a battlefield, choose who fights, and play a practice bout. Arena bouts never cost your heroes anything, and give no XP or loot.</p>
+    arena: () => `<div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">Arena</h1>
+      <p class="muted small">Practice bouts: no risk, no XP, no loot.</p></div>
       <div id="arena-host"></div>`,
     'arena-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     story: () => '<div id="story-host"></div>',
@@ -766,7 +766,7 @@ function sheetView() {
     ${source === 'roster' && pendingLevelUps(draft).length ? `<div class="lu-waiting" role="status"><span>✦ <b>Level-up choices are waiting</b> (level ${pendingLevelUps(draft).join(', ')}): improve your abilities or train a new skill.</span>
       <button class="btn primary" data-action="level-choices" data-id="${esc(draft.id)}">Choose now</button></div>` : ''}
     ${sheetHtml(c, heroLook(draft))}
-    ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, title: 'Inventory' })}</section>`
+    ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, doll: state.inv.doll, title: 'Inventory' })}</section>`
     : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
     ${diceTray()}`;
 }
@@ -797,6 +797,7 @@ function dungeonStats(d) {
     magic: c.magic, caster: c.caster, attacksPerAction: c.attacksPerAction, cls: c.cls?.id, hitDie: c.hitDie, conMod: c.mods.con, mods: c.mods,
     sneak: c.cls?.id === 'burglar', uncanny: c.cls?.id === 'burglar' && c.level >= 5, evasion: c.cls?.id === 'burglar' && c.level >= 7,
     stealthDis: c.gearNotes.some((n) => /noisy/.test(n)),
+    sheet: c, // the full character sheet, for the in-game Characters window
   };
 }
 
@@ -1136,6 +1137,7 @@ root.addEventListener('click', (e) => {
   const inst = d.inventory?.find((x) => x.uid === uid);
   switch (el.dataset.inv) {
     case 'filter': state.inv.filter = el.dataset.filter; break;
+    case 'doll': state.inv.doll = el.dataset.doll; break;
     case 'select': state.inv.selected = uid || null; state.inv.dropArm = null; break;
     case 'equip': { const r = equipItem(d, uid, el.dataset.slot); notify(r.message, r.ok ? 'ok' : 'bad'); break; }
     case 'unequip': { const slot = Object.entries(d.equipped ?? {}).find(([, u]) => u === uid)?.[0]; if (slot) unequipSlot(d, slot); break; }

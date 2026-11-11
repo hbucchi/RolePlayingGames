@@ -9,7 +9,8 @@
  * Every item: { id, name, cat, rarity, weight, value, stack?, desc, glyph, icon?, slot?, ... }
  *   cat:    weapon | armor | shield | ammo | consumable | tool | resource | gem | clothing | jewelry | trinket
  *   rarity: common | uncommon | rare | very-rare | legendary
- *   slot:   mainHand | offHand | ranged | body | cloak | ring | neck
+ *   slot:   mainHand | offHand | ranged | body | cloak | neck | wrist | ring
+ *           (a hero wears 1 necklace, a bracelet on each wrist and up to 10 rings: items.js JEWEL_SLOTS)
  */
 
 const GP = 100; const SP = 10;
@@ -18,6 +19,9 @@ const ICONS = new Set([
   'longsword', 'shortsword', 'long-knife', 'longbow', 'shortbow', 'sling', 'quarterstaff', 'spear', 'scimitar',
   'leather', 'chain-mail', 'scale-mail', 'shield', 'hooded-cloak', 'dagger', 'bandage', 'potion-healing', 'thieves-tools',
   'copper', 'silver', 'gold', 'rope', 'torch', 'arrows', 'iron-ore', 'oak-log', 'spider-silk',
+  // Jewellery (tools/art sheet j1)
+  'gold-ring', 'ring-of-protection', 'ruby-ring', 'sapphire-ring', 'fox-ring', 'sentinel-ring', 'copper-bangle', 'silver-bracelet',
+  'bracers-of-defence', 'silver-pendant', 'sun-amulet', 'amulet-of-warding',
 ]);
 
 const items = [];
@@ -234,6 +238,25 @@ magic({ id: 'glimmer-blade', name: 'Glimmer-blade', cat: 'weapon', slot: 'mainHa
   desc: 'An elf-forged longsword that glows a faint blue when goblins or orcs are near. A +2 weapon.' });
 magic({ id: 'phial-of-starlight', name: 'Phial of starlight', cat: 'jewelry', slot: 'neck', rarity: 'rare', weight: 0, value: 2000 * GP, glyph: '✨', use: { kind: 'light' },
   desc: 'A crystal phial holding a captured star. Raise it to flood your surroundings with silver light, revealing every hidden trap and door within sight.' });
+// Jewellery: rings for ten fingers, a bracelet for each wrist, one necklace.
+add({ id: 'gold-ring', name: 'Gold ring', cat: 'jewelry', slot: 'ring', weight: 0, value: 25 * GP, glyph: '💍', desc: 'A plain band of polished gold. Worth something to the right buyer.' });
+add({ id: 'copper-bangle', name: 'Copper bangle', cat: 'jewelry', slot: 'wrist', weight: 0, value: 2 * GP, glyph: '◯', desc: 'A hammered copper bangle, the kind farmers give at a wedding.' });
+add({ id: 'silver-bracelet', name: 'Silver charm bracelet', cat: 'jewelry', slot: 'wrist', weight: 0, value: 15 * GP, glyph: '◯', desc: 'A fine silver chain hung with tiny charms: a moon, a key, a little horse.' });
+add({ id: 'silver-pendant', name: 'Silver pendant', cat: 'jewelry', slot: 'neck', weight: 0, value: 10 * GP, glyph: '📿', desc: 'A teardrop of rock crystal on a fine silver chain.' });
+magic({ id: 'ruby-ring', name: 'Ring of the hearth', cat: 'jewelry', slot: 'ring', rarity: 'uncommon', weight: 0, value: 300 * GP, glyph: '💍', hpBonus: 3,
+  desc: 'A gold ring with a ruby that glows like an ember. +3 maximum hit points while worn.' });
+magic({ id: 'sapphire-ring', name: 'Ring of clear sight', cat: 'jewelry', slot: 'ring', rarity: 'uncommon', weight: 0, value: 300 * GP, glyph: '💍', skillBonus: { insight: 2 },
+  desc: 'A silver ring with a sapphire as cold and clear as a winter sky. +2 to Insight while worn.' });
+magic({ id: 'fox-ring', name: 'Ring of the fox', cat: 'jewelry', slot: 'ring', rarity: 'uncommon', weight: 0, value: 350 * GP, glyph: '💍', skillBonus: { stealth: 2 },
+  desc: 'An emerald carved as a fox\'s head, set in gold. +2 to Stealth while worn.' });
+magic({ id: 'sentinel-ring', name: 'Ring of the sentinel', cat: 'jewelry', slot: 'ring', rarity: 'uncommon', weight: 0, value: 350 * GP, glyph: '💍', skillBonus: { perception: 2 },
+  desc: 'A black iron ring engraved with an eye that glows faintly silver. +2 to Perception while worn.' });
+magic({ id: 'bracers-of-defence', name: 'Bracers of defence', cat: 'jewelry', slot: 'wrist', rarity: 'rare', weight: 1, value: 1500 * GP, glyph: '🛡', acBonus: 1,
+  desc: 'A riveted leather and steel bracer, humming with a warding charm. +1 to AC while worn.' });
+magic({ id: 'sun-amulet', name: 'Amulet of the dawn', cat: 'jewelry', slot: 'neck', rarity: 'uncommon', weight: 0, value: 400 * GP, glyph: '☀', skillBonus: { religion: 2, medicine: 2 },
+  desc: 'A golden sun on a chain, blessed at the Chapel of the Dawn. +2 to Religion and Medicine while worn.' });
+magic({ id: 'amulet-of-warding', name: 'Amulet of warding', cat: 'jewelry', slot: 'neck', rarity: 'rare', weight: 0, value: 1500 * GP, glyph: '📿', saveBonus: 1,
+  desc: 'A blue gem in dark silver filigree that brightens when a curse draws near. +1 to saving throws while worn.' });
 magic({ id: 'amulet-of-vigour', name: 'Amulet of vigour', cat: 'jewelry', slot: 'neck', rarity: 'uncommon', weight: 0, value: 400 * GP, glyph: '📿', hpBonus: 5,
   desc: 'A green stone on a silver chain, warm to the touch. +5 maximum hit points while worn.' });
 

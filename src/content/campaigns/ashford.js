@@ -267,6 +267,8 @@ export const ashford = {
         '#TTTTTTTTTTTTTTTTTTTTTTTT#',
         '##########################',
       ],
+      // Tamsin's camp, and an old statue lost among the trees.
+      props: [P('barrel', 7, 12), P('crates', 8, 13), P('brazier', 11, 11), P('statue', 12, 4)],
       legend: {
         '@': hero('grass'), E: exit('sand'),
         W: { on: 'grass', foe: 'wolf' },

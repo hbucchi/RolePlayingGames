@@ -151,9 +151,12 @@ export function furnishDungeon(map, seed, avoid = new Set()) {
 
   for (const r of map.rooms) {
     if (r.entrance) continue;
-    const plan = FURNISH.find(([re]) => re.test(r.name ?? ''))?.[1] ?? [];
+    const plan = [...(FURNISH.find(([re]) => re.test(r.name ?? ''))?.[1] ?? [])];
+    // Odds and ends that turn up anywhere: a barrel, crates, a fallen stone, a candle, old chains.
+    const ODDS = ['barrel', 'crates', 'rubble', 'candelabra', 'chains', 'barrel'];
+    for (let k = rng(3); k > 0; k--) plan.push(ODDS[rng(ODDS.length)]);
     // A torch on the wall of most rooms: on the rock just above the room's top edge.
-    if (rng(100) < 70) {
+    if (rng(100) < 85) {
       const tx = r.x + 1 + rng(Math.max(1, r.w - 2));
       if (!floor(tx, r.y - 1) && !isDoor(tx, r.y - 1)) props.push({ kind: 'wall-torch', x: tx, y: r.y - 1, rot: 180 }); // flame toward the room
     }

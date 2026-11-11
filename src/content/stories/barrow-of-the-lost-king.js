@@ -84,7 +84,10 @@ export const barrowOfTheLostKing = {
     },
     'hall-fight': {
       text: 'The dead do not speak. They come.',
-      battle: { foes: ['skeleton', 'skeleton'], terrain: 'cobbles', win: 'hall-won', lose: 'fallen' },
+      battle: { foes: ['skeleton', 'skeleton'], terrain: 'cobbles', win: 'hall-won', lose: 'fallen',
+        // The king's household, laid along the walls of the long hall (engine/props.js).
+        props: [{ kind: 'sarcophagus', x: 1, y: 3 }, { kind: 'sarcophagus', x: 9, y: 3 }, { kind: 'sarcophagus', x: 1, y: 5 }, { kind: 'sarcophagus', x: 9, y: 5 },
+          { kind: 'candelabra', x: 1, y: 1 }, { kind: 'candelabra', x: 10, y: 1 }, { kind: 'chains', x: 1, y: 8 }, { kind: 'wall-torch', x: 3, y: 0, rot: 180 }, { kind: 'wall-torch', x: 8, y: 0, rot: 180 }] },
     },
     'hall-won': {
       text: 'The last skeleton falls apart and stays apart. Among the bones you find a few coins of old minting, green with age.',
@@ -100,7 +103,10 @@ export const barrowOfTheLostKing = {
     },
     'tomb-fight': {
       text: 'The ghoul leaps the bier, claws first.',
-      battle: { foes: ['ghoul', 'zombie'], terrain: 'cobbles', win: 'sword', lose: 'fallen' },
+      battle: { foes: ['ghoul', 'zombie'], terrain: 'cobbles', win: 'sword', lose: 'fallen',
+        // The king's bier between two candles, braziers and a fallen pillar.
+        props: [{ kind: 'sarcophagus', x: 5, y: 1 }, { kind: 'candelabra', x: 3, y: 1 }, { kind: 'candelabra', x: 8, y: 1 }, { kind: 'brazier', x: 1, y: 4 }, { kind: 'brazier', x: 10, y: 4 },
+          { kind: 'rubble', x: 1, y: 6 }, { kind: 'statue', x: 10, y: 6 }, { kind: 'rug', x: 4, y: 4 }] },
     },
     'king-wakes': {
       text: 'For a moment nothing happens. Then the dead king\'s hand closes on his sword. The ghoul shrieks, and flees into the dark with its servant stumbling after. The hand opens again, and the sword slides to the floor at your feet. A gift, or a charge: keep the downs safe.',

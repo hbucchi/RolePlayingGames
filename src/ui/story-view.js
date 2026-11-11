@@ -42,6 +42,7 @@ export function battleSetup(story, run) {
   const b = sceneOf(story, run.progress).battle;
   const w = 12; const h = 10;
   const map = createArenaMap(w, h, b.terrain ?? 'cobbles');
+  map.props = (b.props ?? []).map((q) => ({ ...q })); // furniture for the scene (engine/props.js)
   const heroes = run.party.map((id, i) => ({ id, pos: { x: 4 + i, y: h - 3 } }));
   const foes = b.foes.map((statId, i) => ({ uid: i + 1, statId, pos: { x: Math.round((w / (b.foes.length + 1)) * (i + 1)), y: 2 }, facing: 4, side: 'enemy' }));
   return { name: story.title, map, heroes, foes, story: true };
