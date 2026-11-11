@@ -14,6 +14,7 @@ import { blockDistance } from '../../engine/size.js';
 import { rollChestLoot } from '../../engine/loot.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { skillCheck, forceDc, NOISE } from '../../engine/features.js';
+import { lineOfSight } from '../../engine/vision.js';
 
 export function installActions(ctx) {
   const { s, signed } = ctx;
@@ -96,9 +97,16 @@ export function installActions(ctx) {
     let xpFound = 0;
     play('dice', { volume: 0.6 });
     const found = []; let missed = 0;
+    // Searching means turning round and looking everywhere: the whole room you stand in, and
+    // anything within 6 squares, in every direction (not just the way you face), unless a wall
+    // or a closed door hides it.
+    const h = s.hero.pos;
+    const inRoom = (p) => s.map.rooms.some((r) => h.x >= r.x && h.x < r.x + r.w && h.y >= r.y && h.y < r.y + r.h && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h);
+    const op = ctx.opaque();
+    const searchable = (p) => (inRoom(p) || chebyshev(p, h) <= 6) && lineOfSight(h, p, op).visible;
     for (const t of s.features.traps) {
-      if (t.found || t.sprung || chebyshev(t, s.hero.pos) > 6 || !s.visible.has(cellKey(t.x, t.y))) continue;
-      if (c.total >= t.dc) { t.found = true; found.push(`a ${t.name}`); xpFound += skillXp(t.dc, s.def.level); } else missed++;
+      if (t.found || t.sprung || !searchable(t)) continue;
+      if (c.total >= t.dc) { t.found = true; s.revealed.add(cellKey(t.x, t.y)); found.push(`a ${t.name}`); xpFound += skillXp(t.dc, s.def.level); } else missed++;
     }
     for (const k of [...s.features.secretDoors]) {
       const [x, y] = k.split(',').map(Number);
