@@ -389,7 +389,7 @@ export function installMagic(ctx) {
 
   /**
    * A mana totem (once per floor), an inn's bed or a camp by the fire: every hero's mana and
-   * ability uses come back (engine/magic.js replenish). `heal` also restores hit points (sleep).
+   * ability uses come back (engine/magic.js replenish). `heal` also restores hit points (no longer used by sleep: only potions and spells heal).
    */
   function replenishParty(source, { heal = false } = {}) {
     const back = s.active; const lines = [];

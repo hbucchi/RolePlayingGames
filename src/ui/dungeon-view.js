@@ -350,7 +350,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       weapons, reaction: true, aware: true, tempHp: 0,
       look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {}, race: h.race,
     };
-    if (carried) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
+    // Wounds last until healed (potions and spells only: there is no resting). Arena bouts and
+    // story battles are fought fresh; real adventures start with the hero's saved wounds.
+    if (carried && (practice || !place)) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
+    else if (!practice) s.hero.hp = Math.max(1, s.hero.maxHp - (s.draft.wounds ?? 0));
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
     // Mana and ability uses last for the whole delve; they come back at a mana totem, an inn or a camp.
     s.res = migrateResources(carried?.res, magicHero()) ?? { ...freshResources(magicHero()), level: h.level };
@@ -379,6 +382,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
     if (!s.draft || practice) return; // arena bouts are practice: nothing is saved
+    // Damage taken, kept on the hero until a potion or spell mends it (a fallen hero keeps 1 HP).
+    if (s.hero && s.hero.isHero) s.draft.wounds = Math.max(0, s.hero.maxHp - Math.max(1, s.hero.hp));
     const saved = api.save(s.draft);
     if (saved && saved.id !== s.draft.id) {
       const box = host.querySelector(`[data-dg="party"][value="${CSS.escape(s.draft.id)}"]`);
@@ -408,7 +413,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   }
 
   function newDungeon(seed, carry = null) {
-    if (!carry) s.depth = 1;
+    if (!carry) { saveParty(); s.depth = 1; }
     s.seed = Math.max(1, Math.floor(seed) || 1);
     s.map = arena ? arena.map : generateDungeon(s.seed);
     $('#dg-seed').value = s.seed;
@@ -605,7 +610,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function searchBodies(ids) {
     const bodies = ids.map((id) => s.monsters.find((m) => m.id === id)).filter(Boolean);
     if (!bodies.length) return;
-    approachThen(bodies[0].pos, () => { s.target = bodies.length > 1 ? { kind: 'corpses', id: bodies[0].id, ids: bodies.map((m) => m.id) } : { kind: 'corpse', id: bodies[0].id }; });
+    // A big body covers several squares: walk to whichever of them is nearest.
+    const cells = bodies.flatMap((m) => cellsOf(m.pos, m.size ?? 1));
+    const goal = cells.sort((a, b) => chebyshev(s.hero.pos, a) - chebyshev(s.hero.pos, b))[0];
+    approachThen(goal, () => { s.target = bodies.length > 1 ? { kind: 'corpses', id: bodies[0].id, ids: bodies.map((m) => m.id) } : { kind: 'corpse', id: bodies[0].id }; });
   }
   const doorAt = (x, y) => s.map.doors.find((d) => d.x === x && d.y === y) ?? null;
   const adjacent = (p) => chebyshev(s.hero.pos, p) <= 1;
@@ -734,6 +742,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Fallen companions are patched up by their friends and come round with 1 hit point.
       for (const h of party()) if (h.hp <= 0) { h.hp = 1; log(`${h.name} comes round, battered but alive (1 HP).`, 'heal'); }
       recoverAmmo();
+      saveParty();
       startHeroTurn();
       for (const m of allies()) if (m.cond?.taunt) delete m.cond.taunt;
       if (!foes().filter((m) => !m.calm).length) {
@@ -927,7 +936,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** Take the stairs: a deeper floor (a new dungeon), with your wounds, loot and tally carried along. */
   /** Leave a campaign place for the world map, taking wounds and spent magic along. */
   function leavePlace() {
-    if (!place) { onLeave?.(); return; }
+    if (!place) { saveParty(); onLeave?.(); return; }
     if (s.mode === 'combat') { banner('You cannot leave while foes are on you.'); return; }
     saveActive();
     for (let i = 0; i < s.members.length; i++) { activate(i); persist(); }
@@ -954,8 +963,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           if (inst) { removeItem(d.inventory, inst.uid, 1); break; }
         }
       }
-      if (e.heal) { for (const h of party()) h.hp = h.maxHp; play('spell-heal', { volume: 0.7 }); log('The party is rested and whole again.', 'heal'); }
-      if (e.rest) { saveActive(); replenishParty(e.rest === true ? 'The party sleeps soundly.' : e.rest, { heal: true }); }
+      if (e.heal) { for (const h of party()) h.hp = h.maxHp; play('spell-heal', { volume: 0.7 }); log('A healing prayer washes over the party: every wound is mended.', 'heal'); saveActive(); saveParty(); }
+      if (e.rest) { saveActive(); replenishParty(e.rest === true ? 'The party sleeps soundly. Rest brings back mana, but wounds stay until a potion or a spell mends them.' : e.rest); }
       if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${e.xp} XP.`, 'good'); }
     }
     persist();
@@ -994,7 +1003,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.mode === 'combat') { banner('Not during a fight.'); return; }
     if (chebyshev(s.hero.pos, c) > 1) { banner('Walk up to the fire first.'); return; }
     saveActive(); c.used = true; s.target = null;
-    replenishParty('The party sleeps by the fire and wakes refreshed.', { heal: true });
+    replenishParty('The party sleeps by the fire. Mana returns; wounds do not close by themselves.');
     persist();
   }
 
@@ -1041,6 +1050,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
    * An adventure is over (a dungeon floor cleared or left by the stairs, a story battle won, a
    * campaign place cleared): traders count these to refresh their rare goods. Once per floor.
    */
+  /** Save every hero (their wounds above all), e.g. when a fight ends or the party moves on. */
+  function saveParty() {
+    if (practice || !s.members?.length || s.mode === 'defeat') return; // a lost fight is retried from the last save
+    const back = s.active;
+    for (let i = 0; i < s.members.length; i++) { activate(i); persist(); }
+    activate(back);
+  }
+
   function finishAdventure() {
     if (s.adventureCounted || (practice && !onOutcome)) return;
     s.adventureCounted = true;
@@ -1076,7 +1093,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
     finishAdventure();
-    saveActive();
+    saveActive(); saveParty();
     const carry = { delve: s.delve, members: s.members.map((m) => ({ hp: Math.max(1, m.hero.hp), res: m.res, buffs: m.buffs })),
       // Sworn friends follow you down; those only with you for a while stay behind.
       allies: allies().filter((a) => a.permanent).map((a) => ({ statId: a.statId, name: a.name, portrait: a.portrait, hp: Math.max(1, a.hp) })) };
@@ -1344,6 +1361,35 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   // A new window size or a turned phone: recompute the room around the map.
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (s.map) frame(); }).observe(viewport);
 
+  /**
+   * One screen for the game: the map takes whatever height is left once the page header and the
+   * action buttons are on screen, so the board and the buttons are always seen together (no
+   * scrolling down to act, and nothing that happens on the map is out of sight). The settings
+   * rows (party, dungeon number, zoom) sit just above and below, a scroll away.
+   */
+  const actionbar = $('.dg-actionbar');
+  const phone = () => matchMedia('(max-width: 760px)').matches;
+  const headerH = () => document.querySelector('.top')?.getBoundingClientRect().height ?? 0;
+  function fitScreen() {
+    if (!host.isConnected) return;
+    const hh = headerH();
+    document.documentElement.style.setProperty('--hdr', `${Math.round(hh)}px`);
+    const vh = window.visualViewport?.height ?? window.innerHeight;
+    const bar = actionbar.offsetHeight ? actionbar.offsetHeight + 8 : 0;
+    const h = Math.max(phone() ? 220 : 300, Math.floor(vh - hh - bar - (phone() ? 14 : 18)));
+    if (viewport.style.height !== `${h}px`) viewport.style.height = `${h}px`;
+  }
+  /** Bring the game screen into view: the map's top just under the page header. */
+  function showBoard() {
+    fitScreen();
+    const top = $('.dg-mapwrap').getBoundingClientRect().top + window.scrollY - headerH() - 6;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'instant' });
+  }
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => fitScreen()).observe(actionbar);
+  window.addEventListener('resize', fitScreen);
+  window.visualViewport?.addEventListener('resize', fitScreen);
+  requestAnimationFrame(() => { showBoard(); setTimeout(showBoard, 300); });
+
   // Wheel zoom toward the cursor.
   viewport.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -1415,8 +1461,27 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     return { x, y };
   }
 
+  /**
+   * A click while the game is busy (a monster's turn, an animation, a walk) is not lost: it waits
+   * and is handled as soon as the game is free again (the latest click wins).
+   */
+  let queued = null;
+  function queueClick(c, shift) {
+    const first = !queued;
+    queued = { c, shift, at: Date.now() };
+    if (!first) return;
+    const tick = () => {
+      if (!queued) return;
+      if (Date.now() - queued.at > 15000 || s.mode === 'defeat' || s.mode === 'victory') { queued = null; return; }
+      if (s.busy || s.walking) { setTimeout(tick, 120); return; }
+      const q = queued; queued = null; handleClick(q.c, q.shift);
+    };
+    setTimeout(tick, 120);
+  }
+
   function handleClick(c, shift = false) {
-    if (!c || !s.hero || s.busy || s.mode === 'defeat' || s.mode === 'victory') return;
+    if (!c || !s.hero || s.mode === 'defeat' || s.mode === 'victory') return;
+    if (s.busy || s.walking) { queueClick(c, shift); return; }
     if (s.pending) { finishTeleport(c); return; }
     const foe = alive().find((m) => covers(m, c) && canSee(m));
     if (foe) {
@@ -1429,6 +1494,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       return;
     }
     if (s.selectedId) { s.selectedId = null; }
+    // A fallen hero lying here: say so (and how to help), rather than doing nothing.
+    const down = party().find((h) => h.hp <= 0 && h !== s.hero && covers(h, c));
+    if (down) { s.target = { kind: 'fallen-hero', id: down.id }; redraw(); return; }
     const k = cellKey(c.x, c.y);
     const known = s.revealAll || s.revealed.has(k);
     if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { descend(); return; }

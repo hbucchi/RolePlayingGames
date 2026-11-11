@@ -257,7 +257,7 @@ function heroTile(d, source) {
     <div class="ht-body">
       <h3>${esc(c.name || 'Unnamed hero')}</h3>
       <p class="ht-kin">${esc(c.race?.name ?? '?')} · <b>${esc(c.cls?.name ?? '?')}</b></p>
-      <p class="ht-stats"><span class="ht-lv">Lv ${c.level}</span>${complete ? `<span>❤ ${c.maxHp}</span><span>🛡 ${c.ac}</span>` : '<span class="warn">Incomplete</span>'}${source === 'premade' ? '<span class="ht-tag">Ready-made</span>' : ''}</p>
+      <p class="ht-stats"><span class="ht-lv">Lv ${c.level}</span>${complete ? `<span class="${d.wounds ? 'hurt' : ''}" title="${d.wounds ? 'Wounded: only potions and healing spells mend wounds' : 'Unhurt'}">❤ ${hpText(c, d)}</span><span>🛡 ${c.ac}</span>` : '<span class="warn">Incomplete</span>'}${source === 'premade' ? '<span class="ht-tag">Ready-made</span>' : ''}</p>
       ${c.concept ? `<p class="ht-concept">${esc(c.concept)}</p>` : ''}
     </div>
     <div class="ht-actions">
@@ -332,7 +332,7 @@ function heroCard(d, source) {
       </div>
       ${c.concept ? `<p class="concept">${esc(c.concept)}</p>` : ''}
       ${complete && d.inventory ? `<div class="card-xp">${xpBarHtml(c)}${coinsHtml(c.coins)}</div>` : ''}
-      ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd>${c.maxHp}</dd></div><div><dt>AC</dt><dd>${c.ac}</dd></div>
+      ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd class="${d.wounds ? 'hurt' : ''}">${hpText(c, d)}</dd></div><div><dt>AC</dt><dd>${c.ac}</dd></div>
         ${ABILITY_IDS.map((id) => `<div><dt>${ABILITIES[id].short}</dt><dd>${c.scores[id]}</dd></div>`).join('')}</dl>`
     : '<p class="warn">Incomplete</p>'}
       <div class="row wrap">
@@ -777,7 +777,7 @@ function sheetHtml(c, look) {
         </div>
       </header>
       <section class="vitals">
-        ${[['Armour Class', c.ac], ['Hit Points', c.maxHp], ['Speed', `${c.speed} ft`], ['Initiative', fmt(c.initiative)],
+        ${[['Armour Class', c.ac], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', `${c.speed} ft`], ['Initiative', fmt(c.initiative)],
     ['Proficiency', fmt(c.proficiencyBonus)], ['Passive Perception', c.passivePerception], ['Hit Die', `1d${c.hitDie}`]]
     .map(([k, v]) => `<div class="vital"><span class="v">${v}</span><span class="k">${k}</span></div>`).join('')}
       </section>
@@ -897,6 +897,12 @@ function dungeonStats(d) {
     stealthDis: c.gearNotes.some((n) => /noisy/.test(n)),
     sheet: c, // the full character sheet, for the in-game Characters window
   };
+}
+
+/** Hit points as they stand: wounds last between adventures until a potion or spell mends them. */
+function hpText(c, d) {
+  const w = Math.min(Math.max(0, d?.wounds ?? 0), c.maxHp - 1);
+  return w ? `${c.maxHp - w}/${c.maxHp}` : `${c.maxHp}`;
 }
 
 const heroApi = {
@@ -1241,7 +1247,16 @@ root.addEventListener('click', (e) => {
     case 'select': state.inv.selected = uid || null; state.inv.dropArm = null; break;
     case 'equip': { const r = equipItem(d, uid, el.dataset.slot); notify(r.message, r.ok ? 'ok' : 'bad'); break; }
     case 'unequip': { const slot = Object.entries(d.equipped ?? {}).find(([, u]) => u === uid)?.[0]; if (slot) unequipSlot(d, slot); break; }
-    case 'use': notify(ITEMS_BY_ID[inst?.id]?.use?.kind === 'heal' || ITEMS_BY_ID[inst?.id]?.use?.kind === 'bandage' ? 'You are at full health between adventures. Use it in a dungeon.' : 'Use it in a dungeon.'); return;
+    case 'use': {
+      // Wounds stay between adventures; a potion (or herb, or waybread) can be taken at any time.
+      const use = ITEMS_BY_ID[inst?.id]?.use;
+      if (use?.kind !== 'heal') { notify(use?.kind === 'bandage' ? 'Bandages are applied in the field: use them in a dungeon.' : 'Use it in a dungeon.'); return; }
+      if (!d.wounds) { notify('You are not wounded.'); return; }
+      const r = roll(use.dice); const got = Math.min(d.wounds, r.total);
+      d.wounds -= got; removeItem(d.inventory, uid, 1);
+      notify(`${itemName(inst)}: ${use.dice} = ${r.total}. Regained ${got} HP${d.wounds ? ` (still ${d.wounds} down)` : ' (whole again)'}.`, 'ok');
+      break;
+    }
     case 'drop':
       if (state.inv.dropArm !== uid) { state.inv.dropArm = uid; notify(`Click Drop again to throw away the ${itemName(inst).toLowerCase()}.`); return; }
       if (isEquipped(d, uid)) unequipSlot(d, Object.entries(d.equipped).find(([, u]) => u === uid)[0]);

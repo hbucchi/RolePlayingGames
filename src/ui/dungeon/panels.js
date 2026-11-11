@@ -501,7 +501,7 @@ export function installPanels(ctx) {
     if (!s.hero || !s.features) return [];
     const list = [];
     if (ctx.onExit()) list.push(ctx.place ? { kind: 'stairs', id: 'down', label: 'Leave for the world map', glyph: '🗺' } : { kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
-    for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && ctx.adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
+    for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && cellsOf(m.pos, m.size ?? 1).some((c) => ctx.adjacent(c))) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
     for (const c of s.features.chests) if (ctx.adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
     for (const f of [s.features.totem, s.features.camp].filter(Boolean)) if (!f.used && ctx.adjacent(f)) list.push({ kind: f === s.features.totem ? 'totem' : 'camp', id: f === s.features.totem ? 'totem' : 'camp', label: f === s.features.totem ? 'Mana totem' : 'Sleep by the fire', glyph: f === s.features.totem ? '💎' : '🔥' });
     for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (ctx.adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
@@ -523,6 +523,7 @@ export function installPanels(ctx) {
     }
     const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
     const near = (p) => chebyshev(s.hero.pos, p) <= 1;
+    const nearBody = (m) => cellsOf(m.pos, m.size ?? 1).some((c) => near(c));
     const combatNote = s.mode === 'combat' ? ' · uses your action' : '';
     const tools = ctx.hasTools();
     const lockButtons = (lock, kind = 'chest') => { const fdc = forceDc(lock, kind); const athl = s.hero.skills.athletics ?? 0; const wood = kind === 'door' && lock.material !== 'iron'; return `
@@ -537,7 +538,7 @@ export function installPanels(ctx) {
       const title = t.kind === 'totem' ? '💎 Mana totem' : '🔥 The camp fire';
       const text = t.kind === 'totem'
         ? (f.used ? 'Its crystals are dark and cold: its power is spent for now.' : 'An old stone pillar crowned with blue crystals, humming softly. Touch it, and spent mana and abilities flow back to every hero. It answers once.')
-        : (f.used ? 'You have slept here already. Move on.' : 'A ring of stones, warm embers and two bedrolls. Sleep here, and wake whole: hit points, mana and abilities come back. Once per visit.');
+        : (f.used ? 'You have slept here already. Move on.' : 'A ring of stones, warm embers and two bedrolls. Sleep here and mana and abilities come back, but not hit points: only potions and healing spells mend wounds. Once per visit.');
       return `<div class="loot-card"><div class="foe-head"><h3>${title}</h3>${close}</div><p class="small">${text}</p>
         ${casters.length ? `<div class="totem-party">${casters.map((m) => `<p class="small"><b>${esc(m.hero.name.split(' ')[0])}</b> ${manaHtml(m.res.mana, m.res.maxMana, { label: false })}</p>`).join('')}</div>` : ''}
         ${f.used ? '' : !near(f) ? '<p class="small muted">Walk up to it first.</p>' : s.mode === 'combat' ? '<p class="small muted">Not during a fight.</p>'
@@ -557,11 +558,17 @@ export function installPanels(ctx) {
           <button class="btn" data-dg="corpse-move" ${canStep ? '' : 'disabled'}>👣 Just move here</button>
         </div></div>`;
     }
+    if (t.kind === 'fallen-hero') {
+      const h = s.members.map((m) => m.hero).find((x) => x?.id === t.id && x.hp <= 0);
+      if (!h) return '';
+      return `<div class="loot-card"><div class="foe-head"><h3>☠ ${esc(h.name)} is down</h3>${close}</div>
+        <p class="small">${esc(h.name.split(' ')[0])} has fallen and cannot act. A healing spell or a potion brings them back; if the party wins the fight, they come round with 1 hit point.</p></div>`;
+    }
     if (t.kind === 'corpses') {
       // A pile of bodies, searched together: everything they carried in one list.
       const bodies = (t.ids ?? []).map((id) => s.monsters.find((x) => x.id === id)).filter(Boolean);
       if (!bodies.length) return '';
-      if (!bodies.some((b) => near(b.pos))) return `<div class="loot-card"><div class="foe-head"><h3>Corpses</h3>${close}</div><p class="small muted">Move next to them to search them.</p></div>`;
+      if (!bodies.some((b) => nearBody(b))) return `<div class="loot-card"><div class="foe-head"><h3>Corpses</h3>${close}</div><p class="small muted">Move next to them to search them.</p></div>`;
       for (const b of bodies) b.searched = true;
       const coins = bodies.reduce((n, b) => n + (b.loot?.coins ?? 0), 0);
       const items = bodies.flatMap((b) => (b.loot?.items ?? []).map((it) => ({ ...it, from: b.name })));
@@ -570,9 +577,9 @@ export function installPanels(ctx) {
     if (t.kind === 'corpse') {
       const m = s.monsters.find((x) => x.id === t.id);
       if (!m) return '';
-      if (near(m.pos)) m.searched = true;
+      if (nearBody(m)) m.searched = true;
       const what = ctx.SPIRIT.test(m.statId ?? '') ? `What the ${m.name.toLowerCase()} left behind` : `${m.name}'s body`;
-      if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">Move next to it to search it.</p></div>`;
+      if (!nearBody(m)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">${s.mode === 'combat' ? 'Too far to reach this turn. Move next to it to search it.' : 'Move next to it to search it.'}</p></div>`;
       const loot = m.loot ?? { coins: 0, items: [] };
       if (!loot.coins && !loot.items.length) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">You search ${m.side ? 'your fallen friend' : 'it'} carefully. Nothing of value${m.side ? ' — only a last goodbye' : ''}.</p></div>`;
       return lootHtml({ title: what, coins: loot.coins, items: loot.items });

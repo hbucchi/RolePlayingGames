@@ -64,7 +64,7 @@ export const ashford = {
           options: [
             { label: 'Ask about the Steward\'s trouble', if: { notFlag: 'heard-rumour' }, set: ['heard-rumour'], discover: ['palace'],
               say: 'Thieves got into Thane\'s Hall three nights back and took the Steward\'s signet ring, the very seal of Ashford. He\'s beside himself. Go and see him at the Hall, up the road north-west of town.' },
-            { label: 'Rent a room for the night (5 sp): sleep, mana and all', price: 50, rest: true, say: 'Up the stairs, second door on the left. Clean sheets, I promise. Mostly.' },
+            { label: 'Rent a room for the night (5 sp): sleep and recover mana', price: 50, rest: true, say: 'Up the stairs, second door on the left. Clean sheets, I promise. Mostly.' },
           ],
           shop: ['rations', 'waybread', 'torch', 'bandage', 'pipe-and-leaf'],
         } },

@@ -279,7 +279,7 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-overlay, .dg-fx { pointer-events: none; }
 .dg-fx circle { transform-box: fill-box; transform-origin: center; }
 .dg-help { margin: 6px 2px; }
-.dg-banner { position: absolute; z-index: 3; left: 50%; top: 12px; transform: translate(-50%, -8px); opacity: 0; pointer-events: none; padding: 6px 16px; border-radius: 99px; background: var(--ink); color: var(--bg); font-weight: 600; transition: opacity .2s, transform .2s; }
+.dg-banner { position: fixed; z-index: 24; left: 50%; top: calc(var(--hdr, 60px) + 14px); max-width: calc(100vw - 32px); text-align: center; transform: translate(-50%, -8px); opacity: 0; pointer-events: none; padding: 6px 16px; border-radius: 99px; background: var(--ink); color: var(--bg); font-weight: 600; transition: opacity .2s, transform .2s; }
 .dg-banner.show { opacity: .95; transform: translate(-50%, 0); }
 
 /* map overlay */
@@ -1105,12 +1105,15 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .dungeon-host > .dg-topbar { order: 2; margin: 10px 0 4px; }
   .dungeon-host > .dg-layout { order: 1; }
   .dg-mapwrap { display: flex; flex-direction: column; }
-  .dg-mapwrap > .dg-viewport { order: -1; height: min(72svh, 640px); }
+  .dg-mapwrap > .dg-viewport { order: -1; height: min(60svh, 640px); }
   .dg-mapwrap > .dg-actionbar { position: static; margin: 8px 0 0; padding: 8px; }
   .dg-mapwrap > .dg-help { display: none; }
   .act-buttons { gap: 6px; grid-template-columns: repeat(3, 1fr); }
-  .act-btn { flex: 1 1 calc(33.333% - 6px); min-height: 42px; padding: 4px 6px; gap: 4px; font-size: .88rem; flex-direction: column; }
-  .act-btn .act-ico { font-size: 1.15rem; }
+  .act-btn { flex: 1 1 calc(33.333% - 6px); min-height: 38px; padding: 4px 6px; gap: 5px; font-size: .84rem; flex-direction: row; }
+  .act-btn .act-ico { font-size: 1.05rem; }
+  .act-btn kbd, .act-btn .act-key { display: none; }
+  .dg-actionbar { gap: 6px; }
+  .act-status { min-width: 0; border-right: 0; padding-right: 0; flex: 1 1 100%; display: flex; gap: 8px; align-items: baseline; }
 }
 
 /* No blue flash when tapping: phones paint a translucent blue "tap highlight" over anything you tap
@@ -1175,3 +1178,4 @@ html { -webkit-tap-highlight-color: transparent; }
   .trade-rare-item { grid-template-columns: auto minmax(0, 1fr); } .trade-rare-item .trade-btns { grid-column: 1 / -1; justify-content: flex-end; }
   .trade-list.trade-shelf li { grid-template-columns: auto minmax(0, 1fr) auto auto; } .trade-list.trade-shelf .trade-btns { grid-column: auto; }
 }
+.hurt { color: var(--bad, #b3261e); font-weight: 700; }
