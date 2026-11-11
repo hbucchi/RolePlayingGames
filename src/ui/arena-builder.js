@@ -6,7 +6,7 @@ import { TERRAINS, createArenaMap, paintTerrain, encodeTerrain, decodeArena, sta
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { BESTIARY, BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
-import { monsterPortrait } from '../content/media.js';
+import { monsterPortrait, portraitTint } from '../content/media.js';
 import { footprintOf, cellsOf, dims, orientFor, isSquare, sizeLabel } from '../engine/size.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -63,7 +63,7 @@ export function mountArenaBuilder(host, ctx) {
       const ring = `fill="none" stroke="${SIDE_RING[f.side ?? 'enemy']}" stroke-width="5" ${f.side?.startsWith('bound') ? 'stroke-dasharray="8 5"' : ''}`;
       out += `<g class="ab-token foe"><rect x="${f.pos.x * sz + 3}" y="${f.pos.y * sz + 3}" width="${d.w * sz - 6}" height="${d.h * sz - 6}" rx="10" class="ab-foot"/>
         <clipPath id="abc-${f.uid}"><rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}"/></clipPath>
-        ${img ? `<image href="${esc(img)}" x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" clip-path="url(#abc-${f.uid})" preserveAspectRatio="xMidYMid slice"/>` : `<rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" fill="#5b2a22"/><text x="${cx}" y="${cy + 10}" class="ab-letter">${esc(stat.name[0])}</text>`}
+        ${img ? `<image href="${esc(img)}" x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" clip-path="url(#abc-${f.uid})" preserveAspectRatio="xMidYMid slice" style="filter:${portraitTint(f.statId)}"/>` : `<rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" fill="#5b2a22"/><text x="${cx}" y="${cy + 10}" class="ab-letter">${esc(stat.name[0])}</text>`}
         <rect x="${cx - hw}" y="${cy - hh}" width="${2 * hw}" height="${2 * hh}" rx="${rx}" ${ring}/></g>`;
     }
     for (const h of st.setup.heroes) {

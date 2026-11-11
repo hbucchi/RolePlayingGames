@@ -17,7 +17,7 @@ import {
   immobile, conditionLabels, escapeBonus, canWrestle, BOUND_TEXT,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { monsterPortrait, bodyUrl, bodyScale, BODY_TINT } from '../content/media.js';
+import { monsterPortrait, bodyUrl, bodyScale, BODY_TINT, portraitTint } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
 import { getFigures, getSetting, setSetting, settingsControls, PACE_FACTOR } from './settings.js';
@@ -1599,7 +1599,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function tokenLook(e, hero, state) {
     return {
       img: hero ? e.look?.url : portraitOf(e),
-      filter: hero ? (e.look?.filter ?? 'none') : e.cond?.petrified ? 'grayscale(1) brightness(0.85) contrast(1.2)' : 'none',
+      filter: hero ? (e.look?.filter ?? 'none') : e.cond?.petrified ? 'grayscale(1) brightness(0.85) contrast(1.2)' : (e.portrait ? 'none' : portraitTint(e.statId)),
       ring: hero ? (e.look?.frameColor ?? '#e9c46a') : e.side === 'ally' ? '#5fbf6a' : e.side === 'captive' ? '#d4b35a' : e.calm ? '#9aa3ad' : '#c94a3a',
       hpFrac: Math.max(0, e.hp / e.maxHp),
       cls: `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}${e.size && !isSquare(e.size) ? ' tk-rect' : ''}`,

@@ -46,14 +46,27 @@ export function preload(keys) {
  */
 export function monsterVoice(stat) {
   if (!stat) return 'goblin';
-  if (/spider|ettercap|weaver/i.test(stat.id)) return 'spider';
-  if (/bat/.test(stat.id)) return 'bat';
-  if (/^amazon-/.test(stat.id)) return 'hero-high'; // the Amazons' war cries
-  if (stat.id === 'shadowflame-tyrant' || /demon|balor/.test(stat.id)) return 'demon';
-  if (stat.type === 'dragon' || /dragon|drake|wyrm/.test(stat.id)) return 'dragon';
-  if (/wolf|worg|warg/.test(stat.id)) return 'wolf';
-  if (/orc|ogre/.test(stat.id)) return 'orc';
-  return stat.size === 'Tiny' || stat.size === 'Small' || stat.size === 'Medium' ? 'goblin' : 'boss';
+  const id = stat.id; const t = stat.type; const small = stat.size === 'Tiny' || stat.size === 'Small';
+  // Creepy-crawlies hiss and click.
+  if (/spider|ettercap|weaver|drider|scorpion|centipede|beetle|wasp|insect|ankheg|carrion|rust-monster|stirge|brood-queen/.test(id)) return 'spider';
+  if (/(^|-)bats?(-|$)|crag-bat/.test(id)) return 'bat';
+  // Women's voices: the Amazons, hags, medusae, dryads...
+  if (/^amazon-|hag|medusa|lamia|harpy|dryad|succubus|erinyes|princess|merfolk|sprite|naga|gynosphinx/.test(id)) return 'hero-high';
+  if (id === 'shadowflame-tyrant' || /demon|balor/.test(id)) return 'demon';
+  if (t === 'fiend') return small ? 'goblin' : /hound|nightmare/.test(id) ? 'beast' : 'demon';
+  if (t === 'dragon' || /dragon|drake|wyrm|wyvern|hydra|behir|basilisk|tarrasque|remorhaz|purple-worm|chimera/.test(id)) return 'dragon';
+  if (/wolf|worg|warg|jackal|hyena|mastiff|death-dog|gnoll/.test(id)) return 'wolf';
+  if (/orc|ogre|bugbear|hobgoblin|troll|ettin|oni|minotaur/.test(id)) return 'orc';
+  if (/eagle|hawk|owl|raven|vulture|roc$|griffon|hippogriff|cockatrice|axe-beak|pteranodon|crows|couatl/.test(id)) return 'bird';
+  if (t === 'undead') return 'undead';
+  if (t === 'elemental' || /treant|tree|gargoyle/.test(id)) return 'elemental';
+  if (t === 'construct') return 'construct';
+  if (t === 'ooze' || t === 'aberration' || /shambling|shrub|fungus|shrieker|mimic|roper|piercer|darkmantle/.test(id)) return 'ooze';
+  if (t === 'humanoid') return /goblin|kobold|pit-runt|grimlock|gnome|lizardfolk|sahuagin|creeper/.test(id) ? 'goblin' : 'hero-low';
+  if (t === 'celestial' || t === 'fey') return 'hero-high';
+  if (t === 'giant') return 'boss';
+  if (t === 'beast' || t === 'monstrosity') return small ? 'bat' : 'beast';
+  return small || stat.size === 'Medium' ? 'goblin' : 'boss';
 }
 
 export const SOUND_KEYS = [
@@ -64,6 +77,8 @@ export const SOUND_KEYS = [
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
   'whip-crack', 'goblin-laugh',
+  'beast-attack', 'beast-hurt', 'bird-attack', 'bird-hurt', 'undead-attack', 'undead-hurt', 'elemental-attack', 'elemental-hurt',
+  'construct-attack', 'construct-hurt', 'ooze-attack', 'ooze-hurt',
   'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',
 ];
 
@@ -73,5 +88,7 @@ export function voiceSound(voice, what) {
   if (voice === 'boss') return what === 'attack' ? 'boss-roar' : 'boss-hurt';
   if (voice === 'demon') return what === 'attack' ? 'demon-roar' : 'boss-hurt';
   if (voice === 'dragon') return what === 'attack' ? 'dragon-attack' : 'dragon-hurt';
+  // The newer families have an attack and a hurt sound; dying uses the hurt one.
+  if (['beast', 'bird', 'undead', 'elemental', 'construct', 'ooze'].includes(voice)) return `${voice}-${what === 'attack' ? 'attack' : 'hurt'}`;
   return `${voice}-${what}`;
 }

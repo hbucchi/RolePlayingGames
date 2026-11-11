@@ -1,3 +1,4 @@
+import { FAMILY_PORTRAITS, FAMILY_BODIES, FAMILY_TINTS } from './art-families.js';
 /**
  * Portraits and their look. Images were generated with ElevenLabs from each character's
  * description; every portrait has 4 variations. A hero's look is stored as choices
@@ -101,6 +102,14 @@ export const BODY_TINT = {
 /** Bodies whose picture includes a long weapon (spear, bow) are drawn larger, so the figure itself fills its square. */
 export const BODY_SCALE = { 'body-amazon-spear': 1.55, 'body-amazon-queen': 1.5, 'body-amazon-archer': 1.35, 'body-amazon-huntress': 1.2, 'body-sorcerer': 1.15, 'body-necromancer': 1.15 };
 export const bodyScale = (key) => BODY_SCALE[BODIES[key]] ?? 1;
+// Every other creature: its family's painting and body, with its own tint.
+for (const [id, key] of Object.entries(FAMILY_PORTRAITS)) MONSTER_PORTRAITS[id] ??= key;
+for (const [id, key] of Object.entries(FAMILY_BODIES)) BODIES[id] ??= key;
+for (const [id, tint] of Object.entries(FAMILY_TINTS)) BODY_TINT[id] ??= tint;
+/** Tints for creatures that borrow a family painting (applied to tokens and bestiary pictures). */
+export const PORTRAIT_TINT = Object.fromEntries(Object.entries(FAMILY_TINTS).filter(([id]) => MONSTER_PORTRAITS[id] === FAMILY_PORTRAITS[id]));
+export const portraitTint = (statId) => PORTRAIT_TINT[statId] || 'none';
+
 export const bodyUrl = (key) => (BODIES[key] ? `assets/bodies/${BODIES[key]}.png` : null);
 
 export const monsterPortrait = (statId, n = 1) => (MONSTER_PORTRAITS[statId] ? portraitUrl(MONSTER_PORTRAITS[statId], n) : null);
