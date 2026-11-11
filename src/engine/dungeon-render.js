@@ -114,12 +114,13 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
  * @param {object} [o]
  * @param {object|null} [o.textures]  {floor, rock, door} image URLs (or data: URIs); null = flat colours
  * @param {boolean} [o.grid=true]      draw the movement grid
- * @param {boolean} [o.labels=true]    room numbers and entrance
+ * @param {boolean} [o.labels=true]    stairs (and, unless roomNumbers is false, room numbers)
+ * @param {boolean} [o.roomNumbers]    the numbered circle in each room (defaults to labels)
  * @param {boolean} [o.coords=true]    column/row numbers in the rock border
  * @param {boolean} [o.doors=true]     draw doors (the game draws them itself, open or closed)
  */
 export function renderDungeonSVG(map, o = {}) {
-  const { textures = DEFAULT_TEXTURES, grid = true, labels = true, coords = true, doors = true, idPrefix = 'dg' } = o;
+  const { textures = DEFAULT_TEXTURES, grid = true, labels = true, coords = true, doors = true, idPrefix = 'dg', roomNumbers = labels } = o;
   const S = map.cellSize;
   const W = map.width * S; const H = map.height * S;
   const id = (n) => `${idPrefix}-${n}`;
@@ -151,7 +152,7 @@ export function renderDungeonSVG(map, o = {}) {
     ${Array.from({ length: map.height - 2 }, (_, i) => i + 1).map((y) => `<text x="${S * 0.5}" y="${(y + 0.5) * S + S * 0.11}">${y}</text>`).join('')}
   </g>`;
 
-  const roomLabels = !labels ? '' : map.rooms.map((r) => {
+  const roomLabels = !roomNumbers ? '' : map.rooms.map((r) => {
     const cx = (r.x + r.w / 2) * S; const cy = (r.y + r.h / 2) * S;
     return `<g class="room-label"><circle cx="${cx}" cy="${cy}" r="${S * 0.34}" fill="#f1e6cc" fill-opacity=".9" stroke="#3a2a18" stroke-width="3"/>
       <text x="${cx}" y="${cy + S * 0.13}" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="${S * 0.38}" fill="#3a2a18">${r.id}</text></g>`;

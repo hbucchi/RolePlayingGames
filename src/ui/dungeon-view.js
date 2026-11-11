@@ -90,6 +90,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     res: null, buffs: {}, bonusUsed: false, attacksLeft: 0, sneakUsed: false, disengaged: false, sneak: null, pending: null, blast: null, longRested: false,
   };
 
+  /** Whether rooms show their numbers (remembered between visits; on unless turned off). */
+  function roomNumbersPref() { try { return localStorage.getItem('rpg.roomNumbers') !== '0'; } catch { return true; } }
+  s.roomNumbers = roomNumbersPref();
+
   host.innerHTML = `
     <div class="dg-topbar">
       <div class="dg-group dg-partypick" ${arena ? 'hidden' : ''}>
@@ -118,6 +122,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
         <label class="dg-check"><input id="dg-grid" type="checkbox" data-dg="grid" checked> Grid</label>
+        <label class="dg-check" title="Show the number of each room on the map"><input id="dg-roomnums" type="checkbox" data-dg="room-numbers" ${roomNumbersPref() ? 'checked' : ''}> Room numbers</label>
         <label class="dg-check" title="Narrator view: show the whole map and every monster"><input id="dg-reveal" type="checkbox" data-dg="reveal"> Reveal map</label>
       </div>
     </div>
@@ -393,7 +398,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.seed = Math.max(1, Math.floor(seed) || 1);
     s.map = arena ? arena.map : generateDungeon(s.seed);
     $('#dg-seed').value = s.seed;
-    base.innerHTML = arena ? renderArenaSVG(s.map, { grid: s.grid }) : renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
+    base.innerHTML = arena ? renderArenaSVG(s.map, { grid: s.grid }) : renderDungeonSVG(s.map, { grid: s.grid, labels: true, roomNumbers: s.roomNumbers, doors: false });
     overlay.setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`);
     $('.dg-fx').setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`); // blood spray and other quick effects
     resetDelve(carry);
@@ -444,7 +449,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Furniture for each room (props.js), kept clear of chests, stairs, traps and creatures.
       const busy = new Set([...avoid, ...(s.features.traps ?? []).map((t) => cellKey(t.x, t.y)), ...s.monsters.flatMap((m) => cellsOf(m.pos, m.size ?? 1).map((c) => cellKey(c.x, c.y)))]);
       furnishDungeon(s.map, s.seed, busy);
-      base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
+      base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, roomNumbers: s.roomNumbers, doors: false });
     }
     s.sneak = null; s.longRested = false; s.effects = []; s.vfx = []; s.blood = []; s.map.temp = new Map(); s.areaFx = null;
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
@@ -1437,7 +1442,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'seed': newDungeon(Number(el.value)); break;
       case 'grid':
         s.grid = el.checked;
-        base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
+        base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, roomNumbers: s.roomNumbers, doors: false });
+        break;
+      case 'room-numbers':
+        s.roomNumbers = el.checked;
+        try { localStorage.setItem('rpg.roomNumbers', el.checked ? '1' : '0'); } catch { /* storage blocked: still works for this visit */ }
+        base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, roomNumbers: s.roomNumbers, doors: false });
         break;
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
