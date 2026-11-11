@@ -131,7 +131,6 @@ export function installPanels(ctx) {
       : `<b>Exploring</b><span>${esc(h.name)} leads</span>`;
     return `<div class="act-status ${myTurn ? 'mine' : ''}">${status}</div>
       <div class="act-buttons">
-        ${combat ? btn('end-turn', '⏭', 'End turn', { primary: true, key: 'Space', why: busy, hint: 'Finish your turn: the next creature in the initiative order acts' }) : ''}
         ${combat ? btn('dash', '💨', 'Dash', { why: busy || (s.actionUsed ? 'your action is spent' : ''), hint: 'Use your action to double your movement this turn' }) : ''}
         ${btn('search', '🔍', 'Search', { key: 'F', why: busy, hint: `Perception or Investigation (your better one) against hidden traps and secret doors nearby${combat ? '. Uses your action.' : ''}` })}
         ${btn('inventory', '🎒', 'Pack', { key: 'I', hint: 'Open your pack: equip, use potions, drop' })}
@@ -140,6 +139,7 @@ export function installPanels(ctx) {
         ${btn('sneak', '👣', s.sneak ? `Sneaking (${s.sneak.total})` : 'Sneak', { why: combat ? 'not during a fight' : '', hint: 'Stealth check: foes whose passive Perception is lower will not notice you' })}
         ${btn('rest-short', '☾', 'Short rest', { extra: `${s.res.hitDice} HD`, why: combat ? 'not during a fight' : '', hint: 'Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.' })}
         ${btn('rest-long', '☀', 'Long rest', { why: combat ? 'not during a fight' : s.longRested ? 'once per floor' : '', hint: 'Full recovery, once per floor. 1 in 3 chance of wandering monsters.' })}
+        ${combat ? btn('end-turn', '⏭', 'End turn', { primary: true, key: 'Space', why: busy, hint: 'Finish your turn: the next creature in the initiative order acts' }) : ''}
       </div>`;
   }
 

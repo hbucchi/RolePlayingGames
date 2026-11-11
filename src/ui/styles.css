@@ -772,7 +772,9 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .act-status b { font-family: var(--font-display); font-size: 1rem; }
 .act-status span { color: var(--muted); font-size: .85rem; }
 .act-status.mine b { color: var(--accent); }
-.act-buttons { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+/* Every action button the same size: an even grid, End turn last. */
+.act-buttons { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; flex: 1; }
+.act-buttons .act-btn { justify-content: center; }
 .act-btn {
   display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px;
   font: 700 1.02rem/1.1 var(--font-display); color: var(--ink); cursor: pointer;
@@ -786,9 +788,9 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .act-btn .act-ico { font-size: 1.25rem; }
 .act-btn small { color: var(--muted); font-weight: 400; }
 .act-btn kbd { font: .7rem/1 ui-monospace, monospace; padding: 3px 5px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); background: var(--bg); }
-.act-btn.primary { background: var(--accent); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 70%, #000); font-size: 1.1rem; padding: 6px 20px; }
-.act-btn.primary kbd { color: var(--accent-ink); border-color: currentColor; background: transparent; }
-.act-status.mine + .act-buttons .act-btn.primary:not(:disabled) { animation: act-glow 1.8s ease-in-out infinite; }
+/* End turn: the last button, the same size as the rest; only a coloured edge marks it. */
+.act-btn.primary { border-color: var(--accent); border-bottom-color: color-mix(in srgb, var(--accent) 70%, #000); }
+.act-btn.primary .act-label { color: var(--accent); }
 @keyframes act-glow { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 10px rgb(0 0 0 / .2); } }
 @media (prefers-reduced-motion: reduce) { .act-btn.primary { animation: none !important; } }
 @media (max-width: 640px) {
@@ -1097,8 +1099,7 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .dg-mapwrap > .dg-viewport { order: -1; height: min(72svh, 640px); }
   .dg-mapwrap > .dg-actionbar { position: static; margin: 8px 0 0; padding: 8px; }
   .dg-mapwrap > .dg-help { display: none; }
-  .act-buttons { gap: 6px; }
+  .act-buttons { gap: 6px; grid-template-columns: repeat(3, 1fr); }
   .act-btn { flex: 1 1 calc(33.333% - 6px); min-height: 42px; padding: 4px 6px; gap: 4px; font-size: .88rem; flex-direction: column; }
   .act-btn .act-ico { font-size: 1.15rem; }
-  .act-btn.primary { flex-basis: 100%; flex-direction: row; font-size: 1rem; }
 }
