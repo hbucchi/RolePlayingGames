@@ -81,7 +81,11 @@ export function placeFeatures(map, seed, level = 1) {
   for (const d of map.doors) {
     const k = cellKey(d.x, d.y);
     if (secretDoors.has(k) || rng(100) >= 18) continue;
-    locks.set(k, { dc: 10 + rng(5) + tier });
+    // Most locked doors are oak (easy to force, but loud if you botch it); about one in five, more
+    // deeper down, is iron (almost impossible to force). From a hash of the square, so the rest of
+    // the dungeon's dice stay the same.
+    const iron = (((d.x * 73856093) ^ (d.y * 19349663)) >>> 0) % 100 < 18 + tier * 4;
+    locks.set(k, { dc: 10 + rng(5) + tier, material: iron ? 'iron' : 'wood' });
   }
 
   // Chests: about a third of the rooms, against a wall, away from doors.
@@ -152,4 +156,16 @@ export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = 
     }
   }
   return monsters;
+}
+
+/**
+ * Forcing something open (Athletics). Oak doors give way easily (DC 9 + tier): the check only
+ * decides whether you ease it open quietly or splinter it with a crash. Iron doors barely move
+ * (DC 22 + tier). Chests and shackles: the lock's DC + 2.
+ * Botched attempts are loud: foes within NOISE.fail squares hear it, NOISE.fumble on a natural 1.
+ */
+export const NOISE = { fail: 10, fumble: 15 };
+export function forceDc(lock, kind = 'door') {
+  if (kind !== 'door') return lock.dc + 2;
+  return lock.material === 'iron' ? 22 + Math.max(0, lock.dc - 10 - 4) : 9 + Math.max(0, Math.min(4, lock.dc - 10) >> 1);
 }

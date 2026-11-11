@@ -13,7 +13,7 @@ import { cellKey, reachableSquares } from '../../engine/movement.js';
 import { blockDistance } from '../../engine/size.js';
 import { rollChestLoot } from '../../engine/loot.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
-import { skillCheck } from '../../engine/features.js';
+import { skillCheck, forceDc, NOISE } from '../../engine/features.js';
 
 export function installActions(ctx) {
   const { s, signed } = ctx;
@@ -129,7 +129,7 @@ export function installActions(ctx) {
   function lockOf(t) {
     if (t.kind === 'creature') { const m = s.monsters.find((x) => x.id === t.id); return m?.cond?.bound?.dc ? { dc: m.cond.bound.dc, obj: m } : null; }
     if (t.kind === 'chest') { const c = s.features.chests.find((x) => x.id === t.id); return c?.locked ? { dc: c.dc, obj: c } : null; }
-    const l = s.features.locks.get(t.id); return l ? { dc: l.dc, obj: l } : null;
+    const l = s.features.locks.get(t.id); return l ? { dc: l.dc, material: l.material ?? 'wood', obj: l } : null;
   }
 
   function unlock(t) {
@@ -157,18 +157,33 @@ export function installActions(ctx) {
   }
 
   /** Force a lock: Strength (Athletics). A crowbar gives advantage. It is loud: nearby foes come to look. */
+  /**
+   * Force a lock with Athletics (features.js: forceDc). An oak door always gives way: success eases
+   * it open quietly, failure splinters it open with a crash. Iron doors, chests and shackles open
+   * only on a success. Any failure is loud: foes within 10 squares hear it, 15 on a natural 1.
+   */
   function forceLock(t) {
     const lock = lockOf(t); if (!lock) return;
     if (!spendAction('Forcing a lock')) return;
     const bonus = s.hero.skills.athletics ?? 0;
     const bar = !!findItem(s.draft.inventory, 'crowbar');
-    const c = heroCheck(bonus, lock.dc + 2, { mode: bar ? 'advantage' : 'normal' });
-    play(c.ok ? 'door-open' : 'swing-miss', { volume: 0.9 });
-    if (c.ok) { unlock(t); ctx.awardXp(skillXp(lock.dc + 2, s.def.level), s.hero.pos); }
-    const text = `${checkText(`Athletics${bar ? ' (crowbar: advantage)' : ''}`, c)}. ${c.ok ? `${lockLabel(t)[0].toUpperCase()}${lockLabel(t).slice(1)} ${t.kind === 'creature' ? 'burst' : 'bursts'} open with a crash!` : 'It holds.'}`;
-    ctx.log(`${s.hero.name} tries to force ${lockLabel(t)}. ${text}`, c.ok ? 'good' : 'info');
+    const dc = forceDc(lock, t.kind);
+    const c = heroCheck(bonus, dc, { mode: bar ? 'advantage' : 'normal' });
+    const wood = t.kind === 'door' && lock.material !== 'iron';
+    const fumble = !c.ok && c.d20 === 1;
+    const opens = c.ok || wood;
+    play(opens ? 'door-open' : 'swing-miss', { volume: c.ok ? 0.6 : 0.95 });
+    if (opens) unlock(t);
+    if (c.ok) ctx.awardXp(skillXp(dc, s.def.level), s.hero.pos);
+    const what = lockLabel(t); const What = `${what[0].toUpperCase()}${what.slice(1)}`;
+    const outcome = c.ok
+      ? (t.kind === 'door' ? `${What} gives way quietly.` : `${What} ${t.kind === 'creature' ? 'burst' : 'bursts'} open.`)
+      : wood ? `${What} splinters open with a crash${fumble ? ' that echoes far down the halls' : ''}!`
+        : `${What} holds, and the clang rings out${fumble ? ' far and wide' : ''}.`;
+    const text = `${checkText(`Athletics${bar ? ' (crowbar: advantage)' : ''}`, c)}. ${outcome}`;
+    ctx.log(`${s.hero.name} tries to force ${what}. ${text}`, c.ok ? 'good' : opens ? 'warn' : 'info');
     s.lastCheck = { text, ok: c.ok };
-    makeNoise(8);
+    if (!c.ok) makeNoise(fumble ? NOISE.fumble : NOISE.fail);
     ctx.persist(); ctx.redraw();
   }
 

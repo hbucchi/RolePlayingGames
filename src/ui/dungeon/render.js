@@ -235,7 +235,8 @@ export function installRender(ctx) {
       if (!open) {
         const vertical = d.orientation === 'h';
         const w = vertical ? sz * 0.26 : sz * 0.94; const h = vertical ? sz * 0.94 : sz * 0.26;
-        out += `<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="3" class="door-closed"/>`;
+        const iron = s.features?.locks?.get(k)?.material === 'iron'; // iron doors look like iron
+        out += `<rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="3" class="door-closed ${iron ? 'door-iron' : ''}"/>`;
         out += vertical ? `<line x1="${cx}" y1="${cy - h / 2 + 6}" x2="${cx}" y2="${cy + h / 2 - 6}" class="door-plank"/>` : `<line x1="${cx - w / 2 + 6}" y1="${cy}" x2="${cx + w / 2 - 6}" y2="${cy}" class="door-plank"/>`;
       } else {
         // Open: the slab swings against the wall at one edge of the doorway.

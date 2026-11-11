@@ -286,6 +286,7 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .fog-dark { fill: #050407; }
 .fog-dim { fill: #050407; fill-opacity: .55; }
 .door-closed { fill: #6b4423; stroke: #1c0f06; stroke-width: 4; }
+.door-closed.door-iron { fill: #5d6266; stroke: #15181a; }
 .door-plank { stroke: #3a220f; stroke-width: 3; }
 .door-open { fill: #5a3a1e; stroke: #1c0f06; stroke-width: 3; opacity: .9; }
 .dg-reach { fill: #f0c75e; fill-opacity: .16; stroke: #f0c75e; stroke-opacity: .55; stroke-width: 2; }
@@ -897,7 +898,7 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .cmp-start { max-width: 52rem; margin: 0 auto; }
 .cmp-start-map { width: 100%; border-radius: 12px; border: 2px solid #6b4f1d; box-shadow: var(--shadow); }
 .cmp-blurb { font-size: 1.15rem; margin: 0; }
-.campaign-card { background-size: cover; background-position: center; border-color: var(--gold); }
+.campaign-card { border-color: var(--gold); } /* same card as the arena and the dungeons, with a gold edge */
 
 /* ---- Talking with people in a place ----------------------------------------------------------- */
 .npc-card { display: grid; gap: 10px; }
@@ -1075,3 +1076,19 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px; background: #2f4a22; color: #f4efe2; font-weight: 700;
   box-shadow: 0 6px 20px rgb(0 0 0 / .35); }
 .offline-toast[hidden] { display: none; }
+
+/* Phones: the map comes first. Everything else (actions, then the dungeon's settings, then the hero
+   card and the log) follows below it, so the game opens on the board, not on a wall of buttons. */
+@media (max-width: 760px) {
+  .dungeon-host { display: flex; flex-direction: column; }
+  .dungeon-host > .dg-topbar { order: 2; margin: 10px 0 4px; }
+  .dungeon-host > .dg-layout { order: 1; }
+  .dg-mapwrap { display: flex; flex-direction: column; }
+  .dg-mapwrap > .dg-viewport { order: -1; height: min(72svh, 640px); }
+  .dg-mapwrap > .dg-actionbar { position: static; margin: 8px 0 0; padding: 8px; }
+  .dg-mapwrap > .dg-help { display: none; }
+  .act-buttons { gap: 6px; }
+  .act-btn { flex: 1 1 calc(33.333% - 6px); min-height: 42px; padding: 4px 6px; gap: 4px; font-size: .88rem; flex-direction: column; }
+  .act-btn .act-ico { font-size: 1.15rem; }
+  .act-btn.primary { flex-basis: 100%; flex-direction: row; font-size: 1rem; }
+}

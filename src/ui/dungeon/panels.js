@@ -16,7 +16,7 @@ import { sensesText } from '../../engine/monsters.js';
 import { TALKS, resolveOf, insightOf, contestChance, talkOptions, PATIENCE, rollTalk } from '../../engine/talk.js';
 import { cellsOf } from '../../engine/size.js';
 import { TILE, roomAt } from '../../engine/dungeon.js';
-import { checkChance } from '../../engine/features.js';
+import { checkChance, forceDc } from '../../engine/features.js';
 import { xpProgress } from '../../engine/progression.js';
 import { settingsControls } from '../settings.js';
 import { monsterPortrait } from '../../content/media.js';
@@ -505,11 +505,11 @@ export function installPanels(ctx) {
     const near = (p) => chebyshev(s.hero.pos, p) <= 1;
     const combatNote = s.mode === 'combat' ? ' · uses your action' : '';
     const tools = ctx.hasTools();
-    const lockButtons = (lock) => `
+    const lockButtons = (lock, kind = 'chest') => { const fdc = forceDc(lock, kind); const athl = s.hero.skills.athletics ?? 0; const wood = kind === 'door' && lock.material !== 'iron'; return `
       <div class="studies">
         <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the lock</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${lock.dc} · ${Math.round(checkChance(s.def.toolBonus, lock.dc) * 100)}%</span><span>${tools ? `Thieves' tools (${tools.charges ?? '∞'} picks)${combatNote}` : 'Needs thieves\' tools'}</span></button>
-        <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(s.hero.skills.athletics ?? 0)} vs DC ${lock.dc + 2}${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>Loud: nearby foes will hear${combatNote}</span></button>
-      </div>`;
+        <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(athl)} vs DC ${fdc} · ${Math.round(checkChance(athl, fdc) * 100)}%${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>${wood ? 'It will give way: succeed to open it quietly, fail and it crashes open (foes within 10 squares hear)' : `Fail and foes within 10 squares hear the clang${kind === 'door' ? '. Iron: almost impossible' : ''}`}${combatNote}</span></button>
+      </div>`; };
     if (t.kind === 'corpse-ask') {
       // Clicked a square with a body (or a pile of them): search, or just step there?
       const bodies = (t.ids ?? []).map((id) => s.monsters.find((x) => x.id === id)).filter(Boolean);
@@ -557,7 +557,7 @@ export function installPanels(ctx) {
       if (!lock) return '';
       const [x, y] = t.id.split(',').map(Number);
       if (!near({ x, y })) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small muted">Move next to the door to work on its lock.</p></div>`;
-      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small">An oak door bound in iron. It will not budge.</p>${lockButtons(lock)}</div>`;
+      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked ${lock.material === 'iron' ? 'iron door' : 'door'}</h3>${close}</div><p class="small">${lock.material === 'iron' ? 'A door of solid iron, riveted and cold. Forcing it would take a giant\'s strength; better to pick the lock.' : 'An old oak door with a rusty lock. A good shoulder would break it, but not quietly.'}</p>${lockButtons(lock, 'door')}</div>`;
     }
     if (t.kind === 'trap') {
       const tr = s.features.traps.find((x) => x.id === t.id);

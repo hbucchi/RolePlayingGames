@@ -344,7 +344,7 @@ function adventuresView() {
       <h1>Adventures</h1>
       <p class="muted">Choose a tale and bring your company. Full adventures are on the way; the sandbox lets you explore generated dungeons now.</p>
       <div class="card-grid">
-        ${CAMPAIGNS.map((cp) => `<article class="card adventure campaign-card" style="background-image:linear-gradient(rgb(251 246 234 / .9), rgb(251 246 234 / .96)), url('${esc(cp.map.image)}')">
+        ${CAMPAIGNS.map((cp) => `<article class="card adventure campaign-card">
           <div class="card-head"><h3>${esc(cp.title)}</h3><span class="badge">Campaign</span></div>
           <p>${esc(cp.blurb)}</p>
           <p class="muted small">Levels ${esc(cp.levels)} · a world map, 6 places, a quest</p>
