@@ -15,17 +15,17 @@
 
 const GP = 100; const SP = 10;
 const icon = (id) => `assets/items/${id}.jpg`;
-const ICONS = new Set([
-  'longsword', 'shortsword', 'long-knife', 'longbow', 'shortbow', 'sling', 'quarterstaff', 'spear', 'scimitar',
-  'leather', 'chain-mail', 'scale-mail', 'shield', 'hooded-cloak', 'dagger', 'bandage', 'potion-healing', 'thieves-tools',
-  'copper', 'silver', 'gold', 'rope', 'torch', 'arrows', 'iron-ore', 'oak-log', 'spider-silk',
-  // Jewellery (tools/art sheet j1)
-  'gold-ring', 'ring-of-protection', 'ruby-ring', 'sapphire-ring', 'fox-ring', 'sentinel-ring', 'copper-bangle', 'silver-bracelet',
-  'bracers-of-defence', 'silver-pendant', 'sun-amulet', 'amulet-of-warding',
-]);
+// Every item has its own picture in assets/items/<id>.jpg (tests/items-art.test.js checks it);
+// an item may borrow another's with icon: icon('other-id').
+
 
 const items = [];
-const add = (o) => { items.push({ rarity: 'common', stack: false, weight: 0, value: 0, glyph: '•', ...o, icon: o.icon ?? (ICONS.has(o.id) ? icon(o.id) : null) }); };
+// Nothing weighs nothing: small things get a small weight (in pounds) so every item counts.
+const SMALLEST = { ring: 0.05, gem: 0.05, neck: 0.1, wrist: 0.2, weapon: 0.25, tool: 0.2 };
+const add = (o) => {
+  const weight = o.weight > 0 ? o.weight : SMALLEST[o.slot] ?? SMALLEST[o.cat] ?? 0.1;
+  items.push({ rarity: 'common', stack: false, value: 0, glyph: '•', ...o, weight, icon: o.icon ?? icon(o.id) });
+};
 
 // ---------------------------------------------------------------------------
 // Weapons. damage: base die; props mirror the SRD weapon properties.
@@ -101,7 +101,7 @@ const armor = (id, name, type, base, value, weight, extra = {}) => add({
 armor('padded', 'Padded gambeson', 'light', 11, 5 * GP, 8, { stealthDis: true });
 armor('leather', 'Leather jerkin', 'light', 11, 10 * GP, 10, { desc: 'Boiled leather, oiled against the rain. Light armour: AC 11 + your DEX modifier.' });
 armor('studded-leather', 'Studded leather', 'light', 12, 45 * GP, 13);
-armor('hide', 'Hide armour', 'medium', 12, 10 * GP, 12);
+armor('hide-armour', 'Hide armour', 'medium', 12, 10 * GP, 12);
 armor('chain-shirt', 'Chain shirt', 'medium', 13, 50 * GP, 20);
 armor('scale-mail', 'Scale coat', 'medium', 14, 50 * GP, 45, { stealthDis: true, desc: 'Overlapping bronze scales on a leather coat. Medium armour: AC 14 + DEX (max 2); noisy.' });
 armor('breastplate', 'Breastplate', 'medium', 14, 400 * GP, 20);
@@ -124,9 +124,9 @@ add({ id: 'bandage', name: 'Bandage', cat: 'consumable', stack: true, weight: 0.
 add({ id: 'potion-healing', name: 'Potion of healing', cat: 'consumable', stack: true, weight: 0.5, value: 50 * GP, glyph: '🧪', use: { kind: 'heal', dice: '2d4+2' },
   desc: 'A red cordial that glimmers when shaken. Drink it to regain 2d4 + 2 hit points. Takes your action in combat.' });
 add({ id: 'potion-greater-healing', name: 'Potion of greater healing', cat: 'consumable', rarity: 'uncommon', stack: true, weight: 0.5, value: 150 * GP, glyph: '🧪', use: { kind: 'heal', dice: '4d4+4' },
-  icon: icon('potion-healing'), desc: 'A deeper red draught. Regain 4d4 + 4 hit points.' });
+  desc: 'A deeper red draught. Regain 4d4 + 4 hit points.' });
 add({ id: 'potion-superior-healing', name: 'Potion of superior healing', cat: 'consumable', rarity: 'rare', stack: true, weight: 0.5, value: 450 * GP, glyph: '🧪', use: { kind: 'heal', dice: '8d4+8' },
-  icon: icon('potion-healing'), desc: 'A crimson elixir that burns like summer. Regain 8d4 + 8 hit points.' });
+  desc: 'A crimson elixir that burns like summer. Regain 8d4 + 8 hit points.' });
 add({ id: 'waybread', name: 'Elven waybread', cat: 'consumable', rarity: 'uncommon', stack: true, weight: 0.2, value: 5 * GP, glyph: '🍞', use: { kind: 'heal', dice: '1d6+1' },
   desc: 'Thin golden cakes wrapped in leaves. One bite heartens a weary traveller (regain 1d6 + 1 hit points).' });
 add({ id: 'kingsfoil', name: 'Kingsfoil leaf', cat: 'consumable', stack: true, weight: 0.05, value: 2 * SP, glyph: '🌿', use: { kind: 'heal', dice: '1d4' },
@@ -143,7 +143,7 @@ tool('thieves-tools', 'Thieves\' tools', 25 * GP, 1, 'Picks, a small mirror, nar
 tool('healers-kit', 'Healer\'s kit', 5 * GP, 3, 'Salves, splints and a needle. While you carry it, you bandage with advantage on your Medicine check.', { glyph: '✚' });
 tool('crowbar', 'Crowbar', 2 * GP, 5, 'A bar of iron with a flattened end. Gives advantage on Strength checks to force doors and chests open.', { glyph: '🔩' });
 tool('rope', 'Hempen rope (50 ft)', 1 * GP, 10, 'Fifty feet of strong hemp. Used to climb out of pits and down shafts.', { glyph: '➰' });
-tool('elven-rope', 'Elven rope (30 ft)', 20 * GP, 2, 'Grey, silken and astonishingly strong. Knots seem to untie themselves when you call them.', { rarity: 'uncommon', glyph: '➰', icon: icon('rope') });
+tool('elven-rope', 'Elven rope (30 ft)', 20 * GP, 2, 'Grey, silken and astonishingly strong. Knots seem to untie themselves when you call them.', { rarity: 'uncommon', glyph: '➰' });
 tool('torch', 'Torch', 1, 1, 'A pitch-soaked torch that burns for an hour.', { stack: true, glyph: '🔥' });
 tool('lantern', 'Hooded lantern', 5 * GP, 2, 'An oil lantern with a shutter to hide its light.', { glyph: '🏮' });
 tool('tinderbox', 'Tinderbox', 5 * SP, 1, 'Flint, fire steel and tinder.', { glyph: '🔥' });
@@ -181,20 +181,20 @@ items[items.length - 1].quest = true; // a quest item: traders will not buy it
 const res = (id, name, value, weight, desc, extra = {}) => add({ id, name, cat: 'resource', stack: true, value, weight, desc, glyph: '◆', ...extra });
 // Woods (from common to precious)
 res('oak-log', 'Oak log', 2, 2, 'Hard, heavy oak. Good for shields, clubs and chests.', { glyph: '🪵' });
-res('ash-log', 'Ash log', 3, 2, 'Springy ash, the wood of spear-shafts and staves.', { glyph: '🪵', icon: icon('oak-log') });
+res('ash-log', 'Ash log', 3, 2, 'Springy ash, the wood of spear-shafts and staves.', { glyph: '🪵' });
 res('beech-log', 'Beech log', 2, 2, 'Pale, even-grained beech for tools and bowls.', { glyph: '🪵', icon: icon('oak-log') });
-res('yew-log', 'Yew log', 8, 2, 'Red-hearted yew: the best wood for longbows.', { glyph: '🪵', rarity: 'uncommon', icon: icon('oak-log') });
-res('holly-log', 'Holly log', 10, 2, 'White, close-grained holly from the old elven lands. Takes fine carving.', { glyph: '🪵', rarity: 'uncommon', icon: icon('oak-log') });
-res('blackwood-log', 'Blackwood log', 30, 2, 'Dense black timber from deep in the old forest. Hard as iron.', { glyph: '🪵', rarity: 'rare', icon: icon('oak-log') });
-res('goldenwood-log', 'Goldenwood log', 120, 1, 'Silver-barked wood with golden leaves still clinging. Light, strong, and never rots.', { glyph: '🪵', rarity: 'very-rare', icon: icon('oak-log') });
+res('yew-log', 'Yew log', 8, 2, 'Red-hearted yew: the best wood for longbows.', { glyph: '🪵', rarity: 'uncommon' });
+res('holly-log', 'Holly log', 10, 2, 'White, close-grained holly from the old elven lands. Takes fine carving.', { glyph: '🪵', rarity: 'uncommon' });
+res('blackwood-log', 'Blackwood log', 30, 2, 'Dense black timber from deep in the old forest. Hard as iron.', { glyph: '🪵', rarity: 'rare' });
+res('goldenwood-log', 'Goldenwood log', 120, 1, 'Silver-barked wood with golden leaves still clinging. Light, strong, and never rots.', { glyph: '🪵', rarity: 'very-rare' });
 // Ores
 res('coal', 'Coal', 1, 1, 'Black fuel for the forge.', { glyph: '⬛' });
-res('copper-ore', 'Copper ore', 3, 1, 'Green-streaked rock rich in copper.', { glyph: '🪨', icon: icon('iron-ore') });
-res('tin-ore', 'Tin ore', 3, 1, 'Grey ore. With copper, it makes bronze.', { glyph: '🪨', icon: icon('iron-ore') });
+res('copper-ore', 'Copper ore', 3, 1, 'Green-streaked rock rich in copper.', { glyph: '🪨' });
+res('tin-ore', 'Tin ore', 3, 1, 'Grey ore. With copper, it makes bronze.', { glyph: '🪨' });
 res('iron-ore', 'Iron ore', 4, 1, 'Rust-red rock, the backbone of every smithy.', { glyph: '🪨' });
-res('silver-ore', 'Silver ore', 20, 1, 'Glittering ore that yields bright silver.', { glyph: '🪨', rarity: 'uncommon', icon: icon('iron-ore') });
-res('gold-ore', 'Gold ore', 60, 1, 'Heavy rock threaded with gold.', { glyph: '🪨', rarity: 'rare', icon: icon('iron-ore') });
-res('mithral-ore', 'Mithral ore', 500, 1, 'A few grains of true-silver: light as down, harder than steel. Worth more than its weight in gold.', { glyph: '🪨', rarity: 'very-rare', icon: icon('iron-ore') });
+res('silver-ore', 'Silver ore', 20, 1, 'Glittering ore that yields bright silver.', { glyph: '🪨', rarity: 'uncommon' });
+res('gold-ore', 'Gold ore', 60, 1, 'Heavy rock threaded with gold.', { glyph: '🪨', rarity: 'rare' });
+res('mithral-ore', 'Mithral ore', 500, 1, 'A few grains of true-silver: light as down, harder than steel. Worth more than its weight in gold.', { glyph: '🪨', rarity: 'very-rare' });
 res('iron-ingot', 'Iron ingot', 10, 1, 'A bar of smelted iron, ready for the anvil.', { glyph: '▬' });
 res('bronze-ingot', 'Bronze ingot', 8, 1, 'A bar of bronze.', { glyph: '▬' });
 // Animal and monster parts
@@ -228,14 +228,14 @@ gem('diamond', 'Diamond', 1000 * GP, 'very-rare', 'A white star of a stone.');
 const magic = (o) => add({ magic: true, ...o });
 magic({ id: 'ring-of-protection', name: 'Ring of protection', cat: 'jewelry', slot: 'ring', rarity: 'rare', weight: 0, value: 3500 * GP, glyph: '💍', acBonus: 1, saveBonus: 1,
   desc: 'A plain band of white gold. While worn: +1 to AC and saving throws.' });
-magic({ id: 'elven-cloak', name: 'Elven grey cloak', cat: 'clothing', slot: 'cloak', rarity: 'uncommon', weight: 1, value: 500 * GP, glyph: '🧥', icon: icon('hooded-cloak'), skillBonus: { stealth: 2 },
+magic({ id: 'elven-cloak', name: 'Elven grey cloak', cat: 'clothing', slot: 'cloak', rarity: 'uncommon', weight: 1, value: 500 * GP, glyph: '🧥', skillBonus: { stealth: 2 },
   desc: 'A cloak woven by elves. It takes on the colours of leaf and stone (+2 to Stealth while worn).' });
-magic({ id: 'mithral-shirt', name: 'Mithral shirt', cat: 'armor', slot: 'body', rarity: 'uncommon', weight: 10, value: 800 * GP, glyph: '🛡', icon: icon('chain-mail'),
+magic({ id: 'mithral-shirt', name: 'Mithral shirt', cat: 'armor', slot: 'body', rarity: 'uncommon', weight: 10, value: 800 * GP, glyph: '🛡',
   armor: { type: 'medium', base: 13, dexCap: 2, stealthDis: false, str: 0 }, desc: 'A shirt of tiny silver rings, light as linen. Medium armour (AC 13 + DEX, max 2) that never hinders stealth.' });
-magic({ id: 'barrow-blade', name: 'Barrow-blade of the old kings', cat: 'weapon', slot: 'mainHand', rarity: 'rare', weight: 2, value: 1000 * GP, glyph: '⚔', icon: icon('shortsword'), bonus: 1,
+magic({ id: 'barrow-blade', name: 'Barrow-blade of the old kings', cat: 'weapon', slot: 'mainHand', rarity: 'rare', weight: 2, value: 1000 * GP, glyph: '⚔', bonus: 1,
   weapon: { damage: '1d6', type: 'piercing', group: 'martial', props: ['finesse', 'light'], finesse: true, light: true },
   desc: 'A short blade from an ancient tomb, its steel etched with red-gold runes. A +1 weapon, forged long ago against the servants of the Shadow.' });
-magic({ id: 'glimmer-blade', name: 'Glimmer-blade', cat: 'weapon', slot: 'mainHand', rarity: 'very-rare', weight: 3, value: 4000 * GP, glyph: '⚔', icon: icon('longsword'), bonus: 2,
+magic({ id: 'glimmer-blade', name: 'Glimmer-blade', cat: 'weapon', slot: 'mainHand', rarity: 'very-rare', weight: 3, value: 4000 * GP, glyph: '⚔', bonus: 2,
   weapon: { damage: '1d8', type: 'slashing', group: 'martial', props: ['versatile 1d10'], versatile: '1d10' },
   desc: 'An elf-forged longsword that glows a faint blue when goblins or orcs are near. A +2 weapon.' });
 magic({ id: 'phial-of-starlight', name: 'Phial of starlight', cat: 'jewelry', slot: 'neck', rarity: 'rare', weight: 0, value: 2000 * GP, glyph: '✨', use: { kind: 'light' },

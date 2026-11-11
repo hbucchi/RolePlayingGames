@@ -24,7 +24,7 @@
  * takes the same number of points off buying prices, e.g. selling at 60% means buying at 90%.
  */
 import { ITEMS } from '../content/items/catalogue.js';
-import { itemDef, itemValue, isMagic, makeItem, itemRarity } from './items.js';
+import { itemDef, itemValue, isMagic, makeItem, itemRarity, whyNoRoom } from './items.js';
 import { seededRng } from './dice.js';
 import { rollMagicItem } from './loot.js';
 import { BASE_RATE } from './trade.js';
@@ -101,15 +101,17 @@ export function stockFor({ traderKey, level = 1, adventures = 0, bought = false,
 }
 
 /**
- * Buy something: takes the coins and puts the item in the pack. `what` is a standard id, or
+ * Buy something: takes the coins and puts the item in the pack (if it has room: engine/items.js). `what` is a standard id, or
  * the rare offer's instance. Returns { ok, cost, inst, message }.
  */
-export function buyItem(gear, what, rate = BASE_RATE) {
+export function buyItem(gear, what, rate = BASE_RATE, str = null) {
   const inst = typeof what === 'string' ? makeItem(what, BUNDLE[what] ?? 1) : { ...what, uid: undefined };
   if (!itemDef(inst)) return { ok: false, message: 'The trader has no such thing.' };
   if (typeof what === 'string' && !isStandard(itemDef(inst))) return { ok: false, message: 'Not for sale here.' };
   const cost = buyPrice(inst, rate);
   if ((gear.coins ?? 0) < cost) return { ok: false, cost, message: 'Not enough coin.' };
+  const why = whyNoRoom(gear, inst, str); // room in the bag (20 slots) and strength to carry it
+  if (why) return { ok: false, cost, message: why };
   gear.coins -= cost;
   const def = itemDef(inst);
   const same = def.stack && !inst.bonus ? gear.inventory.find((x) => x.id === inst.id && !x.bonus) : null;

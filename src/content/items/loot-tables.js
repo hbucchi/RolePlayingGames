@@ -93,4 +93,4 @@ export const CHEST_PROFILE = {
 
 /** Plain weapons and armour that can turn up in chests (and be enchanted as magic drops). */
 export const ARMS_POOL = ['dagger', 'shortsword', 'longsword', 'scimitar', 'mace', 'handaxe', 'battleaxe', 'warhammer', 'rapier', 'spear', 'shortbow', 'longbow', 'light-crossbow', 'greatsword', 'greataxe'];
-export const ARMOR_POOL = ['leather', 'studded-leather', 'hide', 'chain-shirt', 'scale-mail', 'breastplate', 'ring-mail', 'chain-mail', 'shield'];
+export const ARMOR_POOL = ['leather', 'studded-leather', 'hide-armour', 'chain-shirt', 'scale-mail', 'breastplate', 'ring-mail', 'chain-mail', 'shield'];

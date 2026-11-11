@@ -17,7 +17,7 @@ import {
 import { XP_FOR_LEVEL, xpProgress, startingWealth } from '../engine/progression.js';
 import { manaFor, manaCost } from '../engine/magic.js';
 import { manaHtml } from './mana-view.js';
-import { equipItem, unequipSlot, removeItem, isEquipped, itemName, formatCoins } from '../engine/items.js';
+import { equipItem, unequipSlot, removeItem, isEquipped, itemName, formatCoins, bagUsed, BAG_SLOTS } from '../engine/items.js';
 import { ITEMS_BY_ID } from '../content/items/catalogue.js';
 import { inventoryHtml, coinsHtml } from './inventory-view.js';
 import { roll, rollAbilityScore, rollDie } from '../engine/dice.js';
@@ -410,7 +410,7 @@ root.addEventListener('click', async (e) => {
     const stock = martaStock(c.level, rate);
     const rare = el.dataset.tr === 'trade-buy-rare';
     if (rare && !stock.rare) return;
-    const r = buyItem(d, rare ? stock.rare.inst : el.dataset.id, rate);
+    const r = buyItem(d, rare ? stock.rare.inst : el.dataset.id, rate, c.scores.str);
     if (!r.ok) { notify(r.message, 'bad'); return; }
     if (rare) markRareBought('marta', stock.period);
     keep(heroApi.save(d)); notify(`Bought ${(r.inst.qty ?? 1) > 1 ? `${r.inst.qty} × ` : ''}${itemName(r.inst)} for ${formatCoins(r.cost)}.`, 'ok');
@@ -1246,7 +1246,11 @@ root.addEventListener('click', (e) => {
     case 'doll': state.inv.doll = el.dataset.doll; break;
     case 'select': state.inv.selected = uid || null; state.inv.dropArm = null; break;
     case 'equip': { const r = equipItem(d, uid, el.dataset.slot); notify(r.message, r.ok ? 'ok' : 'bad'); break; }
-    case 'unequip': { const slot = Object.entries(d.equipped ?? {}).find(([, u]) => u === uid)?.[0]; if (slot) unequipSlot(d, slot); break; }
+    case 'unequip': {
+      const slot = Object.entries(d.equipped ?? {}).find(([, u]) => u === uid)?.[0];
+      if (slot && bagUsed(d) >= BAG_SLOTS) { notify(`Your pack is full (${BAG_SLOTS} of ${BAG_SLOTS}): drop or sell something first.`, 'bad'); return; }
+      if (slot) unequipSlot(d, slot); break;
+    }
     case 'use': {
       // Wounds stay between adventures; a potion (or herb, or waybread) can be taken at any time.
       const use = ITEMS_BY_ID[inst?.id]?.use;

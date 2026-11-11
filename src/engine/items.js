@@ -129,6 +129,36 @@ export function carriedWeight(inv, coins = 0) {
 }
 export const carryCapacity = (str) => str * 15;
 
+/**
+ * Carrying, for real. Two limits, both shown in the pack:
+ *   Slots: the bag holds BAG_SLOTS things. A stack of the same plain item (arrows, potions, gems)
+ *          shares one slot; what you wear or wield is on you, not in the bag; coins have a purse.
+ *   Weight: everything counts, worn gear and coins too (50 coins weigh a pound).
+ *          Above STR x 10 lb you are burdened (speed -10 ft); STR x 15 lb is all you can carry.
+ */
+export const BAG_SLOTS = 20;
+export const loadLimits = (str) => ({ burdened: str * 10, max: carryCapacity(str) });
+/** Bag slots in use: every unequipped item or stack. */
+export const bagUsed = (gear) => (gear.inventory ?? []).filter((x) => !isEquipped(gear, x.uid)).length;
+/** Does this item join a stack already in the bag (so it needs no new slot)? */
+function joinsStack(gear, inst) {
+  const def = itemDef(inst);
+  return !!(def?.stack && !inst.bonus && (gear.inventory ?? []).some((x) => x.id === inst.id && !x.bonus && !isEquipped(gear, x.uid)));
+}
+/**
+ * Why `inst` cannot go in the pack, or null if it can. `str` is the carrier's Strength score.
+ * `freeing` is a slot that the same move frees (taking off one thing to put another on).
+ */
+export function whyNoRoom(gear, inst, str, { slot = true } = {}) {
+  if (slot && !joinsStack(gear, inst) && bagUsed(gear) >= BAG_SLOTS) return `Your pack is full (${BAG_SLOTS} of ${BAG_SLOTS} slots). Drop, sell or use something first.`;
+  if (str) {
+    const after = carriedWeight([...(gear.inventory ?? []), inst], gear.coins ?? 0);
+    const { max } = loadLimits(str);
+    if (after > max) return `Too heavy: that would make ${after} lb, and you can carry at most ${max} lb (Strength ${str} × 15).`;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Equipping
 // ---------------------------------------------------------------------------

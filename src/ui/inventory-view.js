@@ -3,7 +3,7 @@
  * it returns HTML with data-inv attributes; the host wires the clicks to inventory actions.
  */
 import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/catalogue.js';
-import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor } from '../engine/items.js';
+import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor, loadLimits, bagUsed, BAG_SLOTS } from '../engine/items.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -54,8 +54,11 @@ function statLine(inst) {
 export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory', doll: dollTab = 'arms' } = {}) {
   const weight = carriedWeight(gear.inventory, gear.coins ?? 0);
   const cap = carryCapacity(str);
+  const { burdened } = loadLimits(str);
+  const used = bagUsed(gear);
   const f = FILTERS.find((x) => x.id === filter) ?? FILTERS[0];
-  const list = gear.inventory.filter((x) => !f.cats || f.cats.includes(ITEMS_BY_ID[x.id]?.cat));
+  // The bag shows what is in it; worn and wielded things are on the figure (click them there).
+  const list = gear.inventory.filter((x) => !isEquipped(gear, x.uid) && (!f.cats || f.cats.includes(ITEMS_BY_ID[x.id]?.cat)));
   const sel = gear.inventory.find((x) => x.uid === selected) ?? null;
 
   // A selected ring, bracelet or necklace can be put straight onto an empty finger, wrist or neck.
@@ -82,10 +85,12 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
       </div>`
     : SLOTS.map((s) => slotBtn(s)).join('');
 
-  const tiles = list.length ? list.map((x) => `
-    <button class="inv-tile ${x.uid === selected ? 'sel' : ''} ${isEquipped(gear, x.uid) ? 'worn' : ''}" data-inv="select" data-uid="${esc(x.uid)}" title="${esc(itemName(x))}">
-      ${itemIcon(x)}${isEquipped(gear, x.uid) ? '<span class="worn-tag">E</span>' : ''}
-    </button>`).join('') : '<p class="muted small">Nothing here.</p>';
+  // Each tile is a bag slot; with no filter the free slots show as empty squares.
+  const tiles = list.map((x) => `
+    <button class="inv-tile ${x.uid === selected ? 'sel' : ''}" data-inv="select" data-uid="${esc(x.uid)}" title="${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` ×${x.qty}` : ''}">
+      ${itemIcon(x)}
+    </button>`).join('') + (f.cats ? (list.length ? '' : '<p class="muted small">Nothing of this kind in the bag.</p>')
+    : Array.from({ length: Math.max(0, BAG_SLOTS - used) }, () => '<span class="inv-tile empty" aria-hidden="true"></span>').join(''));
 
   let detail = '<p class="muted small">Select an item to see what it does.</p>';
   if (sel) {
@@ -116,8 +121,11 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
     <div class="inv-top">
       <h3>${esc(title)}</h3>
       ${coinsHtml(gear.coins ?? 0)}
-      <div class="inv-weight ${weight > cap ? 'over' : ''}" title="Carrying capacity is your Strength score × 15 lb">
-        <span>${weight} / ${cap} lb</span><span class="bar"><span style="width:${Math.min(100, (weight / cap) * 100)}%"></span></span>
+      <div class="inv-weight ${used >= BAG_SLOTS ? 'over' : ''}" title="The bag holds ${BAG_SLOTS} things. A stack of the same thing shares one slot; what you wear is not in the bag.">
+        <span>🎒 Bag: <b>${used} / ${BAG_SLOTS}</b> slots</span><span class="bar"><span style="width:${Math.min(100, (used / BAG_SLOTS) * 100)}%"></span></span>
+      </div>
+      <div class="inv-weight ${weight > cap ? 'over' : weight > burdened ? 'heavy' : ''}" title="Everything you carry counts, worn gear and coins too. Over ${burdened} lb (Strength × 10) you are burdened: −10 ft speed. ${cap} lb (Strength × 15) is all you can carry.">
+        <span>⚖ ${weight} / ${cap} lb${weight > cap ? ' · overloaded' : weight > burdened ? ' · burdened' : ''}</span><span class="bar"><span style="width:${Math.min(100, (weight / cap) * 100)}%"></span><i style="left:${(burdened / cap) * 100}%"></i></span>
       </div>
     </div>
     <div class="inv-body">
@@ -139,11 +147,13 @@ export function fmtValue(cp) {
 }
 
 /** A compact list of loot (a body or chest) with take buttons. */
-export function lootHtml({ title, coins, items, note = '', closeAttr = 'data-dg="close-loot"' }) {
+export function lootHtml({ title, coins, items, note = '', closeAttr = 'data-dg="close-loot"', bag = null }) {
   const empty = !coins && !items.length;
+  const full = bag && bag.used >= bag.slots;
   return `<div class="loot-card">
     <div class="foe-head"><h3>${esc(title)}</h3><button class="btn icon small" ${closeAttr} aria-label="Close">✕</button></div>
     ${note ? `<p class="small muted">${esc(note)}</p>` : ''}
+    ${bag && !empty ? `<p class="small loot-bag ${full ? 'bad' : ''}">🎒 Your bag: <b>${bag.used} / ${bag.slots}</b> slots${full ? ' (full: only coins, and more of what you already carry, still fit)' : ''} · ⚖ ${bag.load} / ${bag.max} lb</p>` : ''}
     ${empty ? '<p class="muted small">Nothing left to take.</p>' : `
     <ul class="loot-list">
       ${coins ? `<li><span class="item-icon sm"><img src="assets/items/gold.jpg" alt=""></span><span>${esc(fmtValue(coins))}</span><button class="btn small" data-dg="take" data-uid="coins">Take</button></li>` : ''}

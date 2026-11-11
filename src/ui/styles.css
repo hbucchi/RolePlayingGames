@@ -517,6 +517,10 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .inv-weight .bar { height: 6px; border-radius: 99px; background: var(--bg-2); overflow: hidden; }
 .inv-weight .bar > span { display: block; height: 100%; background: var(--good); }
 .inv-weight.over { color: var(--bad); } .inv-weight.over .bar > span { background: var(--bad); }
+.inv-weight .bar { position: relative; }
+.inv-weight .bar > i { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .45; }
+.inv-weight.heavy { color: #b26b00; } .inv-weight.heavy .bar > span { background: #d08a1e; }
+.inv-tile.empty { width: 52px; height: 52px; justify-self: center; border: 1.5px dashed var(--line); background: transparent; opacity: .55; cursor: default; }
 .inv-body { display: grid; grid-template-columns: 170px minmax(0, 1fr) minmax(0, 260px); gap: 14px; align-items: start; }
 @media (max-width: 860px) { .inv-body { grid-template-columns: 1fr; } }
 .paperdoll { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }

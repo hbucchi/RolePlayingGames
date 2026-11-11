@@ -9,7 +9,7 @@ import { tradeHtml } from '../trade-view.js';
 import { morphInto } from '../morph.js';
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
 import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
-import { countOf, findItem, itemDef, formatCoins as formatCoinsShort } from '../../engine/items.js';
+import { countOf, findItem, itemDef, formatCoins as formatCoinsShort, bagUsed, BAG_SLOTS, carriedWeight, loadLimits } from '../../engine/items.js';
 import { DIAGONAL_RULES, cellKey } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { rollDie } from '../../engine/dice.js';
@@ -581,7 +581,7 @@ export function installPanels(ctx) {
       for (const b of bodies) b.searched = true;
       const coins = bodies.reduce((n, b) => n + (b.loot?.coins ?? 0), 0);
       const items = bodies.flatMap((b) => (b.loot?.items ?? []).map((it) => ({ ...it, from: b.name })));
-      return lootHtml({ title: `Corpses (${bodies.length})`, coins, items, note: bodies.map((b) => b.name).join(' · ') });
+      return lootHtml({ bag: bagState(),  title: `Corpses (${bodies.length})`, coins, items, note: bodies.map((b) => b.name).join(' · ') });
     }
     if (t.kind === 'corpse') {
       const m = s.monsters.find((x) => x.id === t.id);
@@ -591,7 +591,7 @@ export function installPanels(ctx) {
       if (!nearBody(m)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">${s.mode === 'combat' ? 'Too far to reach this turn. Move next to it to search it.' : 'Move next to it to search it.'}</p></div>`;
       const loot = m.loot ?? { coins: 0, items: [] };
       if (!loot.coins && !loot.items.length) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">You search ${m.side ? 'your fallen friend' : 'it'} carefully. Nothing of value${m.side ? ' — only a last goodbye' : ''}.</p></div>`;
-      return lootHtml({ title: what, coins: loot.coins, items: loot.items });
+      return lootHtml({ bag: bagState(),  title: what, coins: loot.coins, items: loot.items });
     }
     if (t.kind === 'chest') {
       const c = s.features.chests.find((x) => x.id === t.id);
@@ -599,7 +599,7 @@ export function installPanels(ctx) {
       if (!near(c)) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><p class="small muted">Move next to the chest to open it.</p></div>`;
       if (c.locked) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked chest</h3>${close}</div><p class="small">A heavy iron-bound chest with a stout lock.</p>${lockButtons(c)}</div>`;
       if (!c.opened) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><button class="btn small primary" data-dg="open-chest">Open it</button></div>`;
-      return lootHtml({ title: 'Chest', coins: c.loot.coins, items: c.loot.items });
+      return lootHtml({ bag: bagState(),  title: 'Chest', coins: c.loot.coins, items: c.loot.items });
     }
     if (t.kind === 'door') {
       const lock = s.features.locks.get(t.id);
@@ -635,6 +635,12 @@ export function installPanels(ctx) {
   }
 
   /** Bodies, chests, doors and traps open as a pop-up in the middle of the screen. */
+  /** The active hero's bag, for loot pop-ups (engine/items.js limits). */
+  function bagState() {
+    const str = s.def?.str ?? 10;
+    return { used: bagUsed(s.draft), slots: BAG_SLOTS, load: carriedWeight(s.draft.inventory, s.draft.coins ?? 0), max: loadLimits(str).max };
+  }
+
   function drawPop() {
     const box = $('.dg-pop');
     const html = s.target ? interactPanel(s.target) : '';

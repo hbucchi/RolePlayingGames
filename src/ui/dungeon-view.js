@@ -37,7 +37,7 @@ import { terrainCost } from '../engine/terrain.js';
 import { GOODS } from './trade-view.js';
 import { installCharacters } from './dungeon/characters.js';
 import { rollMonsterLoot } from '../engine/loot.js';
-import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
+import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins, whyNoRoom, bagUsed, BAG_SLOTS } from '../engine/items.js';
 import { freshResources, skillXp, migrateResources } from '../engine/magic.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { seededRng } from '../engine/dice.js';
@@ -981,7 +981,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function npcBuy(id) {
     const m = npcTalking(); const def = itemDef({ id }); if (!m || !def) return;
     if ((s.draft.coins ?? 0) < def.value) { banner(`Not enough coin for ${def.name}.`); return; }
-    s.draft.coins -= def.value; addItem(s.draft.inventory ??= [], makeItemSafe(id));
+    const inst = makeItemSafe(id);
+    const why = whyNoRoom(s.draft, inst, s.def?.str); if (why) { banner(why); return; }
+    s.draft.coins -= def.value; addItem(s.draft.inventory ??= [], inst);
     play('coins', { volume: 0.7 }); log(`${s.hero.name} buys ${def.name} from ${m.name} for ${formatCoins(def.value)}.`, 'loot');
     persist(); redraw();
   }
@@ -1040,7 +1042,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const m = npcTalking(); if (!m) return;
     const stock = traderStock(m);
     if (rare && !stock.rare) return;
-    const r = buyItem(s.draft, rare ? stock.rare.inst : id, tradeRate(m));
+    const r = buyItem(s.draft, rare ? stock.rare.inst : id, tradeRate(m), s.def?.str);
     if (!r.ok) { banner(r.message); return; }
     if (rare) markRareBought(traderKey(m), stock.period);
     play('coins', { volume: 0.7 });
@@ -1183,14 +1185,19 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       s.draft.coins = (s.draft.coins ?? 0) + loot.coins; s.delve.coins += loot.coins;
       got.push(formatCoins(loot.coins)); loot.coins = 0; play('coins', { volume: 0.8 });
     }
+    let refused = null;
     for (const it of [...loot.items]) {
       if (uid !== null && it.uid !== uid) continue;
+      // The bag holds 20 things and a hero can carry only so much (engine/items.js).
+      const why = whyNoRoom(s.draft, it, s.def?.str);
+      if (why) { refused ??= why; continue; }
       addItem(s.draft.inventory, it);
       loot.items = loot.items.filter((x) => x !== it);
       s.delve.items++;
       got.push(`${itemName(it)}${(it.qty ?? 1) > 1 ? ` ×${it.qty}` : ''}`);
     }
-    if (!got.length) return;
+    if (refused) banner(refused);
+    if (!got.length) { redraw(); return; }
     if (uid !== 'coins') play('dice', { volume: 0.25 });
     log(`${s.hero.name} takes ${got.join(', ')}.`, 'loot');
     persist(); refreshHero(); redraw();
@@ -1577,6 +1584,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       }
       case 'unequip': {
         const slot = Object.entries(s.draft.equipped ?? {}).find(([, u]) => u === uid)?.[0];
+        if (slot && bagUsed(s.draft) >= BAG_SLOTS) { banner(`Your pack is full (${BAG_SLOTS} of ${BAG_SLOTS}): there is no room to put the ${itemName(inst).toLowerCase()} away. Drop something first.`); break; }
         if (slot) { unequipSlot(s.draft, slot); log(`${s.hero.name} puts away the ${itemName(inst).toLowerCase()}.`, 'info'); persist(); refreshHero(); }
         break;
       }

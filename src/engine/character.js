@@ -11,7 +11,7 @@ import {
 import { SKILLS, SKILLS_BY_ID } from './skills.js';
 import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
-import { addItem, makeItem, carriedWeight, carryCapacity } from './items.js';
+import { addItem, makeItem, carriedWeight, carryCapacity, loadLimits, bagUsed, BAG_SLOTS } from './items.js';
 import { magicFor, casterInfo, attacksPerAction, manaFor } from './magic.js';
 
 export const DRAFT_VERSION = 1;
@@ -257,10 +257,14 @@ export function deriveCharacter(draft, setting) {
   for (const sk of skills) sk.bonus += g.skillBonus[sk.id] ?? 0;
   for (const st of savingThrows) st.bonus += g.saveBonus;
   const ac = g.ac;
-  // Encumbrance: carry more than STR x 15 lb and you slow down (a simplified 5e variant).
+  // Encumbrance (items.js): above STR x 10 lb you are burdened (speed -10 ft); STR x 15 lb is the
+  // most you can carry (more is only possible with gear from before the limit: speed -20 ft).
   const load = carriedWeight(gear.inventory, gear.coins ?? draft.coins ?? 0);
   const capacity = carryCapacity(scores.str);
-  if (load > capacity) g.notes.push(`Over-burdened (${load} / ${capacity} lb): speed −10 ft.`);
+  const limits = loadLimits(scores.str);
+  const burden = load > capacity ? 20 : load > limits.burdened ? 10 : 0;
+  if (burden === 10) g.notes.push(`Burdened (${load} lb; over ${limits.burdened} lb): speed −10 ft.`);
+  if (burden === 20) g.notes.push(`Overloaded (${load} / ${capacity} lb): speed −20 ft. Drop something.`);
   const attacks = g.attacks;
   // Ranger Archery style (level 2): +2 to hit with ranged weapons.
   if (cls?.id === 'ranger' && level >= 2) for (const at of attacks) if (at.slot === 'ranged') { at.toHit += 2; at.archery = true; }
@@ -287,8 +291,9 @@ export function deriveCharacter(draft, setting) {
     maxHp,
     ac,
     initiative: mods.dex,
-    speed: (race?.speed ?? 30) - g.speedPenalty - (load > capacity ? 10 : 0),
-    load, capacity,
+    speed: (race?.speed ?? 30) - g.speedPenalty - burden,
+    load, capacity, burdenedAt: limits.burdened, burden,
+    bag: { used: bagUsed(gear), slots: BAG_SLOTS },
     // Thieves' tools checks use DEX, plus proficiency if trained (burglars are).
     toolBonus: mods.dex + (cls?.toolProficiencies?.includes('thieves-tools') ? pb : 0),
     xp: draft.xp ?? XP_FOR_LEVEL[level],
