@@ -199,12 +199,16 @@ function renderInto(body) {
         <input type="range" class="music-vol" min="0" max="100" value="${Math.round(music.state().volume * 100)}" data-music="volume" aria-label="Music volume" title="Music volume (each step is the same loudness change to the ear)" ${music.state().enabled ? '' : 'disabled'}>
       </div>
       <button class="sound-toggle" data-action="toggle-sound" aria-pressed="${!isMuted()}" title="${isMuted() ? 'Sound off' : 'Sound on'}">${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span></button>
+      ${state.view === 'home' ? '<button class="sound-toggle" data-action="open-settings" title="Settings" aria-haspopup="dialog">⚙<span class="sr-only">Settings</span></button>' : ''}
       ${state.view === 'home' ? `
       <nav class="tabs" role="tablist">
         ${tabButton('heroes', 'Heroes')}${tabButton('adventures', 'Adventures')}${tabButton('bestiary', 'Bestiary')}
       </nav>` : ''}
     </header>
     <main>${body}</main>
+    ${state.settingsOpen ? `<div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings" data-action="close-settings-bg">
+      <div class="settings-card"><div class="row"><h2>⚙ Settings</h2><span class="spacer"></span><button class="btn icon small" data-action="close-settings" aria-label="Close">✕</button></div>
+      <div class="home-settings-grid">${settingsControls('data-action="setting"', undefined, 'home')}</div></div></div>` : ''}
     ${state.notice ? `<div class="toast ${state.notice.kind}" role="status">${esc(state.notice.text)}</div>` : ''}
   `;
 }
@@ -217,28 +221,42 @@ function homeView() {
   if (state.tab === 'adventures') return adventuresView();
   if (state.tab === 'bestiary') return bestiaryView(state.bestiary);
   const heroes = roster.list();
+  const adopted = new Set(heroes.map((d) => d.premadeOf).filter(Boolean));
+  const premades = setting.premades.filter((p) => !adopted.has(p.id)).map((p) => syncBaseFromAssignment(structuredClone(p)));
   return `
-    <section class="hero-banner">
-      <h1>Forge a hero for the Westlands</h1>
-      <p>${esc(setting.subtitle)}</p>
-      <div class="row">
-        <button class="btn primary big" data-action="new">Create a new hero</button>
-        <label class="btn ghost">Import hero file<input type="file" accept="application/json,.json" data-action="import" hidden></label>
+    <section class="home">
+      <div class="home-banner">
+        <div class="home-title"><p class="kicker">${esc(setting.name)}</p><h1>Forge your hero</h1><p class="home-sub">${esc(setting.subtitle)}</p></div>
+        <div class="home-cta">
+          <button class="btn primary big" data-action="new">⚔ Create a new hero</button>
+          <button class="btn big" data-action="tab" data-tab="adventures">🗺 Adventures</button>
+          <label class="btn">⬆ Import<input type="file" accept="application/json,.json" data-action="import" hidden></label>
+        </div>
       </div>
-      <details class="home-settings" open><summary>⚙ Settings</summary><div class="home-settings-grid">${settingsControls('data-action="setting"', undefined, 'home')}</div></details>
-    </section>
-
-    <section>
-      <h2>Your company</h2>
-      ${heroes.length ? `<div class="card-grid">${heroes.map((d) => heroCard(d, 'roster')).join('')}</div>`
-    : '<p class="muted empty">No heroes yet. Create one, or adopt a ready-made hero below.</p>'}
-    </section>
-
-    <section>
-      <h2>Ready-made heroes</h2>
-      <p class="muted">Jump straight in. Adopting a hero copies it into your company so you can change it.</p>
-      <div class="card-grid">${setting.premades.map((p) => heroCard(syncBaseFromAssignment(structuredClone(p)), 'premade')).join('')}</div>
+      <div class="home-row-head"><h2>Choose your hero</h2><span class="muted small">${heroes.length ? `Your company (${heroes.length})${premades.length ? ' · then ready-made heroes' : ''}` : 'Ready-made heroes: adopt one to make it yours'}</span></div>
+      <div class="hero-strip" role="list">
+        ${heroes.map((d) => heroTile(d, 'roster')).join('')}
+        ${premades.map((d) => heroTile(d, 'premade')).join('')}
+      </div>
     </section>`;
+}
+
+/** A compact hero card for the home screen: portrait, name, kin and calling, HP/AC, actions. */
+function heroTile(d, source) {
+  const s = settingFor(d); const c = deriveCharacter(d, s); const complete = isComplete(d, s);
+  return `<article class="hero-tile ${source}" role="listitem">
+    ${portraitHtml(heroLook(d), 'md')}
+    <div class="ht-body">
+      <h3>${esc(c.name || 'Unnamed hero')}</h3>
+      <p class="ht-kin">${esc(c.race?.name ?? '?')} · <b>${esc(c.cls?.name ?? '?')}</b></p>
+      <p class="ht-stats"><span class="ht-lv">Lv ${c.level}</span>${complete ? `<span>❤ ${c.maxHp}</span><span>🛡 ${c.ac}</span>` : '<span class="warn">Incomplete</span>'}${source === 'premade' ? '<span class="ht-tag">Ready-made</span>' : ''}</p>
+      ${c.concept ? `<p class="ht-concept">${esc(c.concept)}</p>` : ''}
+    </div>
+    <div class="ht-actions">
+      <button class="btn small" data-action="view" data-source="${source}" data-id="${esc(d.id)}">Sheet</button>
+      ${source === 'roster' ? `<button class="btn small" data-action="edit" data-id="${esc(d.id)}">Edit</button>` : `<button class="btn small primary" data-action="adopt" data-id="${esc(d.id)}">Adopt</button>`}
+    </div>
+  </article>`;
 }
 
 // ---- New hero: standard or sandbox -------------------------------------------
@@ -920,6 +938,9 @@ const actions = {
     state.sheet = { ...state.sheet, draft: roster.save(d) };
     render();
   },
+  'open-settings'() { state.settingsOpen = true; render(); },
+  'close-settings'() { state.settingsOpen = false; render(); },
+  'close-settings-bg'(el, e) { if (e?.target === el) { state.settingsOpen = false; render(); } },
   'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
