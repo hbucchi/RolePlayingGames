@@ -36,7 +36,7 @@ const copyTree = (dir) => {
 write('hero-forge.html', fs.readFileSync(path.join(ROOT, 'publish/hero-forge.html')));
 write('index.html', fs.readFileSync(path.join(ROOT, 'index.html'))); // for `ROOT=dist npm start`
 copyTree('src');
-for (const dir of ['music', 'terrain', 'textures', 'items', 'vfx', 'campaign', 'props', 'ui']) copyTree(`assets/${dir}`);
+for (const dir of ['music', 'terrain', 'textures', 'items', 'vfx', 'campaign', 'props', 'ui', 'fonts', 'app']) copyTree(`assets/${dir}`);
 
 // ---- Packs ------------------------------------------------------------------------------------
 const packs = {}; // name -> [[asset path, kind]]
@@ -72,6 +72,22 @@ for (const [name, list] of Object.entries(packs)) {
   report.push(`  ${name.padEnd(24)} ${String(list.length).padStart(4)} assets  ${(json.length / 1e6).toFixed(2)} MB`);
 }
 write('assets/packs/index.json', JSON.stringify(index));
+
+// ---- Offline play (installable web app, see tools/sw-template.js) ------------------------------
+// Every file a player needs, fingerprinted: the service worker stores them all on the device.
+// (The claude.ai page and the publish list are not part of the offline game.)
+{
+  const { createHash } = await import('node:crypto');
+  const files = written.filter((f) => f !== 'hero-forge.html');
+  const h = createHash('sha256');
+  for (const f of files.sort()) h.update(f).update(fs.readFileSync(path.join(DIST, f)));
+  const version = h.digest('hex').slice(0, 12);
+  const sw = fs.readFileSync(path.join(ROOT, 'tools/sw-template.js'), 'utf8')
+    .replace('__VERSION__', version).replace('__FILES__', JSON.stringify(['./', ...files]));
+  fs.writeFileSync(path.join(DIST, 'sw.js'), sw); // not in `written`: the claude.ai page does not use it
+  const bytes = files.reduce((n, f) => n + fs.statSync(path.join(DIST, f)).size, 0);
+  console.log(`Offline: sw.js keeps ${files.length} files (${(bytes / 1e6).toFixed(1)} MB), version ${version}`);
+}
 
 // ---- Report -------------------------------------------------------------------------------
 const publish = Object.fromEntries(written.filter((f) => f !== 'hero-forge.html' && f !== 'index.html').map((f) => [f, rel(path.join(DIST, f))]));

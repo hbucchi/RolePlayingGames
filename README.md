@@ -15,6 +15,20 @@ npm start      # http://localhost:5173
 npm test       # rules-engine tests
 ```
 
+### Play on your phone, offline
+
+Every push publishes the game to **https://hbucchi.github.io/RolePlayingGames/** (GitHub Pages,
+`.github/workflows/pages.yml`). Open it once with a connection and it stores itself on the device
+(a service worker, `tools/sw-template.js`, about 30 MB). Then add it to the home screen:
+
+- iPhone (Safari): Share → Add to Home Screen.
+- Android (Chrome): ⋮ → Add to Home screen (or Install app).
+
+From then on it opens from its icon and plays with no connection, flight mode included. Saves stay
+on that device. New versions download the next time you open it online.
+
+One-time setup: Settings → Pages → Source: "GitHub Actions".
+
 ## What's in it
 
 - **Two ways to start:** *Standard* heroes begin at level 1 and earn their way up. *Sandbox* heroes pick

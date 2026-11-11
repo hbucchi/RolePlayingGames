@@ -2,16 +2,43 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Westlands Hero Forge</title>
   <meta name="description" content="Create heroes for Tolkien-inspired tabletop adventures.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Grenze:ital,wght@0,500;0,600;0,700;0,800;1,700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400;1,700&display=swap">
+  <!-- Installable, and playable offline once opened (see tools/sw-template.js). -->
+  <link rel="manifest" href="assets/app/manifest.webmanifest">
+  <meta name="theme-color" content="#3a2412">
+  <link rel="icon" href="assets/app/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="assets/app/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Hero Forge">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <!-- The fonts travel with the game, so it looks the same with no connection. -->
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="stylesheet" href="src/ui/styles.css">
   <script type="module" src="src/ui/app.js"></script>
 </head>
 <body>
   <div id="app"><noscript>This game needs JavaScript enabled.</noscript></div>
+  <div class="offline-toast" role="status" aria-live="polite" hidden></div>
+  <script>
+    // Store the whole game on this device for offline play (only where the build made sw.js).
+    if ('serviceWorker' in navigator && location.protocol === 'https:' || location.hostname === 'localhost') {
+      const toast = (text) => {
+        const t = document.querySelector('.offline-toast'); if (!t) return;
+        t.textContent = text; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 6000);
+      };
+      navigator.serviceWorker?.addEventListener('message', (e) => {
+        if (e.data?.type !== 'offline-ready') return;
+        const first = !localStorage.getItem('rpg.offline');
+        try { localStorage.setItem('rpg.offline', e.data.version); } catch {}
+        toast(first ? '✓ Saved for offline play: the game now works with no connection.' : '✓ Updated to the latest version (offline copy refreshed).');
+      });
+      window.addEventListener('load', () => {
+        fetch('sw.js', { method: 'HEAD' }).then((r) => { if (r.ok) navigator.serviceWorker.register('sw.js'); }).catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

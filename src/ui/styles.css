@@ -1069,3 +1069,9 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .ab-swatch-now.prop { background-size: contain; background-repeat: no-repeat; background-position: center; background-color: #2a221a; }
 .ab-placed summary { cursor: pointer; font-weight: 700; }
 .ab-placed { display: block; }
+
+/* "Saved for offline play" note (installable web app; index.html). */
+.offline-toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+  max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 12px; background: #2f4a22; color: #f4efe2; font-weight: 700;
+  box-shadow: 0 6px 20px rgb(0 0 0 / .35); }
+.offline-toast[hidden] { display: none; }
