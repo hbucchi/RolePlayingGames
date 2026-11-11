@@ -30,7 +30,7 @@ const KINDRED = { 'men-west': 'kin-men-west', 'men-plains': 'kin-men-plains', el
  * assets/bodies, art.tint / art.portraitTint CSS filters that let kin share one picture.
  * Heroes' bodies come from their kindred.
  */
-const HERO_BODIES = { 'men-west': 'body-man', 'men-plains': 'body-man', dwarf: 'body-dwarf', halfling: 'body-halfling', elf: 'body-elf' };
+export const HERO_BODIES = { 'men-west': 'body-man', 'men-plains': 'body-man', dwarf: 'body-dwarf', halfling: 'body-halfling', elf: 'body-elf' };
 const artOf = (statId) => BESTIARY_BY_ID[statId]?.art ?? {};
 const bodyKey = (key) => HERO_BODIES[key] ?? artOf(key).body;
 

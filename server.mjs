@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 
-const ROOT = resolve('.');
+const ROOT = resolve(process.env.ROOT ?? '.'); // ROOT=dist serves the hosted build
 const PORT = Number(process.env.PORT) || 5173;
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
