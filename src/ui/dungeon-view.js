@@ -1239,30 +1239,52 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   // letterboxed inside it, and clicks landed squares above or below where the player aimed.
   const mapPx = () => s.map.width * S();
   const mapPxH = () => s.map.height * S();
+  /**
+   * Room around the map. The stage gets a transparent border (s.padX, s.padY) of about 30% of the
+   * view on each side, more when the map is smaller than the view (so it sits centred). You can
+   * drag any edge or corner of the map to the middle of the screen, and zoomed out you see all
+   * four borders. A border, not padding or margins: everything inside the stage (the map, the
+   * overlay, the click maths) keeps its own coordinates, and browsers always scroll over borders.
+   */
+  function frame() {
+    const vw = viewport.clientWidth; const vh = viewport.clientHeight || vw;
+    const w = mapPx() * s.zoom; const h = mapPxH() * s.zoom;
+    s.padX = Math.round(Math.max(vw * 0.3, (vw - w) / 2));
+    s.padY = Math.round(Math.max(vh * 0.3, (vh - h) / 2));
+    stage.style.width = `${w}px`; stage.style.height = `${h}px`;
+    stage.style.borderWidth = `${s.padY}px ${s.padX}px`;
+  }
   function setZoom(z, clientX, clientY) {
     const rect = viewport.getBoundingClientRect();
     const fx = clientX ?? rect.left + rect.width / 2; const fy = clientY ?? rect.top + rect.height / 2;
-    const contentX = (viewport.scrollLeft + fx - rect.left) / s.zoom;
-    const contentY = (viewport.scrollTop + fy - rect.top) / s.zoom;
+    // The map point under the cursor (or the centre) stays put while zooming.
+    const contentX = (viewport.scrollLeft + fx - rect.left - (s.padX ?? 0)) / s.zoom;
+    const contentY = (viewport.scrollTop + fy - rect.top - (s.padY ?? 0)) / s.zoom;
     s.zoom = Math.max(0.15, Math.min(2, z));
-    stage.style.width = `${mapPx() * s.zoom}px`;
-    stage.style.height = `${mapPxH() * s.zoom}px`;
-    viewport.scrollLeft = contentX * s.zoom - (fx - rect.left);
-    viewport.scrollTop = contentY * s.zoom - (fy - rect.top);
+    frame();
+    viewport.scrollLeft = contentX * s.zoom + s.padX - (fx - rect.left);
+    viewport.scrollTop = contentY * s.zoom + s.padY - (fy - rect.top);
     $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
   }
+  /** The whole map in view, with a little room around it. */
   function fit() {
-    setZoom(Math.min((viewport.clientWidth - 4) / mapPx(), ((viewport.clientHeight || viewport.clientWidth) - 4) / mapPxH()));
+    const vw = viewport.clientWidth; const vh = viewport.clientHeight || vw;
+    setZoom(Math.min((vw - 48) / mapPx(), (vh - 48) / mapPxH()));
+    viewport.scrollLeft = s.padX + (mapPx() * s.zoom - vw) / 2;
+    viewport.scrollTop = s.padY + (mapPxH() * s.zoom - vh) / 2;
   }
   function centerOn(pos, smooth = true) {
     const sz = S() * s.zoom;
-    viewport.scrollTo({ left: (pos.x + 0.5) * sz - viewport.clientWidth / 2, top: (pos.y + 0.5) * sz - viewport.clientHeight / 2, behavior: smooth && !reduceMotion ? 'smooth' : 'auto' });
+    viewport.scrollTo({ left: (s.padX ?? 0) + (pos.x + 0.5) * sz - viewport.clientWidth / 2, top: (s.padY ?? 0) + (pos.y + 0.5) * sz - viewport.clientHeight / 2, behavior: smooth && !reduceMotion ? 'smooth' : 'auto' });
   }
   function keepInView(pos) {
-    const sz = S() * s.zoom; const px = (pos.x + 0.5) * sz; const py = (pos.y + 0.5) * sz; const m = sz * 2.5;
+    const sz = S() * s.zoom; const px = (s.padX ?? 0) + (pos.x + 0.5) * sz; const py = (s.padY ?? 0) + (pos.y + 0.5) * sz; const m = sz * 2.5;
     if (px < viewport.scrollLeft + m || px > viewport.scrollLeft + viewport.clientWidth - m
       || py < viewport.scrollTop + m || py > viewport.scrollTop + viewport.clientHeight - m) centerOn(pos);
   }
+
+  // A new window size or a turned phone: recompute the room around the map.
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { if (s.map) frame(); }).observe(viewport);
 
   // Wheel zoom toward the cursor.
   viewport.addEventListener('wheel', (e) => {
