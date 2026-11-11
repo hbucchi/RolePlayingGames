@@ -35,7 +35,8 @@ export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
       const id = map.terrain[y][x];
-      cells += `<rect x="${x * S}" y="${y * S}" width="${S + 0.5}" height="${S + 0.5}" fill="${fillFor(map, x, y, prefix)}"/>`;
+      const fill = id === 'planks' || id === 'table' ? `url(#ar-planks${y % 2 ? '-b' : ''})` : fillFor(map, x, y, prefix);
+      cells += `<rect x="${x * S}" y="${y * S}" width="${S + 0.5}" height="${S + 0.5}" fill="${fill}"/>`;
       if (id === 'wall') walls += `M${x * S} ${y * S}h${S}v${S}h${-S}z`;
       // Furniture: a darker plank top with a rim, so tables and counters read as solid.
       if (id === 'table') props += `<rect x="${x * S + 4}" y="${y * S + 4}" width="${S - 8}" height="${S - 8}" rx="6" class="ar-table"/>`;
@@ -65,9 +66,13 @@ export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Arena map">
   <defs>${terrainPatterns(prefix)}<pattern id="dg-rock" patternUnits="userSpaceOnUse" width="512" height="512"><image href="${TERRAINS.wall.texture}" width="512" height="512"/></pattern>
   <radialGradient id="ar-canopy" cx=".4" cy=".35"><stop offset="0" stop-color="#6f9a3e"/><stop offset=".6" stop-color="#3f6826"/><stop offset="1" stop-color="#22391a"/></radialGradient>
+  <pattern id="ar-planks" patternUnits="userSpaceOnUse" width="${S * 2}" height="${S / 4}"><rect width="${S * 2}" height="${S / 4}" fill="#8a5d32"/><rect y="1" width="${S * 2}" height="${S / 4 - 2}" fill="url(#ar-wood)"/><path d="M0 .5H${S * 2}M${S * 0.7} 0V${S / 4}" stroke="#3f2810" stroke-width="2"/></pattern>
+  <pattern id="ar-planks-b" patternUnits="userSpaceOnUse" width="${S * 2}" height="${S / 4}" patternTransform="translate(${S * 0.9} 0)"><rect width="${S * 2}" height="${S / 4}" fill="#835830"/><rect y="1" width="${S * 2}" height="${S / 4 - 2}" fill="url(#ar-wood)"/><path d="M0 .5H${S * 2}M${S * 1.3} 0V${S / 4}" stroke="#3f2810" stroke-width="2"/></pattern>
+  <linearGradient id="ar-wood" x1="0" x2="1"><stop offset="0" stop-color="#9a6a3a"/><stop offset=".3" stop-color="#8a5b30"/><stop offset=".55" stop-color="#a0703f"/><stop offset=".8" stop-color="#875a31"/><stop offset="1" stop-color="#94653a"/></linearGradient>
   <pattern id="ar-rooftiles" patternUnits="userSpaceOnUse" width="16" height="12"><rect width="16" height="12" fill="#8a4630"/><path d="M0 11.5H16M8 0V6M0 6H16M4 6V12M12 6V12" stroke="#5e2c1d" stroke-width="1.4"/></pattern></defs>
   ${cells}
   ${props}
+  ${(map.exits ?? (map.exit ? [map.exit] : [])).map((e) => `<g transform="translate(${(e.x + 0.5) * S} ${(e.y + 0.5) * S})" class="ar-exit"><circle r="${S * 0.42}"/><text y="${S * 0.12}" style="font-size:${S * 0.42}px">⇦</text><text y="${S * 0.72}" class="ar-exit-label" style="font-size:${S * 0.22}px">Exit</text></g>`).join('')}
   <path d="${walls}" fill="#000" opacity=".35"/>
   <path d="${walls}" fill="none" stroke="#0d0a07" stroke-width="3"/>
   ${grid ? `<path d="${lines}" stroke="#120c06" stroke-opacity=".45" stroke-width="2"/>` : ''}

@@ -37,7 +37,7 @@ export function installEndings(ctx) {
   function defeatButtons() {
     return `<div class="row wrap">
       <button class="btn" data-dg="review">Look over the battlefield</button>
-      ${arena ? '<button class="btn primary" data-dg="retry">Restart the bout</button><button class="btn ghost" data-dg="leave-arena">Back to the builder</button>'
+      ${ctx.place ? '<button class="btn primary" data-dg="retry">Try again</button><button class="btn ghost" data-dg="leave-arena">Back to the world map</button>' : arena ? '<button class="btn primary" data-dg="retry">Restart the bout</button><button class="btn ghost" data-dg="leave-arena">Back to the builder</button>'
     : '<button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button><button class="btn ghost" data-action="home">Return to the menu</button>'}
     </div>`;
   }
@@ -45,7 +45,7 @@ export function installEndings(ctx) {
   function defeatCard() {
     const names = ctx.party().map((h) => h.name);
     return `<div class="dg-endcard"><h2>${esc(names.length > 1 ? 'The party has fallen' : `${names[0]} has fallen`)}</h2>
-      <p>The dark claims another hero... but legends are stubborn. ${arena ? 'It was only practice.' : 'Your experience and the loot you carried out are kept.'}</p>
+      <p>The dark claims another hero... but legends are stubborn. ${ctx.place ? 'Your experience and the loot you carried are kept.' : arena ? 'It was only practice.' : 'Your experience and the loot you carried out are kept.'}</p>
       <p class="small muted">Look over the battlefield to see how it ended: the map stays exactly as it was, and the battle log tells the story blow by blow.</p>
       ${defeatButtons()}</div>`;
   }

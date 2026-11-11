@@ -850,3 +850,55 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 .ar-eave { stroke: #3a1a10; stroke-width: 3; }
 .remains-ring { fill: none; stroke: #4a0b0b; stroke-width: 3; }
 .remains-skull { text-anchor: middle; fill: #f2e6d0; opacity: .8; paint-order: stroke; stroke: #000; stroke-width: 2px; }
+
+/* ---- Campaign: world map -------------------------------------------------------------------- */
+.cmp { display: grid; gap: 14px; }
+.cmp-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 10px; }
+.cmp-head h1 { margin: 0; text-wrap: balance; }
+.cmp-kicker { margin: 0; color: var(--gold); font: 700 .78rem/1.2 var(--font-display); letter-spacing: .14em; text-transform: uppercase; }
+.cmp-body { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 980px) { .cmp-body { grid-template-columns: 1fr; } }
+.cmp-map { position: relative; width: 100%; border-radius: 12px; overflow: hidden; border: 2px solid #6b4f1d; box-shadow: var(--shadow); background: #3a2b18; }
+.cmp-map > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; }
+.cmp-roads { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.cmp-roads line { stroke: #f6d27a; stroke-width: .5; stroke-dasharray: 1.2 .8; stroke-linecap: round; opacity: .9; vector-effect: non-scaling-stroke; stroke-width: 3; }
+.cmp-pin { position: absolute; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; padding: 0; border: 0; background: none; cursor: pointer; }
+.cmp-ico { display: grid; place-items: center; width: 44px; height: 44px; font-size: 1.35rem; border-radius: 50%; background: #f7efdc; border: 3px solid #6b4f1d; box-shadow: 0 3px 10px rgb(0 0 0 / .45); transition: transform .12s; }
+.cmp-pin:hover .cmp-ico, .cmp-pin:focus-visible .cmp-ico { transform: scale(1.12); border-color: var(--gold); }
+.cmp-pin.sel .cmp-ico { border-color: var(--accent); box-shadow: 0 0 0 4px rgb(255 210 92 / .55), 0 3px 10px rgb(0 0 0 / .45); }
+.cmp-pin.new .cmp-ico::after { content: '!'; position: absolute; top: -4px; right: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font: 700 .75rem/18px var(--font-body); text-align: center; }
+.cmp-pin .cmp-ico { position: relative; }
+.cmp-name { padding: 1px 8px; border-radius: 99px; background: rgb(24 18 12 / .82); color: #f3e6c8; font: 600 .82rem var(--font-display); white-space: nowrap; }
+.cmp-party { position: absolute; z-index: 2; transform: translate(-50%, -135%); width: 40px; height: 40px; border-radius: 50%; overflow: hidden; border: 3px solid #ffd25c; box-shadow: 0 4px 12px rgb(0 0 0 / .5); background: #2a1d10; display: grid; place-items: center; color: #ffd25c; transition: left .6s ease-in-out, top .6s ease-in-out; pointer-events: none; }
+.cmp-party img { width: 100%; height: 100%; object-fit: cover; }
+.cmp-side { display: grid; gap: 14px; }
+.cmp-place { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+.cmp-place > img { display: block; width: 100%; aspect-ratio: 16/9; object-fit: cover; }
+.cmp-place-text { padding: 12px 16px 16px; display: grid; gap: 8px; }
+.cmp-place-text h2, .cmp-place-text p { margin: 0; }
+.cmp-quest { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.cmp-quest h3 { margin: 0 0 6px; }
+.cmp-quest ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cmp-quest li.done { color: var(--muted); text-decoration: line-through; }
+.cmp-quest li.current { font-weight: 700; color: var(--accent); }
+.cmp-quest li.later { color: var(--muted); }
+.cmp-done { margin: 8px 0 0; font-weight: 700; color: var(--good); }
+.cmp-log ol { margin: 6px 0 0; padding-left: 18px; font-size: .92rem; display: grid; gap: 6px; }
+.cmp-start { max-width: 52rem; margin: 0 auto; }
+.cmp-start-map { width: 100%; border-radius: 12px; border: 2px solid #6b4f1d; box-shadow: var(--shadow); }
+.cmp-blurb { font-size: 1.15rem; margin: 0; }
+.campaign-card { background-size: cover; background-position: center; border-color: var(--gold); }
+
+/* ---- Talking with people in a place ----------------------------------------------------------- */
+.npc-card { display: grid; gap: 10px; }
+.npc-pic { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; border: 2px solid #6aa6e8; }
+.npc-say { margin: 0; padding: 10px 14px; background: var(--bg); border-left: 4px solid #6aa6e8; border-radius: 6px; font-style: italic; }
+.npc-options { display: grid; gap: 6px; }
+.npc-opt { justify-content: flex-start; text-align: left; }
+.shop { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 240px; overflow-y: auto; }
+.shop li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 3px 6px; border-radius: 6px; }
+.shop li:nth-child(odd) { background: var(--bg); }
+.npc-purse { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ar-exit circle { fill: rgb(24 18 12 / .7); stroke: #ffd25c; stroke-width: 3; }
+.ar-exit text { text-anchor: middle; fill: #ffd25c; font-weight: 700; }
+.ar-exit-label { fill: #fff3d0; paint-order: stroke; stroke: #000; stroke-width: 3px; }

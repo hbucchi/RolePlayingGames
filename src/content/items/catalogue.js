@@ -167,6 +167,7 @@ trinket('handkerchief', 'Pocket handkerchief', 'Never leave home without one.', 
 trinket('home-token', 'Token of your lost home', 'A small keepsake: a stone, a ring, a ribbon.');
 trinket('merchants-scales', 'Merchant\'s scales', 'A small brass balance and weights.', 5 * GP);
 trinket('goblin-trinket', 'Goblin trinket', 'A string of teeth and bottle-caps. Worth nothing, except to a goblin.', 2);
+trinket('stewards-signet', 'The Steward\'s signet', 'A heavy gold ring engraved with the oak and river of Ashford. Its seal makes the Steward\'s word law.', 25 * GP);
 
 // ---------------------------------------------------------------------------
 // Crafting resources: woods, ores, ingots, hides, cloth, herbs, gems

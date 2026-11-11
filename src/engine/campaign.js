@@ -165,9 +165,10 @@ export function validateCampaign(c, known) {
   const discoverable = new Set([c.start, ...Object.entries(c.locations).filter(([, l]) => l.discovered).map(([id]) => id)]);
   for (const [id, loc] of Object.entries(c.locations)) {
     const where = `location "${id}"`;
-    for (const k of ['name', 'kind', 'rows']) if (!loc[k]) say(`${where} has no ${k}`);
     if (!(loc.x >= 0 && loc.x <= 100 && loc.y >= 0 && loc.y <= 100)) say(`${where} is off the world map`);
     if (!c.roads.some(([a, b]) => a === id || b === id)) say(`${where} has no road`);
+    if (loc.story) { if (!known.stories.has(loc.story)) say(`${where} opens unknown story "${loc.story}"`); continue; } // a tale, not a map
+    for (const k of ['name', 'kind', 'rows']) if (!loc[k]) say(`${where} has no ${k}`);
     const w = loc.rows?.[0]?.length;
     if (loc.rows?.some((r) => r.length !== w)) say(`${where}: map rows have different lengths`);
     for (const ch of new Set((loc.rows ?? []).join(''))) if (!loc.legend?.[ch] && !known.codes.has(ch)) say(`${where}: unknown map symbol "${ch}"`);

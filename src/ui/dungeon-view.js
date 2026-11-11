@@ -30,7 +30,7 @@ import { getFigures, getSetting, setSetting, PACE_FACTOR } from './settings.js';
 import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { rollMonsterLoot } from '../engine/loot.js';
-import { makeItem as makeItemSafe, addItem, removeItem, itemName, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
+import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
 import { freshResources, skillXp } from '../engine/magic.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { seededRng } from '../engine/dice.js';
@@ -67,9 +67,13 @@ const FOE_POOL = DUNGEON_FOES.map((id) => BESTIARY_BY_ID[id]).filter(Boolean);
  *   api.load(id) -> the hero's draft (with gear); api.derive(draft) -> combat stats;
  *   api.save(draft) -> the saved draft (a ready-made hero is adopted on its first save).
  */
-export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null, onOutcome = null }) {
+export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null, onOutcome = null, campaign = null }) {
+  // A place in a campaign (arena.location) is a real outing: XP, loot and wounds count, people
+  // can be talked to, and the way out leads back to the world map. A plain arena bout is practice.
+  const place = arena?.location ?? null;
+  const practice = !!arena && !place;
   const s = {
-    seed: initialSeed, map: null, grid: true, revealAll: !!arena, rule: 'standard', zoom: 0.5,
+    seed: initialSeed, map: null, grid: true, revealAll: !!arena && arena.reveal !== false, rule: 'standard', zoom: 0.5,
     partyIds: arena ? arena.heroes.map((h) => h.id) : heroes.slice(0, 1).map((h) => h.id), members: [], active: 0,
     hero: null, monsters: [],
     doors: new Map(), revealed: new Set(), visible: new Set(),
@@ -92,8 +96,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       </div>
       <div class="dg-group dg-arenabar" ${arena ? '' : 'hidden'}>
         <b>${esc(arena?.name ?? 'Arena')}</b>
-        <button class="btn small" data-dg="leave-arena">${arena?.story ? '← Back to the story' : '← Back to the builder'}</button>
-        <button class="btn small ghost" data-dg="retry">Restart bout</button>
+        <button class="btn small" data-dg="leave-arena">${place ? '← World map' : arena?.story ? '← Back to the story' : '← Back to the builder'}</button>
+        ${place ? '' : '<button class="btn small ghost" data-dg="retry">Restart bout</button>'}
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
         <button class="btn small ghost" data-dg="seed-prev" aria-label="Previous dungeon">◀</button>
@@ -225,6 +229,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     ordinal: { get: () => ordinal },
     overlay: { get: () => overlay },
     party: { get: () => party },
+    campaign: { get: () => campaign },
+    place: { get: () => place },
+    wallet: { get: () => wallet },
     SPIRIT: { get: () => SPIRIT },
     bloodOf: { get: () => bloodOf },
     onOutcome: { get: () => onOutcome },
@@ -346,7 +353,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
-    if (!s.draft || arena) return; // arena bouts are practice: nothing is saved
+    if (!s.draft || practice) return; // arena bouts are practice: nothing is saved
     const saved = api.save(s.draft);
     if (saved && saved.id !== s.draft.id) {
       const box = host.querySelector(`[data-dg="party"][value="${CSS.escape(s.draft.id)}"]`);
@@ -395,11 +402,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function resetDelve(carry = null) {
     s.monsters = [];
     if (arena) {
-      loadParty(null, arena.heroes.map((h) => ({ ...h.pos })));
-      s.features = { chests: [], traps: [], secretDoors: new Set(), locks: new Map() };
+      loadParty(arena.carry ?? null, arena.heroes.map((h) => ({ ...h.pos })));
+      // A place's chests hold what the campaign put in them.
+      s.features = { chests: (arena.chests ?? []).map((ch) => ({ id: ch.id, x: ch.pos.x, y: ch.pos.y, locked: false, opened: false,
+        loot: { coins: ch.coins ?? 0, items: (ch.items ?? []).map((id) => makeItemSafe(id)) } })), traps: [], secretDoors: new Set(), locks: new Map() };
+      if (place) s.map.exit = place.exits[0] ?? null;
       s.monsters = arena.foes.map((f, i) => {
         const stat = BESTIARY_BY_ID[f.statId];
-        const m = { ...createMonster(stat, `m${i + 1}`, { ...f.pos }, f.facing ?? 4), aware: true };
+        const m = { ...createMonster(stat, `m${i + 1}`, { ...f.pos }, f.facing ?? 4), aware: !place };
+        // People of a place: they talk, trade and help, and never join a fight.
+        if (f.side === 'npc') Object.assign(m, { side: 'npc', npcId: f.npcId, name: f.name, aware: false });
         // Sides from the builder: allies fight for you; bound creatures start chained where they stand.
         if (f.side === 'ally') { m.side = 'ally'; m.permanent = true; }
         if (f.side === 'bound-captive') { m.side = 'captive'; m.aware = false; m.cond = { bound: { to: nextToWall(m.pos, m.size) ? 'wall' : 'floor', dc: 13 } }; }
@@ -430,9 +442,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.delve = carry?.delve ?? { xp: 0, coins: 0, items: 0, kills: 0, deepest: 1 }; s.invOpen = false;
     s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false;
     $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true; $('.dg-reviewbar').hidden = true; s.captiveRun = null;
-    setMood(arena ? 'combat' : 'dungeon');
+    setMood(place ? (place.music ?? 'dungeon') : arena ? 'combat' : 'dungeon');
     startHeroTurn();
     const names = party().map((h) => h.name).join(', ') || 'Your hero';
+    if (place) {
+      const people = s.monsters.filter((m) => m.side === 'npc').map((m) => m.name);
+      log(`${names} ${s.members.length > 1 ? 'arrive at' : 'arrives at'} ${arena.name}.${people.length ? ` Here: ${people.join(', ')}. Walk up to someone and click them to talk.` : ''}`, 'info');
+      updateVision(); redraw();
+      return;
+    }
     if (arena) {
       log(`The arena gates open. ${names} face ${s.monsters.map((m) => m.name).join(', ')}. A practice bout: no XP or loot is kept.`, 'info');
       updateVision(); redraw();
@@ -549,14 +567,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** Recompute what the hero sees; returns monsters that just noticed the hero. */
   function updateVision() {
     // The party sees what any of its members sees.
-    if (arena) { s.visible = new Set(); for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) s.visible.add(cellKey(x, y)); } else {
+    if (arena && arena.reveal !== false) { s.visible = new Set(); for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) s.visible.add(cellKey(x, y)); } else {
       const op = opaque(); s.visible = new Set();
       for (const h of (partyAlive().length ? partyAlive() : [s.hero])) for (const k of visibleSquares(s.map, h.pos, op)) s.visible.add(k);
     }
     if (s.features) passiveNotice();
     if (s.map.exit && !s.exitSeen && s.visible.has(cellKey(s.map.exit.x, s.map.exit.y))) {
       s.exitSeen = true;
-      if (s.log.length) { log('You spot a stairway leading further down!', 'good'); banner('Stairs down!'); }
+      if (s.log.length && !place) { log('You spot a stairway leading further down!', 'good'); banner('Stairs down!'); }
     }
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
@@ -640,7 +658,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       recoverAmmo();
       startHeroTurn();
       for (const m of allies()) if (m.cond?.taunt) delete m.cond.taunt;
-      if (!foes().filter((m) => !m.calm).length) showEnd('victory');
+      if (!foes().filter((m) => !m.calm).length) {
+        if (place) { const said = campaign?.event({ kind: 'cleared' }); if (said) log(said, 'good'); } else showEnd('victory');
+      }
     }
   }
 
@@ -817,8 +837,58 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const onExit = () => s.map?.exit && chebyshev(s.hero.pos, s.map.exit) <= 1 && (s.revealAll || s.revealed.has(cellKey(s.map.exit.x, s.map.exit.y)));
 
   /** Take the stairs: a deeper floor (a new dungeon), with your wounds, loot and tally carried along. */
+  /** Leave a campaign place for the world map, taking wounds and spent magic along. */
+  function leavePlace() {
+    if (!place) { onLeave?.(); return; }
+    if (s.mode === 'combat') { banner('You cannot leave while foes are on you.'); return; }
+    saveActive();
+    for (let i = 0; i < s.members.length; i++) { activate(i); persist(); }
+    onLeave?.({
+      members: s.members.map((m) => ({ hp: Math.max(1, m.hero.hp), res: m.res, buffs: {} })),
+      ids: s.members.map((m) => m.draft?.id ?? m.id),
+      // Chests emptied stay empty, and a place cleared of foes stays cleared.
+      opened: s.features.chests.filter((c) => c.opened && !c.loot?.coins && !c.loot?.items?.length).map((c) => c.id),
+      cleared: !foes().length,
+    });
+  }
+
+  // ---- People of a place: talking, trading, services ----------------------------------------
+  const npcTalking = () => s.monsters.find((m) => m.side === 'npc' && s.target?.kind === 'creature' && s.target.id === m.id);
+  /** What the party can pay with and what it carries (the active hero holds the purse). */
+  const wallet = () => ({ coins: s.draft?.coins ?? 0, has: (id) => s.members.some((mm, i) => (i === s.active ? s.draft : mm.draft)?.inventory?.some((x) => x.id === id)) });
+  function applyCampaignEffects(effects) {
+    for (const e of effects) {
+      if (e.coins) { s.draft.coins = Math.max(0, (s.draft.coins ?? 0) + e.coins); if (e.coins > 0) { float(s.hero.pos, `+${formatCoins(e.coins)}`, 'xp'); play('coins', { volume: 0.8 }); } }
+      if (e.item) { addItem(s.draft.inventory ??= [], makeItemSafe(e.item)); log(`${s.hero.name} receives ${itemName({ id: e.item })}.`, 'loot'); }
+      if (e.takeItem) {
+        for (let i = 0; i < s.members.length; i++) {
+          const d = i === s.active ? s.draft : s.members[i].draft; const inst = d?.inventory?.find((x) => x.id === e.takeItem);
+          if (inst) { removeItem(d.inventory, inst.uid, 1); break; }
+        }
+      }
+      if (e.heal) { for (const h of party()) h.hp = h.maxHp; for (const m of s.members) if (m.res) m.res.slots = [...m.res.maxSlots]; s.res && (s.res.slots = [...s.res.maxSlots]); play('spell-heal', { volume: 0.7 }); log('The party is rested and whole again.', 'heal'); }
+      if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${e.xp} XP.`, 'good'); }
+    }
+    persist();
+  }
+  function npcOption(i) {
+    const m = npcTalking(); if (!m || !campaign) return;
+    const r = campaign.npcChoose(m.npcId, i, wallet());
+    if (r.say) { s.npcSaid = { id: m.id, text: r.say }; log(r.say, 'talk'); }
+    applyCampaignEffects(r.effects ?? []);
+    redraw();
+  }
+  function npcBuy(id) {
+    const m = npcTalking(); const def = itemDef({ id }); if (!m || !def) return;
+    if ((s.draft.coins ?? 0) < def.value) { banner(`Not enough coin for ${def.name}.`); return; }
+    s.draft.coins -= def.value; addItem(s.draft.inventory ??= [], makeItemSafe(id));
+    play('coins', { volume: 0.7 }); log(`${s.hero.name} buys ${def.name} from ${m.name} for ${formatCoins(def.value)}.`, 'loot');
+    persist(); redraw();
+  }
+
   function descend() {
     if (!onExit() || s.busy) return;
+    if (place) { leavePlace(); return; }
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
     saveActive();
@@ -849,14 +919,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     m.loot = rollMonsterLoot(stat);
     s.delve.kills++;
     const n = m.loot.items.length + (m.loot.coins ? 1 : 0);
-    if (arena) { m.loot = { coins: 0, items: [] }; log(`${m.name} falls!`, 'good'); awardPartyXp(stat.xp, m.pos); return; }
+    if (practice) { m.loot = { coins: 0, items: [] }; log(`${m.name} falls!`, 'good'); awardPartyXp(stat.xp, m.pos); return; }
     log(`${m.name} falls! +${stat.xp} XP.${n ? ' It carried something: click the body to search it.' : ''}`, 'good');
     awardPartyXp(stat.xp, m.pos);
   }
 
   /** Experience for the whole party is split evenly (5e); a skill's XP goes to whoever used it. */
   function awardPartyXp(xp, pos) {
-    if (arena) { if (xp) float(pos ?? s.hero.pos, 'practice', 'muted'); return; }
+    if (practice) { if (xp) float(pos ?? s.hero.pos, 'practice', 'muted'); return; }
     const alivePeople = s.members.map((m, i) => i).filter((i) => s.members[i].hero.hp > 0 || s.members[i].hero === s.hero);
     if (alivePeople.length <= 1) { awardXp(xp, pos); return; }
     const share = Math.floor(xp / alivePeople.length);
@@ -868,7 +938,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   }
 
   function awardXp(xp, pos, shared = false) {
-    if (!xp || !s.draft || arena) return;
+    if (!xp || !s.draft || practice) return;
     const r = api.gainXp(s.draft, xp);
     if (!shared) s.delve.xp += xp;
     float(pos ?? s.hero.pos, `+${xp} XP`, 'xp');
@@ -1037,7 +1107,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   // Camera: zoom, pan, fit
   // ---------------------------------------------------------------------------
 
+  // The map's size in pixels at zoom 1. Width and height differ for arenas and campaign places
+  // (a 20 x 12 tavern); using the width for both made the stage square, the map was drawn
+  // letterboxed inside it, and clicks landed squares above or below where the player aimed.
   const mapPx = () => s.map.width * S();
+  const mapPxH = () => s.map.height * S();
   function setZoom(z, clientX, clientY) {
     const rect = viewport.getBoundingClientRect();
     const fx = clientX ?? rect.left + rect.width / 2; const fy = clientY ?? rect.top + rect.height / 2;
@@ -1045,14 +1119,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const contentY = (viewport.scrollTop + fy - rect.top) / s.zoom;
     s.zoom = Math.max(0.15, Math.min(2, z));
     stage.style.width = `${mapPx() * s.zoom}px`;
-    stage.style.height = `${mapPx() * s.zoom}px`;
+    stage.style.height = `${mapPxH() * s.zoom}px`;
     viewport.scrollLeft = contentX * s.zoom - (fx - rect.left);
     viewport.scrollTop = contentY * s.zoom - (fy - rect.top);
     $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
   }
   function fit() {
-    const avail = Math.min(viewport.clientWidth, viewport.clientHeight || viewport.clientWidth);
-    setZoom((avail - 4) / mapPx());
+    setZoom(Math.min((viewport.clientWidth - 4) / mapPx(), ((viewport.clientHeight || viewport.clientWidth) - 4) / mapPxH()));
   }
   function centerOn(pos, smooth = true) {
     const sz = S() * s.zoom;
@@ -1143,7 +1216,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // A click opens the creature's pop-up with everything you can do; Shift+click attacks at once.
       s.selectedId = foe.id;
       if (shift && !foe.side) { s.target = null; heroAttack(foe); return; }
-      if (foe.side === 'captive' && s.mode !== 'combat') { approachThen(foe.pos, () => { s.target = { kind: 'creature', id: foe.id }; }); return; }
+      if ((foe.side === 'captive' || foe.side === 'npc') && s.mode !== 'combat') { approachThen(foe.pos, () => { s.target = { kind: 'creature', id: foe.id }; }); return; }
       s.target = { kind: 'creature', id: foe.id };
       redraw();
       return;
@@ -1169,6 +1242,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** Walk next to something (if needed and possible), then open its pop-up. */
   async function approachThen(pos, open) {
     if (chebyshev(s.hero.pos, pos) > 1) {
+      // Out of combat the hero walks any distance: plan across the whole known map.
+      if (s.mode !== 'combat') { const saved = s.moveLeft; s.moveLeft = 999; s.reach = heroReach(); s.moveLeft = saved; }
       const step = [...s.reach.values()].filter((r) => r.cost > 0 && chebyshev(r, pos) <= 1).sort((a, b) => a.cost - b.cost)[0];
       if (step) await moveHero(step);
     }
@@ -1262,7 +1337,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       }
       case 'inventory': s.invOpen = !s.invOpen; redraw(); break;
       case 'pick-hero': if (s.mode !== 'combat' && !s.busy && s.members[Number(el.dataset.i)]?.hero.hp > 0) { activate(Number(el.dataset.i)); startHeroTurn(); redraw(); centerOn(s.hero.pos); } break;
-      case 'leave-arena': onLeave?.(); break;
+      case 'leave-arena': leavePlace(); break;
+      case 'npc-opt': npcOption(Number(el.dataset.i)); break;
+      case 'npc-buy': npcBuy(el.dataset.id); break;
       case 'story-continue': onOutcome?.(s.mode === 'victory'); break;
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }
@@ -1316,7 +1393,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   });
 
   // Developer hook for automated tests (only with ?debug in the address): end the fight in defeat.
-  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); }, wound(n) { for (const m of foes()) { s.hitFrom = { x: s.hero.pos.x + 0.5, y: s.hero.pos.y + 0.5 }; damageMonster(m, n); finishIfDead(m); } redraw(); } };
+  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); }, state: () => s, wound(n) { for (const m of foes()) { s.hitFrom = { x: s.hero.pos.x + 0.5, y: s.hero.pos.y + 0.5 }; damageMonster(m, n); finishIfDead(m); } redraw(); } };
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }

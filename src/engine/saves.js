@@ -35,6 +35,8 @@ export const FORMATS = {
   arenas: { id: 'rpg-arenas', version: 2, empty: () => [], migrations: { 1: (list) => list } },
   // Story progress by story id.
   stories: { id: 'rpg-stories', version: 1, empty: () => ({}), migrations: {} },
+  // Campaign progress (where the party is, what it knows, quest flags, wounds) by campaign id.
+  campaigns: { id: 'rpg-campaigns', version: 1, empty: () => ({}), migrations: {} },
 };
 
 /** Upgrade raw stored text to the current version. Returns { data, version, newer, upgraded }. */

@@ -213,9 +213,11 @@ export function installActions(ctx) {
     if (c.locked) { ctx.banner('The chest is locked.'); return; }
     if (!c.opened) {
       c.opened = true;
-      c.loot = rollChestLoot(s.def.level ?? 1);
+      c.loot ??= rollChestLoot(s.def.level ?? 1); // a campaign chest holds what was put in it
       play('chest-open', { volume: 0.9 });
       ctx.log(`${s.hero.name} opens a chest.`, 'loot');
+      const said = ctx.campaign?.event({ kind: 'chest', id: c.id });
+      if (said) ctx.log(said, 'good');
     }
     s.target = { kind: 'chest', id: c.id };
     ctx.redraw();

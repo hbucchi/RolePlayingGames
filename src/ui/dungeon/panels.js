@@ -5,7 +5,7 @@
  */
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
 import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
-import { countOf, findItem } from '../../engine/items.js';
+import { countOf, findItem, itemDef, formatCoins as formatCoinsShort } from '../../engine/items.js';
 import { DIAGONAL_RULES, cellKey } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { rollDie } from '../../engine/dice.js';
@@ -357,6 +357,27 @@ export function installPanels(ctx) {
     } else ctx.log(`${m.name} is free of its bonds.`, 'info');
   }
 
+  /** Talking with someone in a campaign place: what they say, what you can ask, what they sell. */
+  function npcPanel(m) {
+    const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
+    const pic = ctx.portraitOf(m);
+    if (!ctx.campaign) return '';
+    const near = chebyshev(s.hero.pos, m.pos) <= 1;
+    const v = ctx.campaign.npcView(m.npcId, ctx.wallet());
+    if (!v) return '';
+    const said = s.npcSaid?.id === m.id ? s.npcSaid.text : `${m.name}: “${v.greet}”`;
+    const shop = v.shop.map((id) => ({ id, def: itemDef({ id }) })).filter((x) => x.def);
+    return `<div class="npc-card">
+      <div class="foe-head">${pic ? `<img class="npc-pic" src="${esc(pic)}" alt="">` : ''}<h3>${esc(m.name)}</h3>${close}</div>
+      <p class="npc-say">${esc(said)}</p>
+      ${!near ? '<p class="small muted">Walk up to them to talk.</p>' : `
+      ${v.options.length ? `<div class="npc-options">${v.options.map((o) => `<button class="btn npc-opt" data-dg="npc-opt" data-i="${o.i}" ${o.why ? `title="${esc(o.why)}"` : ''}>${esc(o.label)}${o.why ? ` <small>(${esc(o.why)})</small>` : ''}</button>`).join('')}</div>` : ''}
+      ${shop.length ? `<h4>For sale</h4><ul class="shop">${shop.map(({ id, def }) => `<li><span>${def.glyph ?? '•'} ${esc(def.name)}</span><span class="muted small">${esc(formatCoinsShort(def.value))}</span>
+        <button class="btn small" data-dg="npc-buy" data-id="${esc(id)}" ${(s.draft?.coins ?? 0) < def.value ? 'disabled title="Not enough coin"' : ''}>Buy</button></li>`).join('')}</ul>` : ''}
+      <div class="small muted npc-purse">Purse (${esc(s.hero.name)}): ${coinsHtml(s.draft?.coins ?? 0)}</div>`}
+    </div>`;
+  }
+
   function captivePanel(m) {
     const bound = m.cond?.bound; const near = ctx.edist(s.hero, m) <= 1;
     const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
@@ -458,7 +479,7 @@ export function installPanels(ctx) {
   function nearbyThings() {
     if (!s.hero || !s.features) return [];
     const list = [];
-    if (ctx.onExit()) list.push({ kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
+    if (ctx.onExit()) list.push(ctx.place ? { kind: 'stairs', id: 'down', label: 'Leave for the world map', glyph: '🗺' } : { kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
     for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && ctx.adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
     for (const c of s.features.chests) if (ctx.adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
     for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (ctx.adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
@@ -476,7 +497,7 @@ export function installPanels(ctx) {
     if (t.kind === 'creature') {
       const m = s.monsters.find((x) => x.id === t.id && !x.dead);
       if (!m) return '';
-      return m.side === 'captive' ? captivePanel(m) : m.side === 'ally' ? allyPanel(m) : foePanel(m);
+      return m.side === 'npc' ? npcPanel(m) : m.side === 'captive' ? captivePanel(m) : m.side === 'ally' ? allyPanel(m) : foePanel(m);
     }
     const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
     const near = (p) => chebyshev(s.hero.pos, p) <= 1;
@@ -570,7 +591,7 @@ export function installPanels(ctx) {
   function drawTargetInfo() {
     const box = $('.dg-target');
     const sel = s.selectedId && s.monsters.find((m) => m.id === s.selectedId && !m.dead && ctx.canSee(m));
-    if (sel && s.target?.kind !== 'creature') { box.innerHTML = sel.side ? (sel.side === 'ally' ? allyPanel(sel) : captivePanel(sel)) : foePanel(sel); return; }
+    if (sel && s.target?.kind !== 'creature') { box.innerHTML = sel.side ? (sel.side === 'npc' ? npcPanel(sel) : sel.side === 'ally' ? allyPanel(sel) : captivePanel(sel)) : foePanel(sel); return; }
     if (sel) { box.innerHTML = `<p class="small muted">${esc(sel.name)}: choose what to do in the pop-up.</p>`; return; }
 
     const hov = s.hover;
@@ -584,7 +605,7 @@ export function installPanels(ctx) {
     }
     if (foe && foe.side) {
       box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(foe) ? `<img src="${esc(ctx.portraitOf(foe))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
-        <p class="small">${foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe) * 5} ft away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;
+        <p class="small">${foe.side === 'npc' ? 'Click to talk' : foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe) * 5} ft away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;
       return;
     }
     if (foe) {

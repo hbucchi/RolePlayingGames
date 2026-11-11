@@ -23,6 +23,8 @@ import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
 import { mountStory, resolveBattle, savedRun } from './story-view.js';
 import { levelUpDialog } from './level-up.js';
+import { mountCampaign, buildPlace, placeHooks, leftPlace, loadRun as loadCampaignRun } from './campaign-view.js';
+import { CAMPAIGNS } from '../content/campaigns/index.js';
 import { playRange } from '../engine/range.js';
 import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
@@ -132,11 +134,13 @@ function render() {
       <div id="arena-host"></div>`,
     'arena-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     story: () => '<div id="story-host"></div>',
+    campaign: () => '<div id="campaign-host"></div>',
+    'campaign-place': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     'story-fight': () => '<div id="dungeon-host" class="dungeon-host"></div>',
     monster: () => `${monsterView(BESTIARY_BY_ID[state.monsterId])}${diceTray()}`,
   };
   renderInto((views[state.view] ?? homeView)());
-  if (!['dungeon', 'arena-fight', 'story-fight'].includes(state.view)) music.setMood('menu');
+  if (!['dungeon', 'arena-fight', 'story-fight', 'campaign-place'].includes(state.view)) music.setMood('menu');
   if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
   if (state.view === 'arena') {
     mountArenaBuilder(root.querySelector('#arena-host'), {
@@ -152,11 +156,25 @@ function render() {
       onLeave: () => { state.view = 'arena'; render(); },
     });
   }
+  if (state.view === 'campaign') {
+    mountCampaign(root.querySelector('#campaign-host'), {
+      campaignId: state.campaignId, heroes: explorerHeroes(), notify: toast,
+      onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures' }); render(); },
+      onEnter: (locId) => { state.placeId = locId; state.view = 'campaign-place'; render(); window.scrollTo(0, 0); },
+      onStory: (storyId) => { Object.assign(state, { view: 'story', storyId, storyReturn: 'campaign' }); render(); window.scrollTo(0, 0); },
+    });
+  }
+  if (state.view === 'campaign-place') {
+    mountDungeon(root.querySelector('#dungeon-host'), {
+      heroes: explorerHeroes(), api: heroApi, arena: buildPlace(state.campaignId, state.placeId), campaign: placeHooks(state.campaignId, state.placeId),
+      onLeave: (left) => { leftPlace(state.campaignId, state.placeId, left); state.view = 'campaign'; render(); window.scrollTo(0, 0); },
+    });
+  }
   if (state.view === 'story') {
     mountStory(root.querySelector('#story-host'), {
       storyId: state.storyId, heroes: explorerHeroes(), api: heroApi, notify: toast,
       onFight: (setup) => { state.storyFight = setup; state.view = 'story-fight'; render(); window.scrollTo(0, 0); },
-      onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures' }); render(); },
+      onLeave: () => { Object.assign(state, state.storyReturn === 'campaign' ? { view: 'campaign', storyReturn: null } : { view: 'home', tab: 'adventures' }); render(); },
     });
   }
   if (state.view === 'story-fight') {
@@ -308,6 +326,12 @@ function adventuresView() {
       <h1>Adventures</h1>
       <p class="muted">Choose a tale and bring your company. Full adventures are on the way; the sandbox lets you explore generated dungeons now.</p>
       <div class="card-grid">
+        ${CAMPAIGNS.map((cp) => `<article class="card adventure campaign-card" style="background-image:linear-gradient(rgb(251 246 234 / .9), rgb(251 246 234 / .96)), url('${esc(cp.map.image)}')">
+          <div class="card-head"><h3>${esc(cp.title)}</h3><span class="badge">Campaign</span></div>
+          <p>${esc(cp.blurb)}</p>
+          <p class="muted small">Levels ${esc(cp.levels)} · a world map, 6 places, a quest</p>
+          <button class="btn small primary" data-action="open-campaign" data-id="${esc(cp.id)}">${loadCampaignRun(cp.id) ? 'Continue the campaign' : 'Begin the campaign'}</button>
+        </article>`).join('')}
         <article class="card adventure arena-card">
           <div class="card-head"><h3>The Arena</h3><span class="badge">Playable</span></div>
           <p>Build your own battlefield square by square (grass, mud, rivers, castle floors, walls), choose up to four heroes and any of the 356 creatures, place them, and fight. Save your arenas to use again.</p>
@@ -847,7 +871,7 @@ const actions = {
   setting(el) { setSetting(el.dataset.setting, el.value); toast('Setting saved.'); },
   home() {
     if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
-    if (['dungeon', 'arena', 'arena-fight', 'story', 'story-fight'].includes(state.view)) state.tab = 'adventures';
+    if (['dungeon', 'arena', 'arena-fight', 'story', 'story-fight', 'campaign', 'campaign-place'].includes(state.view)) state.tab = 'adventures';
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
   },
@@ -896,6 +920,7 @@ const actions = {
     state.sheet = { ...state.sheet, draft: roster.save(d) };
     render();
   },
+  'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
   'enter-dungeon'() {

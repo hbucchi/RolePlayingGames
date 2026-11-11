@@ -150,7 +150,7 @@ export function installRender(ctx) {
       </g></g>
       <ellipse rx="${rx * 0.8}" ry="${ry * 0.8}" class="tk-hitflash"/>
       ${chainSvg(e, Math.min(rx, ry))}
-      ${hero || state !== 'unhurt' || e.side ? hpBar(-Math.max(rx, sz * 0.36), -ry - 16, 2 * Math.max(rx, sz * 0.36), hpFrac) : ''}
+      ${hero || state !== 'unhurt' || (e.side && e.side !== 'npc') ? hpBar(-Math.max(rx, sz * 0.36), -ry - 16, 2 * Math.max(rx, sz * 0.36), hpFrac) : ''}
     </g>`;
   }
 
@@ -158,9 +158,9 @@ export function installRender(ctx) {
     return {
       img: hero ? e.look?.url : ctx.portraitOf(e),
       filter: hero ? (e.look?.filter ?? 'none') : e.cond?.petrified ? 'grayscale(1) brightness(0.85) contrast(1.2)' : (e.portrait ? 'none' : portraitTint(e.statId)),
-      ring: hero ? (e.look?.frameColor ?? '#e9c46a') : e.side === 'ally' ? '#5fbf6a' : e.side === 'captive' ? '#d4b35a' : e.calm ? '#9aa3ad' : '#c94a3a',
+      ring: hero ? (e.look?.frameColor ?? '#e9c46a') : e.side === 'ally' ? '#5fbf6a' : e.side === 'captive' ? '#d4b35a' : e.side === 'npc' ? '#6aa6e8' : e.calm ? '#9aa3ad' : '#c94a3a',
       hpFrac: Math.max(0, e.hp / e.maxHp),
-      cls: `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}${e.size && !isSquare(e.size) ? ' tk-rect' : ''}`,
+      cls: `tk ${hero ? `tk-hero${e === s.hero && s.members.length > 1 ? ' tk-active' : ''}${e.hp <= 0 ? ' tk-down' : ''}` : `${e.side === 'ally' ? 'tk-ally' : e.side === 'captive' ? 'tk-captive' : e.side === 'npc' ? 'tk-npc' : 'tk-foe'} tk-${state}${e.cond?.petrified ? ' tk-stone' : ''}${e.calm ? ' tk-calm' : ''}`}${s.flash.has(e.id) ? ' tk-flash' : ''}${s.selectedId === e.id ? ' tk-selected' : ''}${e.size && !isSquare(e.size) ? ' tk-rect' : ''}`,
     };
   }
 
@@ -197,7 +197,7 @@ export function installRender(ctx) {
       <path d="M ${nx + ux * nose} ${ny + uy * nose} L ${nx - uy * wing} ${ny + ux * wing} L ${nx + uy * wing} ${ny - ux * wing} Z" class="tk-nose" style="fill:${ring}"/>
       ${box(0, 'tk-hitflash')}
       ${chainSvg(e, Math.min(hw, hh))}
-      ${state !== 'unhurt' || e.side ? hpBar(-hw, -hh - 16, hw * 2, hpFrac) : ''}
+      ${state !== 'unhurt' || (e.side && e.side !== 'npc') ? hpBar(-hw, -hh - 16, hw * 2, hpFrac) : ''}
     </g>`;
   }
 

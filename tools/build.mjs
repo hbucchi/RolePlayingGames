@@ -36,7 +36,7 @@ const copyTree = (dir) => {
 write('hero-forge.html', fs.readFileSync(path.join(ROOT, 'publish/hero-forge.html')));
 write('index.html', fs.readFileSync(path.join(ROOT, 'index.html'))); // for `ROOT=dist npm start`
 copyTree('src');
-for (const dir of ['music', 'terrain', 'textures', 'items', 'vfx']) copyTree(`assets/${dir}`);
+for (const dir of ['music', 'terrain', 'textures', 'items', 'vfx', 'campaign']) copyTree(`assets/${dir}`);
 
 // ---- Packs ------------------------------------------------------------------------------------
 const packs = {}; // name -> [[asset path, kind]]
