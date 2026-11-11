@@ -140,6 +140,10 @@ export function buildMonster(raw) {
     lore: raw.lore ?? null,
     appearance: raw.appearance ?? null,
     settings: raw.settings ?? ['core'],
+    // How it looks and sounds: art = { portrait, body, tint, portraitTint } (keys of image files
+    // in assets/portraits and assets/bodies, CSS filters for the tints), voice = a sound family.
+    art: raw.art ?? {},
+    voice: raw.voice ?? null,
   };
 }
 

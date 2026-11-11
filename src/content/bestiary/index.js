@@ -44,7 +44,7 @@ const BUILT = RAW.map(buildMonster);
 const ancientRed = BUILT.find((m) => m.id === 'ancient-red-dragon');
 if (ancientRed) {
   BUILT.push({
-    ...ancientRed, id: 'test-dragon', name: 'Test Dragon', source: 'Westlands', settings: ['westlands'],
+    ...ancientRed, id: 'test-dragon', name: 'Test Dragon', art: { portrait: 'red-dragon', body: 'body-test-dragon' }, source: 'Westlands', settings: ['westlands'],
     appearance: 'A colossal crimson dragon seen from above: great wings spread wide to either side, a long horned neck, four clawed legs and a trailing tail.',
   });
 }

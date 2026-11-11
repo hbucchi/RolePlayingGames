@@ -17,7 +17,7 @@ import {
   immobile, conditionLabels, escapeBonus, canWrestle, BOUND_TEXT,
 } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { monsterPortrait, bodyUrl, bodyScale, BODY_TINT, portraitTint } from '../content/media.js';
+import { monsterPortrait, bodyUrl, bodyScale, bodyTint, portraitTint } from '../content/media.js';
 import { play, preload, monsterVoice, voiceSound, SOUND_KEYS } from './audio.js';
 import { setMood, stinger } from './music.js';
 import { getFigures, getSetting, setSetting, settingsControls, PACE_FACTOR } from './settings.js';
@@ -1580,7 +1580,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const scale = (spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04) * bodyScale(hero ? e.race : e.statId);
     const bw = north.w * sz * scale; const bh = north.h * sz * scale;
     const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
-    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (!hero && BODY_TINT[e.statId]) || 'none';
+    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (hero ? 'none' : bodyTint(e.statId));
     return `<g class="${cls} tk-body" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}

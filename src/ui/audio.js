@@ -48,6 +48,8 @@ export function preload(keys) {
  */
 export function monsterVoice(stat) {
   if (!stat) return 'goblin';
+  if (stat.voice) return stat.voice; // the creature's record says how it sounds
+  // Otherwise guess from its name and kind (a new creature without a voice yet).
   const id = stat.id; const t = stat.type; const small = stat.size === 'Tiny' || stat.size === 'Small';
   // Creepy-crawlies hiss and click.
   if (/spider|ettercap|weaver|drider|scorpion|centipede|beetle|wasp|insect|ankheg|carrion|rust-monster|stirge|brood-queen/.test(id)) return 'spider';

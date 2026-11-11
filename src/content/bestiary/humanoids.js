@@ -8,7 +8,7 @@ const parry = (n) => act('Parry', `Adds ${n} to its AC against one melee attack 
 export const humanoids = [
   // ---- Peoples ------------------------------------------------------------
   {
-    name: 'Goblin', size: 'Small', type: 'humanoid', subtype: 'goblinoid', alignment: 'neutral evil',
+    name: 'Goblin', art: { portrait: 'goblin', body: 'body-goblin' }, voice: 'goblin', size: 'Small', type: 'humanoid', subtype: 'goblinoid', alignment: 'neutral evil',
     ac: 15, armor: 'leather armor, shield', hp: '2d6', speed: 30, ab: [8, 14, 10, 10, 8, 8],
     skills: { stealth: 6 }, senses: { darkvision: 60 }, languages: 'Common, Goblin', cr: '1/4',
     traits: [act('Nimble Escape', 'Can take the Disengage or Hide action as a bonus action on each of its turns.')],
@@ -20,7 +20,7 @@ export const humanoids = [
       'Ambush from cover, shoot, then scatter with Nimble Escape; flee when the leader falls.'),
   },
   {
-    name: 'Hobgoblin', size: 'Medium', type: 'humanoid', subtype: 'goblinoid', alignment: 'lawful evil',
+    name: 'Hobgoblin', art: { portrait: 'fam-bugbear', body: 'body-fam-bugbear', tint: 'hue-rotate(-30deg) saturate(1.4) brightness(1.05)', portraitTint: 'hue-rotate(-30deg) saturate(1.4) brightness(1.05)' }, voice: 'orc', size: 'Medium', type: 'humanoid', subtype: 'goblinoid', alignment: 'lawful evil',
     ac: 18, armor: 'chain mail, shield', hp: '2d8+2', speed: 30, ab: [13, 12, 12, 10, 10, 9],
     senses: { darkvision: 60 }, languages: 'Common, Goblin', cr: '1/2',
     traits: [act('Martial Advantage', 'Once per turn, deals an extra 7 (2d6) damage to a creature it hits with a weapon attack if that creature is within 5 feet of an ally of the hobgoblin that isn\'t incapacitated.')],
@@ -32,7 +32,7 @@ export const humanoids = [
       'Hold formation, pair up so Martial Advantage applies, volley arrows before closing.'),
   },
   {
-    name: 'Bugbear', size: 'Medium', type: 'humanoid', subtype: 'goblinoid', alignment: 'chaotic evil',
+    name: 'Bugbear', art: { portrait: 'fam-bugbear', body: 'body-fam-bugbear' }, voice: 'orc', size: 'Medium', type: 'humanoid', subtype: 'goblinoid', alignment: 'chaotic evil',
     ac: 16, armor: 'hide armor, shield', hp: '5d8+5', speed: 30, ab: [15, 14, 13, 8, 11, 9],
     skills: { stealth: 6, survival: 2 }, senses: { darkvision: 60 }, languages: 'Common, Goblin', cr: '1',
     traits: [
@@ -47,7 +47,7 @@ export const humanoids = [
       'Creep close in silence, strike first for the surprise bonus, and drag a lone victim away.'),
   },
   {
-    name: 'Kobold', size: 'Small', type: 'humanoid', subtype: 'kobold', alignment: 'lawful evil',
+    name: 'Kobold', art: { portrait: 'fam-kobold', body: 'body-fam-kobold' }, voice: 'goblin', size: 'Small', type: 'humanoid', subtype: 'kobold', alignment: 'lawful evil',
     ac: 12, hp: '2d6-2', speed: 30, ab: [7, 15, 9, 8, 7, 8], senses: { darkvision: 60 },
     languages: 'Common, Draconic', cr: '1/8', traits: [T.sunlight, T.packTactics],
     actions: [mw('Dagger', 4, 5, '1d4+2 piercing'), rw('Sling', 4, '30/120', '1d4+2 bludgeoning')],
@@ -58,7 +58,7 @@ export const humanoids = [
       'Lure foes into prepared kill-zones; swarm with Pack Tactics; run from anything that isn\'t trapped.'),
   },
   {
-    name: 'Orc', size: 'Medium', type: 'humanoid', subtype: 'orc', alignment: 'chaotic evil',
+    name: 'Orc', art: { portrait: 'orc', body: 'body-orc', tint: 'hue-rotate(40deg) saturate(1.3)' }, voice: 'orc', size: 'Medium', type: 'humanoid', subtype: 'orc', alignment: 'chaotic evil',
     ac: 13, armor: 'hide armor', hp: '2d8+6', speed: 30, ab: [16, 12, 16, 7, 11, 10],
     skills: { intimidation: 2 }, senses: { darkvision: 60 }, languages: 'Common, Orc', cr: '1/2', traits: [T.aggressive],
     actions: [mw('Greataxe', 5, 5, '1d12+3 slashing'), mrw('Javelin', 5, 5, '30/120', '1d6+3 piercing')],
@@ -69,7 +69,7 @@ export const humanoids = [
       'Charge with Aggressive, gang up on the biggest threat, and fight to the death if the chief watches.'),
   },
   {
-    name: 'Gnoll', size: 'Medium', type: 'humanoid', subtype: 'gnoll', alignment: 'chaotic evil',
+    name: 'Gnoll', art: { portrait: 'fam-gnoll', body: 'body-fam-gnoll' }, voice: 'wolf', size: 'Medium', type: 'humanoid', subtype: 'gnoll', alignment: 'chaotic evil',
     ac: 15, armor: 'hide armor, shield', hp: '5d8', speed: 30, ab: [14, 12, 11, 6, 10, 7],
     senses: { darkvision: 60 }, languages: 'Gnoll', cr: '1/2',
     traits: [act('Rampage', 'When it reduces a creature to 0 hit points with a melee attack on its turn, it can take a bonus action to move up to half its speed and make a bite attack.')],
@@ -81,7 +81,7 @@ export const humanoids = [
       'Pick off stragglers, chain kills with Rampage, retreat to shoot when facing heavy armour.'),
   },
   {
-    name: 'Lizardfolk', size: 'Medium', type: 'humanoid', subtype: 'lizardfolk', alignment: 'neutral',
+    name: 'Lizardfolk', art: { portrait: 'fam-lizardfolk', body: 'body-fam-lizardfolk' }, voice: 'goblin', size: 'Medium', type: 'humanoid', subtype: 'lizardfolk', alignment: 'neutral',
     ac: 15, armor: 'natural armor, shield', hp: '4d8+4', speed: { walk: 30, swim: 30 }, ab: [15, 10, 13, 7, 12, 7],
     skills: { perception: 3, stealth: 4, survival: 5 }, languages: 'Draconic', cr: '1/2', traits: [T.holdBreath(15)],
     actions: [
@@ -96,7 +96,7 @@ export const humanoids = [
       'Strike from the water, use every weapon in turn, and withdraw if the hunt costs more than it yields.'),
   },
   {
-    name: 'Merfolk', size: 'Medium', type: 'humanoid', subtype: 'merfolk', alignment: 'neutral',
+    name: 'Merfolk', art: { portrait: 'fam-merfolk', body: 'body-fam-merfolk' }, voice: 'hero-high', size: 'Medium', type: 'humanoid', subtype: 'merfolk', alignment: 'neutral',
     ac: 11, hp: '2d8+2', speed: { walk: 10, swim: 40 }, ab: [10, 13, 12, 11, 11, 12],
     skills: { perception: 2 }, languages: 'Aquan, Common', cr: '1/8', traits: [T.amphibious],
     actions: [mrw('Spear', 2, 5, '20/60', '1d6 piercing', 'or 4 (1d8) piercing damage if used with two hands to make a melee attack')],
@@ -107,7 +107,7 @@ export const humanoids = [
       'Fight from the water; dive out of reach if outmatched.'),
   },
   {
-    name: 'Sahuagin', size: 'Medium', type: 'humanoid', subtype: 'sahuagin', alignment: 'lawful evil',
+    name: 'Sahuagin', art: { portrait: 'fam-fishfolk', body: 'body-fam-fishfolk' }, voice: 'goblin', size: 'Medium', type: 'humanoid', subtype: 'sahuagin', alignment: 'lawful evil',
     ac: 12, armor: 'natural armor', hp: '4d8+4', speed: { walk: 30, swim: 40 }, ab: [13, 11, 12, 12, 13, 9],
     skills: { perception: 5 }, senses: { darkvision: 120 }, languages: 'Sahuagin', cr: '1/2',
     traits: [
@@ -125,7 +125,7 @@ export const humanoids = [
       'Draw blood first to trigger Blood Frenzy, bring sharks, and drag victims into the water.'),
   },
   {
-    name: 'Grimlock', size: 'Medium', type: 'humanoid', subtype: 'grimlock', alignment: 'neutral evil',
+    name: 'Grimlock', art: { portrait: 'fam-grimlock', body: 'body-fam-grimlock' }, voice: 'goblin', size: 'Medium', type: 'humanoid', subtype: 'grimlock', alignment: 'neutral evil',
     ac: 11, hp: '2d8+2', speed: 30, ab: [16, 12, 12, 9, 8, 6],
     skills: { athletics: 5, perception: 3, stealth: 3 }, conditionImmune: ['blinded'], senses: { blindsight: '30 ft. or 10 ft. while deafened (blind beyond this radius)' },
     languages: 'Undercommon', cr: '1/4',
@@ -142,7 +142,7 @@ export const humanoids = [
       'Lie still against the rock, then rush whoever makes the most noise. Light means nothing to them.'),
   },
   {
-    name: 'Deep Gnome (Svirfneblin)', id: 'deep-gnome', size: 'Small', type: 'humanoid', subtype: 'gnome', alignment: 'neutral good',
+    name: 'Deep Gnome (Svirfneblin)', art: { portrait: 'fam-deep-gnome', body: 'body-halfling', tint: 'grayscale(.9) brightness(.9)', portraitTint: 'grayscale(.9) brightness(.9)' }, voice: 'goblin', id: 'deep-gnome', size: 'Small', type: 'humanoid', subtype: 'gnome', alignment: 'neutral good',
     ac: 15, armor: 'chain shirt', hp: '3d6+6', speed: 20, ab: [15, 14, 14, 12, 10, 9],
     skills: { investigation: 3, perception: 2, stealth: 4 }, senses: { darkvision: 120 }, languages: 'Gnomish, Terran, Undercommon', cr: '1/2',
     traits: [
@@ -158,7 +158,7 @@ export const humanoids = [
       'Hide, scout, poison from range; parley if the strangers seem decent.'),
   },
   {
-    name: 'Drow', size: 'Medium', type: 'humanoid', subtype: 'elf', alignment: 'neutral evil',
+    name: 'Drow', art: { portrait: 'fam-drow', body: 'body-fam-drow' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'elf', alignment: 'neutral evil',
     ac: 15, armor: 'chain shirt', hp: '3d8', speed: 30, ab: [10, 14, 10, 11, 11, 12],
     skills: { perception: 2, stealth: 4 }, senses: { darkvision: 120 }, languages: 'Elvish, Undercommon', cr: '1/4',
     traits: [act('Fey Ancestry', 'Has advantage on saving throws against being charmed, and magic can\'t put it to sleep.'), T.sunlight],
@@ -171,7 +171,7 @@ export const humanoids = [
       'Blind foes with darkness, mark them with faerie fire, put them to sleep with poisoned bolts.'),
   },
   {
-    name: 'Duergar', size: 'Medium', type: 'humanoid', subtype: 'dwarf', alignment: 'lawful evil',
+    name: 'Duergar', art: { portrait: 'fam-duergar', body: 'body-dwarf', tint: 'grayscale(.8) brightness(.8)', portraitTint: 'grayscale(.8) brightness(.8)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'dwarf', alignment: 'lawful evil',
     ac: 16, armor: 'scale mail, shield', hp: '4d8+8', speed: 25, ab: [14, 11, 14, 11, 10, 9],
     resist: ['poison'], senses: { darkvision: 120 }, languages: 'Dwarvish, Undercommon', cr: '1',
     traits: [act('Duergar Resilience', 'Has advantage on saving throws against poison, spells, and illusions, and against being charmed or paralyzed.'), T.sunlight],
@@ -190,7 +190,7 @@ export const humanoids = [
 
   // ---- Lycanthropes ---------------------------------------------------------
   {
-    name: 'Werewolf', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'chaotic evil',
+    name: 'Werewolf', art: { portrait: 'fam-werewolf', body: 'body-fam-werewolf' }, voice: 'wolf', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'chaotic evil',
     ac: 11, armor: 'in humanoid form, 12 (natural armor) in wolf or hybrid form', hp: '9d8+18', speed: { walk: 30 }, ab: [15, 13, 14, 10, 11, 10],
     skills: { perception: 4, stealth: 3 }, immune: lycanImmune, languages: 'Common (can\'t speak in wolf form)', cr: '3',
     traits: [shapechanger('a wolf-humanoid hybrid or into a wolf (speed 40 ft. in wolf form)'), T.keenHearingSmell],
@@ -207,7 +207,7 @@ export const humanoids = [
       'Hunt with a pack, target the weakest, and let ordinary weapons bounce off.'),
   },
   {
-    name: 'Wererat', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'lawful evil',
+    name: 'Wererat', art: { portrait: 'fam-werewolf', body: 'body-fam-werewolf', tint: 'sepia(.6) brightness(.8)', portraitTint: 'sepia(.6) brightness(.8)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'lawful evil',
     ac: 12, hp: '6d8+6', speed: 30, ab: [10, 15, 12, 11, 10, 8],
     skills: { perception: 2, stealth: 4 }, immune: lycanImmune, senses: { darkvision: '60 ft. (rat form only)' }, languages: 'Common (can\'t speak in rat form)', cr: '2',
     traits: [shapechanger('a rat-humanoid hybrid or into a giant rat'), T.keenSmell],
@@ -224,7 +224,7 @@ export const humanoids = [
       'Fight in narrow sewers, summon rats, slip away through tiny gaps.'),
   },
   {
-    name: 'Werebear', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral good',
+    name: 'Werebear', art: { portrait: 'fam-werebear', body: 'body-fam-werebear' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral good',
     ac: 10, armor: 'in humanoid form, 11 (natural armor) in bear or hybrid form', hp: '18d8+54', speed: 30, ab: [19, 10, 17, 11, 12, 12],
     skills: { perception: 7 }, immune: lycanImmune, languages: 'Common (can\'t speak in bear form)', cr: '5',
     traits: [shapechanger('a Large bear-humanoid hybrid or into a Large bear (speed 40 ft., climb 30 ft.)'), T.keenSmell],
@@ -241,7 +241,7 @@ export const humanoids = [
       'Avoid fights unless the wild or the innocent are threatened, then fight like an avalanche.'),
   },
   {
-    name: 'Wereboar', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral evil',
+    name: 'Wereboar', art: { portrait: 'fam-werebear', body: 'body-fam-werebear', tint: 'sepia(.4) hue-rotate(-20deg) brightness(.85)', portraitTint: 'sepia(.4) hue-rotate(-20deg) brightness(.85)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral evil',
     ac: 10, armor: 'in humanoid form, 11 (natural armor) in boar or hybrid form', hp: '12d8+24', speed: 30, ab: [17, 10, 15, 10, 11, 8],
     skills: { perception: 2 }, immune: lycanImmune, languages: 'Common (can\'t speak in boar form)', cr: '4',
     traits: [
@@ -261,7 +261,7 @@ export const humanoids = [
       'Charge to knock foes prone, then keep swinging even when "dead".'),
   },
   {
-    name: 'Weretiger', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral',
+    name: 'Weretiger', art: { portrait: 'fam-weretiger', body: 'body-fam-weretiger' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'human, shapechanger', alignment: 'neutral',
     ac: 12, hp: '16d8+48', speed: 30, ab: [17, 15, 16, 10, 13, 11],
     skills: { perception: 5, stealth: 4 }, immune: lycanImmune, senses: { darkvision: 60 }, languages: 'Common (can\'t speak in tiger form)', cr: '4',
     traits: [
@@ -285,14 +285,14 @@ export const humanoids = [
 
   // ---- People of every land (generic NPCs) -------------------------------------
   {
-    name: 'Commoner', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Commoner', art: { portrait: 'fam-commoner', body: 'body-fam-commoner' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 10, hp: '1d8', speed: 30, ab: [10, 10, 10, 10, 10, 10], languages: 'any one language (usually Common)', cr: '0',
     actions: [mw('Club', 2, 5, '1d4 bludgeoning')], habitat: ['urban', 'grassland', 'any'],
     appearance: 'An ordinary villager in plain homespun clothes, a weathered face and work-worn hands, holding a wooden club or farm tool, standing nervously in front of a thatched cottage.',
     lore: lore('Ordinary folk: frightened, stubborn, kind or cruel like anyone.', 'Farmers, servants, labourers; the people heroes fight for.', 'Flee or hide; fight only to protect home and family.'),
   },
   {
-    name: 'Bandit', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-lawful alignment',
+    name: 'Bandit', art: { portrait: 'fam-bandit', body: 'body-fam-bandit' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-lawful alignment',
     ac: 12, armor: 'leather armor', hp: '2d8+2', speed: 30, ab: [11, 12, 12, 10, 10, 10], languages: 'any one language (usually Common)', cr: '1/8',
     actions: [mw('Scimitar', 3, 5, '1d6+1 slashing'), rw('Light Crossbow', 3, '80/320', '1d8+1 piercing')],
     habitat: ['forest', 'hill', 'grassland', 'urban', 'any'],
@@ -300,7 +300,7 @@ export const humanoids = [
     lore: lore('Desperate or greedy; brave when the odds look good.', 'Deserters, outlaws and the hungry, preying on travellers along lonely roads.', 'Block the road, demand a toll, flee if the first volley goes badly.'),
   },
   {
-    name: 'Bandit Captain', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-lawful alignment',
+    name: 'Bandit Captain', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'saturate(1.4) contrast(1.1)', portraitTint: 'saturate(1.4) contrast(1.1)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-lawful alignment',
     ac: 15, armor: 'studded leather', hp: '10d8+20', speed: 30, ab: [15, 16, 14, 14, 11, 14],
     saves: { str: 4, dex: 5, wis: 2 }, skills: { athletics: 4, deception: 4 }, languages: 'any two languages', cr: '2',
     actions: [multi('Makes three melee attacks: two with its scimitar and one with its dagger. Or it makes two ranged attacks with its daggers.'),
@@ -311,7 +311,7 @@ export const humanoids = [
     lore: lore('Charismatic, ruthless, quick-witted; keeps the gang loyal with shares and fear.', 'Every band of outlaws needs someone clever enough to choose the targets and hard enough to keep order.', 'Let the gang soak the first blows; duel the leader; parley if losing.'),
   },
   {
-    name: 'Thug', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
+    name: 'Thug', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'brightness(.85)', portraitTint: 'brightness(.85)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
     ac: 11, armor: 'leather armor', hp: '5d8+10', speed: 30, ab: [15, 11, 14, 10, 10, 11],
     skills: { intimidation: 2 }, languages: 'any one language (usually Common)', cr: '1/2', traits: [T.packTactics],
     actions: [multi('Makes two melee attacks.'), mw('Mace', 4, 5, '1d6+2 bludgeoning'), rw('Heavy Crossbow', 2, '100/400', '1d10 piercing')],
@@ -320,7 +320,7 @@ export const humanoids = [
     lore: lore('Muscle for hire; enjoys intimidation more than actual work.', 'Enforcers for gangs, moneylenders and corrupt officials.', 'Gang up on one target; break off when the pay stops being worth it.'),
   },
   {
-    name: 'Cultist', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
+    name: 'Cultist', art: { portrait: 'fam-necromancer', body: 'body-necromancer' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
     ac: 12, armor: 'leather armor', hp: '2d8', speed: 30, ab: [11, 12, 10, 10, 11, 10],
     skills: { deception: 2, religion: 2 }, languages: 'any one language (usually Common)', cr: '1/8',
     traits: [act('Dark Devotion', 'Has advantage on saving throws against being charmed or frightened.')],
@@ -329,7 +329,7 @@ export const humanoids = [
     lore: lore('Fervent, secretive, hungry for meaning and power.', 'Followers of a forbidden power, meeting in cellars and ruins.', 'Protect the ritual at any cost; die for the cause.'),
   },
   {
-    name: 'Cult Fanatic', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
+    name: 'Cult Fanatic', art: { portrait: 'fam-necromancer', body: 'body-necromancer', tint: 'sepia(0.4) hue-rotate(-30deg)', portraitTint: 'sepia(.4) hue-rotate(-30deg)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
     ac: 13, armor: 'leather armor', hp: '6d8+6', speed: 30, ab: [11, 14, 12, 10, 13, 14],
     skills: { deception: 4, persuasion: 4, religion: 2 }, languages: 'any one language (usually Common)', cr: '2',
     traits: [act('Dark Devotion', 'Has advantage on saving throws against being charmed or frightened.')],
@@ -340,7 +340,7 @@ export const humanoids = [
     lore: lore('A true believer who leads the flock with fire and threats.', 'Fanatics are the priests of hidden cults, chosen for their zeal and rewarded with dark gifts.', 'Hold the strongest foe in place, then let the cultists and inflict wounds do the rest.'),
   },
   {
-    name: 'Acolyte', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Acolyte', art: { portrait: 'fam-priest', body: 'body-fam-priest', tint: 'brightness(1.1)', portraitTint: 'brightness(1.1)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 10, hp: '2d8', speed: 30, ab: [10, 10, 10, 10, 14, 11],
     skills: { medicine: 4, religion: 2 }, languages: 'any one language (usually Common)', cr: '1/4',
     spellcasting: spells({ ability: 'wis', level: 1, dc: 12, toHit: 4, slots: { 1: 3 }, spells: { 0: ['light', 'sacred flame', 'thaumaturgy'], 1: ['bless', 'cure wounds', 'sanctuary'] } }),
@@ -349,7 +349,7 @@ export const humanoids = [
     lore: lore('Earnest junior clergy, eager to serve.', 'Young members of a temple who perform rites and tend the sick.', 'Heal and bless allies; stay out of melee.'),
   },
   {
-    name: 'Priest', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Priest', art: { portrait: 'fam-priest', body: 'body-fam-priest' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 13, armor: 'chain shirt', hp: '5d8+5', speed: 30, ab: [10, 10, 12, 13, 16, 13],
     skills: { medicine: 7, persuasion: 3, religion: 4 }, languages: 'any two languages', cr: '2',
     traits: [act('Divine Eminence', 'As a bonus action, it can expend a spell slot to make its melee weapon attacks deal an extra 10 (3d6) radiant damage until the end of the turn. This benefit lasts until the end of the turn.')],
@@ -359,7 +359,7 @@ export const humanoids = [
     lore: lore('Steady and authoritative; speaks with the weight of the faith.', 'Leaders of temples and shrines, trusted by the community.', 'Spirit guardians, then guiding bolt; heal allies who drop.'),
   },
   {
-    name: 'Druid', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Druid', art: { portrait: 'fam-priest', body: 'body-fam-priest', tint: 'hue-rotate(70deg) saturate(.9)', portraitTint: 'hue-rotate(70deg) saturate(.9)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 11, armor: '16 with barkskin', hp: '5d8+5', speed: 30, ab: [10, 12, 13, 12, 15, 11],
     skills: { medicine: 4, nature: 3, perception: 4 }, languages: 'Druidic plus any two languages', cr: '2',
     spellcasting: spells({ ability: 'wis', level: 4, dc: 12, toHit: 4, slots: { 1: 4, 2: 3 }, spells: { 0: ['druidcraft', 'produce flame', 'shillelagh'], 1: ['entangle', 'longstrider', 'speak with animals', 'thunderwave'], 2: ['animal messenger', 'barkskin'] } }),
@@ -369,7 +369,7 @@ export const humanoids = [
     lore: lore('Patient, wary of cities, fierce in defence of the wild.', 'Keepers of old groves and stone circles who serve nature rather than any god.', 'Entangle, barkskin, then shillelagh; speak with animals to raise allies.'),
   },
   {
-    name: 'Guard', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Guard', art: { portrait: 'fam-soldier', body: 'body-fam-soldier' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 16, armor: 'chain shirt, shield', hp: '2d8+2', speed: 30, ab: [13, 12, 12, 10, 11, 10],
     skills: { perception: 2 }, languages: 'any one language (usually Common)', cr: '1/8',
     actions: [mrw('Spear', 3, 5, '20/60', '1d6+1 piercing', 'or 5 (1d8 + 1) piercing damage if used with two hands')],
@@ -378,7 +378,7 @@ export const humanoids = [
     lore: lore('Bored, underpaid, but no coward.', 'City watch, castle sentries and caravan guards.', 'Call for help, hold the gate, fight in pairs.'),
   },
   {
-    name: 'Tribal Warrior', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Tribal Warrior', art: { portrait: 'fam-gladiator', body: 'body-fam-gladiator', tint: 'sepia(.6) brightness(.9)', portraitTint: 'sepia(.6) brightness(.9)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 12, armor: 'hide armor', hp: '2d8+2', speed: 30, ab: [13, 11, 12, 8, 11, 8], languages: 'any one language', cr: '1/8',
     traits: [T.packTactics], actions: [mrw('Spear', 3, 5, '20/60', '1d6+1 piercing', 'or 5 (1d8 + 1) piercing damage if used with two hands')],
     habitat: ['forest', 'grassland', 'hill', 'arctic', 'desert'],
@@ -386,7 +386,7 @@ export const humanoids = [
     lore: lore('Proud, close to their people and land.', 'Warriors of wandering clans and remote villages.', 'Fight together, surround, protect the elders.'),
   },
   {
-    name: 'Scout', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Scout', art: { portrait: 'kin-men-west', body: 'body-man', tint: 'sepia(.2)', portraitTint: 'sepia(.2)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 13, armor: 'leather armor', hp: '3d8+3', speed: 30, ab: [11, 14, 12, 11, 13, 11],
     skills: { nature: 4, perception: 5, stealth: 6, survival: 5 }, languages: 'any one language (usually Common)', cr: '1/2',
     traits: [T.keenHearingSight],
@@ -396,7 +396,7 @@ export const humanoids = [
     lore: lore('Watchful and patient; would rather report than fight.', 'Rangers and outriders who watch borders and guide armies.', 'Shoot from cover and fall back; never be caught in melee.'),
   },
   {
-    name: 'Spy', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Spy', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'grayscale(.4)', portraitTint: 'grayscale(.4)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 12, hp: '6d8', speed: 30, ab: [10, 15, 10, 12, 14, 16],
     skills: { deception: 5, insight: 4, investigation: 5, perception: 6, persuasion: 5, 'sleight-of-hand': 4, stealth: 4 }, languages: 'any two languages', cr: '1',
     traits: [
@@ -409,7 +409,7 @@ export const humanoids = [
     lore: lore('Agreeable, forgettable, always listening.', 'Agents of nobles, guilds and dark powers, trading in secrets.', 'Avoid fights; if cornered, strike with Sneak Attack and vanish.'),
   },
   {
-    name: 'Noble', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Noble', art: { portrait: 'fam-commoner', body: 'body-fam-commoner', tint: 'saturate(1.6) hue-rotate(200deg)', portraitTint: 'saturate(1.6) hue-rotate(200deg)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 15, armor: 'breastplate', hp: '2d8', speed: 30, ab: [11, 12, 11, 12, 14, 16],
     skills: { deception: 5, insight: 4, persuasion: 5 }, languages: 'any two languages', cr: '1/8',
     actions: [mw('Rapier', 3, 5, '1d8+1 piercing')], reactions: [parry(2)], habitat: ['urban'],
@@ -417,7 +417,7 @@ export const humanoids = [
     lore: lore('Polished and entitled; thinks in favours and debts.', 'Lords and ladies of the realm, wealthy and well-connected.', 'Let guards fight; bargain, bribe or threaten.'),
   },
   {
-    name: 'Berserker', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any chaotic alignment',
+    name: 'Berserker', art: { portrait: 'fam-gladiator', body: 'body-fam-gladiator', tint: 'sepia(.5) saturate(1.3)', portraitTint: 'sepia(.5) saturate(1.3)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any chaotic alignment',
     ac: 13, armor: 'hide armor', hp: '9d8+27', speed: 30, ab: [16, 12, 17, 9, 11, 9], languages: 'any one language (usually Common)', cr: '2',
     traits: [act('Reckless', 'At the start of its turn, it can gain advantage on all melee weapon attack rolls during that turn, but attack rolls against it have advantage until the start of its next turn.')],
     actions: [mw('Greataxe', 5, 5, '1d12+3 slashing')], habitat: ['hill', 'arctic', 'forest', 'mountain'],
@@ -425,7 +425,7 @@ export const humanoids = [
     lore: lore('Wild-eyed, howling, fearless.', 'Warriors who work themselves into a battle trance.', 'Always reckless; charge the biggest foe.'),
   },
   {
-    name: 'Veteran', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Veteran', art: { portrait: 'fam-soldier', body: 'body-fam-soldier', tint: 'sepia(.3) contrast(1.1)', portraitTint: 'sepia(.3) contrast(1.1)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 17, armor: 'splint', hp: '9d8+18', speed: 30, ab: [16, 13, 14, 10, 11, 10],
     skills: { athletics: 5, perception: 2 }, languages: 'any one language (usually Common)', cr: '3',
     actions: [multi('Makes two longsword attacks. If it has a shortsword drawn, it can also make a shortsword attack.'),
@@ -436,7 +436,7 @@ export const humanoids = [
     lore: lore('Scarred, unflappable, tired of war but very good at it.', 'Old soldiers turned mercenaries, sergeants and bodyguards.', 'Hold a chokepoint; fight methodically; protect the employer.'),
   },
   {
-    name: 'Gladiator', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Gladiator', art: { portrait: 'fam-gladiator', body: 'body-fam-gladiator' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 16, armor: 'studded leather, shield', hp: '15d8+45', speed: 30, ab: [18, 15, 16, 10, 12, 15],
     saves: { str: 7, dex: 5, con: 6 }, skills: { athletics: 10, intimidation: 5 }, languages: 'any one language (usually Common)', cr: '5',
     traits: [
@@ -451,7 +451,7 @@ export const humanoids = [
     lore: lore('A showman who craves the roar of the crowd.', 'Fighters trained for the arena, slaves or celebrities.', 'Shield-bash to knock prone, then three spear strikes.'),
   },
   {
-    name: 'Knight', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment (often lawful good)',
+    name: 'Knight', art: { portrait: 'fam-soldier', body: 'body-fam-soldier', tint: 'brightness(1.15) saturate(.8)', portraitTint: 'brightness(1.15) saturate(.8)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment (often lawful good)',
     ac: 18, armor: 'plate', hp: '8d8+16', speed: 30, ab: [16, 11, 14, 11, 11, 15],
     saves: { con: 4, wis: 2 }, languages: 'any one language (usually Common)', cr: '3',
     traits: [act('Brave', 'Has advantage on saving throws against being frightened.')],
@@ -462,7 +462,7 @@ export const humanoids = [
     lore: lore('Bound by oaths; honourable or merely proud.', 'Sworn warriors of a lord or order, trained from childhood in arms and courtesy.', 'Lead from the front, use Leadership, challenge the enemy captain.'),
   },
   {
-    name: 'Mage', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Mage', art: { portrait: 'fam-sorcerer', body: 'body-sorcerer' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 12, armor: '15 with mage armor', hp: '9d8', speed: 30, ab: [9, 14, 11, 17, 12, 11],
     saves: { int: 6, wis: 4 }, skills: { arcana: 6, history: 6 }, languages: 'any four languages', cr: '6',
     spellcasting: spells({ ability: 'int', level: 9, dc: 14, toHit: 6, slots: { 1: 4, 2: 3, 3: 3, 4: 3, 5: 1 }, spells: { 0: ['fire bolt', 'light', 'mage hand', 'prestidigitation'], 1: ['detect magic', 'mage armor', 'magic missile', 'shield'], 2: ['misty step', 'suggestion'], 3: ['counterspell', 'fireball', 'fly'], 4: ['greater invisibility', 'ice storm'], 5: ['cone of cold'] } }),
@@ -471,7 +471,7 @@ export const humanoids = [
     lore: lore('Learned, impatient with fools, protective of research.', 'Scholars of the arcane who have learned to bend fire and frost to their will.', 'Fly out of reach, fireball clusters, counterspell rival casters, misty step out of melee.'),
   },
   {
-    name: 'Archmage', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Archmage', art: { portrait: 'fam-sorcerer', body: 'body-sorcerer', tint: 'hue-rotate(60deg) saturate(1.3)', portraitTint: 'hue-rotate(60deg) saturate(1.3)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 12, armor: '15 with mage armor', hp: '18d8+18', speed: 30, ab: [10, 14, 12, 20, 15, 16],
     saves: { int: 9, wis: 6 }, skills: { arcana: 13, history: 13 }, resist: ['damage from spells', 'nonmagical bludgeoning, piercing, and slashing (from stoneskin)'],
     languages: 'any six languages', cr: '12', traits: [T.magicResistance],
@@ -481,7 +481,7 @@ export const humanoids = [
     lore: lore('Ancient, cautious, used to being the most powerful person present.', 'Masters of the arcane who have spent lifetimes studying in towers stuffed with secrets.', 'Pre-cast mind blank and stoneskin; time stop, then wall of force to split the party.'),
   },
   {
-    name: 'Assassin', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
+    name: 'Assassin', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'brightness(.6) contrast(1.3)', portraitTint: 'brightness(.6) contrast(1.3)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any non-good alignment',
     ac: 15, armor: 'studded leather', hp: '12d8+24', speed: 30, ab: [11, 16, 14, 13, 11, 10],
     saves: { dex: 6, int: 4 }, skills: { acrobatics: 6, deception: 3, perception: 3, stealth: 9 }, resist: ['poison'],
     languages: 'Thieves\' cant plus any two languages', cr: '8',

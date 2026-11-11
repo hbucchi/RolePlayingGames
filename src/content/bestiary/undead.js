@@ -6,7 +6,7 @@ const vampireWeaknesses = act('Vampire Weaknesses', 'Forbiddance: can\'t enter a
 
 export const undead = [
   {
-    name: 'Skeleton', size: 'Medium', type: 'undead', alignment: 'lawful evil',
+    name: 'Skeleton', art: { portrait: 'skeleton', body: 'body-skeleton' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'lawful evil',
     ac: 13, armor: 'armor scraps', hp: '2d8+4', speed: 30, ab: [10, 14, 15, 6, 8, 5],
     vulnerable: ['bludgeoning'], immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 },
     languages: 'understands the languages it knew in life but can\'t speak', cr: '1/4',
@@ -16,7 +16,7 @@ export const undead = [
     lore: lore('Mindless obedience; a skeleton repeats its last order forever.', 'Bones raised by necromancy, often still wearing the rags and rust of whoever they once were.', 'Advance in ranks without fear; bludgeoning weapons shatter them.'),
   },
   {
-    name: 'Minotaur Skeleton', size: 'Large', type: 'undead', alignment: 'lawful evil',
+    name: 'Minotaur Skeleton', art: { portrait: 'fam-minotaur', body: 'body-fam-minotaur', tint: 'grayscale(1) brightness(1.5) contrast(1.4)', portraitTint: 'grayscale(1) brightness(1.5) contrast(1.4)' }, voice: 'orc', size: 'Large', type: 'undead', alignment: 'lawful evil',
     ac: 12, armor: 'natural armor', hp: '9d10+18', speed: 40, ab: [18, 11, 15, 6, 8, 5],
     vulnerable: ['bludgeoning'], immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 },
     languages: 'understands Abyssal but can\'t speak', cr: '2',
@@ -27,7 +27,7 @@ export const undead = [
     lore: lore('A rampaging skeleton that still remembers the maze.', 'Raised from the remains of a minotaur, it keeps the brute\'s instinct to charge and gore.', 'Charge down corridors, gore, then cleave.'),
   },
   {
-    name: 'Warhorse Skeleton', size: 'Large', type: 'undead', alignment: 'lawful evil',
+    name: 'Warhorse Skeleton', art: { portrait: 'fam-horse', body: 'body-fam-horse', tint: 'grayscale(1) brightness(1.4) contrast(1.4)', portraitTint: 'grayscale(1) brightness(1.4) contrast(1.4)' }, voice: 'undead', size: 'Large', type: 'undead', alignment: 'lawful evil',
     ac: 13, armor: 'barding scraps', hp: '3d10+6', speed: 60, ab: [18, 12, 15, 2, 8, 5],
     vulnerable: ['bludgeoning'], immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 }, languages: '—', cr: '1/2',
     actions: [mw('Hooves', 6, 5, '2d6+4 bludgeoning')], habitat: ['dungeon', 'any'],
@@ -35,7 +35,7 @@ export const undead = [
     lore: lore('A silent steed that never tires.', 'The bones of a war-horse, bound to carry undead riders.', 'Trample whatever the rider points at.'),
   },
   {
-    name: 'Zombie', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Zombie', art: { portrait: 'fam-zombie', body: 'body-fam-zombie' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 8, hp: '3d8+9', speed: 20, ab: [13, 6, 16, 3, 6, 5], saves: { wis: 0 },
     immune: ['poison'], conditionImmune: ['poisoned'], senses: { darkvision: 60 },
     languages: 'understands the languages it knew in life but can\'t speak', cr: '1/4', traits: [T.undeadFort],
@@ -44,7 +44,7 @@ export const undead = [
     lore: lore('Shambling, moaning, relentless hunger.', 'Corpses raised by dark magic, rotting but impossible to stop by ordinary wounds.', 'Shuffle forward in numbers; keep coming after "death".'),
   },
   {
-    name: 'Ogre Zombie', size: 'Large', type: 'undead', alignment: 'neutral evil',
+    name: 'Ogre Zombie', art: { portrait: 'ogre', body: 'body-ogre', tint: 'grayscale(0.6) hue-rotate(60deg) brightness(0.85)' }, voice: 'orc', size: 'Large', type: 'undead', alignment: 'neutral evil',
     ac: 8, hp: '9d10+36', speed: 30, ab: [19, 6, 18, 3, 6, 5], saves: { wis: 0 },
     immune: ['poison'], conditionImmune: ['poisoned'], senses: { darkvision: 60 },
     languages: 'understands Common and Giant but can\'t speak', cr: '2', traits: [T.undeadFort],
@@ -53,7 +53,7 @@ export const undead = [
     lore: lore('A rotting mountain of muscle.', 'An ogre corpse animated by a necromancer who wanted something to smash doors.', 'Plod forward, smash the nearest foe, ignore pain.'),
   },
   {
-    name: 'Ghoul', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
+    name: 'Ghoul', art: { portrait: 'fam-ghoul', body: 'body-fam-ghoul' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
     ac: 12, hp: '5d8', speed: 30, ab: [13, 15, 10, 7, 10, 6],
     immune: ['poison'], conditionImmune: ['charmed', 'exhaustion', 'poisoned'], senses: { darkvision: 60 }, languages: 'Common', cr: '1',
     actions: [mw('Bite', 2, 5, '2d6+2 piercing'),
@@ -63,7 +63,7 @@ export const undead = [
     lore: lore('Ravenous and cunning in a bestial way; craves the flesh of the living.', 'Ghouls rise from those who devoured the dead in life, or from victims of other ghouls.', 'Paralyse with claws, then feast; hunt in packs through crypts.'),
   },
   {
-    name: 'Ghast', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
+    name: 'Ghast', art: { portrait: 'fam-ghoul', body: 'body-fam-ghoul', tint: 'hue-rotate(60deg) brightness(.85)', portraitTint: 'hue-rotate(60deg) brightness(.85)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
     ac: 13, hp: '8d8', speed: 30, ab: [16, 17, 10, 11, 10, 8],
     resist: ['necrotic'], immune: ['poison'], conditionImmune: ['charmed', 'exhaustion', 'poisoned'], senses: { darkvision: 60 }, languages: 'Common', cr: '2',
     traits: [
@@ -77,7 +77,7 @@ export const undead = [
     lore: lore('A ghoul-lord: smarter, crueller, reeking of the grave.', 'The most wicked ghouls become ghasts and lead the pack.', 'Close in so the stench weakens foes; paralyse and feed.'),
   },
   {
-    name: 'Shadow', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
+    name: 'Shadow', art: { portrait: 'fam-ghost', body: 'body-fam-ghost', tint: 'brightness(.25) contrast(1.6)', portraitTint: 'brightness(.25) contrast(1.6)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
     ac: 12, hp: '3d8+3', speed: 40, ab: [6, 14, 13, 6, 10, 8], skills: { stealth: 4 },
     vulnerable: ['radiant'], resist: elementalResist, immune: ['necrotic', 'poison'],
     conditionImmune: ['exhaustion', 'frightened', 'grappled', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained'],
@@ -93,7 +93,7 @@ export const undead = [
     lore: lore('Jealous of every living thing that casts a true shadow.', 'Shadows are the darkness left behind by wicked souls, spreading by draining the strength of the living.', 'Hide in darkness and drain the strongest warrior until they collapse.'),
   },
   {
-    name: 'Specter', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
+    name: 'Specter', art: { portrait: 'fam-ghost', body: 'body-fam-ghost', tint: 'brightness(.7)', portraitTint: 'brightness(.7)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'chaotic evil',
     ac: 12, hp: '5d8', speed: { walk: 0, fly: 50, hover: true }, ab: [1, 14, 11, 10, 10, 11],
     resist: elementalResist, immune: ['necrotic', 'poison'],
     conditionImmune: ['charmed', 'exhaustion', 'grappled', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained', 'unconscious'],
@@ -105,7 +105,7 @@ export const undead = [
     lore: lore('A spirit of pure spite, endlessly cold.', 'A soul torn from its body too soon, unable to rest and furious at the living.', 'Drift through walls, drain life, retreat into stone.'),
   },
   {
-    name: 'Wight', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Wight', art: { portrait: 'wight', body: 'body-wight' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 14, armor: 'studded leather', hp: '6d8+18', speed: 30, ab: [15, 14, 16, 10, 13, 15],
     skills: { perception: 3, stealth: 4 }, resist: ['necrotic', 'bludgeoning, piercing, and slashing from nonmagical attacks that aren\'t silvered'],
     immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 }, languages: 'the languages it knew in life', cr: '3',
@@ -122,7 +122,7 @@ export const undead = [
     settings: ['core', 'westlands'],
   },
   {
-    name: 'Wraith', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Wraith', art: { portrait: 'fam-ghost', body: 'body-fam-ghost', tint: 'brightness(.4)', portraitTint: 'brightness(.4)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 13, hp: '9d8+27', speed: { walk: 0, fly: 60, hover: true }, ab: [6, 16, 16, 12, 14, 15],
     resist: ['acid', 'cold', 'fire', 'lightning', 'thunder', 'bludgeoning, piercing, and slashing from nonmagical attacks that aren\'t silvered'],
     immune: ['necrotic', 'poison'], conditionImmune: ['charmed', 'exhaustion', 'grappled', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained'],
@@ -138,7 +138,7 @@ export const undead = [
     settings: ['core', 'westlands'],
   },
   {
-    name: 'Ghost', size: 'Medium', type: 'undead', alignment: 'any alignment',
+    name: 'Ghost', art: { portrait: 'fam-ghost', body: 'body-fam-ghost' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'any alignment',
     ac: 11, hp: '10d8', speed: { walk: 0, fly: 40, hover: true }, ab: [7, 13, 10, 10, 12, 17],
     resist: elementalResist.filter((r) => r !== 'cold'), immune: ['cold', 'necrotic', 'poison'],
     conditionImmune: ['charmed', 'exhaustion', 'frightened', 'grappled', 'paralyzed', 'petrified', 'poisoned', 'prone', 'restrained'],
@@ -158,7 +158,7 @@ export const undead = [
     lore: lore('Bound by unfinished business: grief, guilt, revenge or love.', 'The spirit of someone who cannot rest until a wrong is righted or a promise fulfilled.', 'Frighten intruders away; possess someone to act out its purpose.'),
   },
   {
-    name: 'Will-o\'-Wisp', id: 'will-o-wisp', size: 'Tiny', type: 'undead', alignment: 'chaotic evil',
+    name: 'Will-o\'-Wisp', art: { portrait: 'fam-wisp', body: 'body-fam-wisp' }, voice: 'undead', id: 'will-o-wisp', size: 'Tiny', type: 'undead', alignment: 'chaotic evil',
     ac: 19, hp: '9d4', speed: { walk: 0, fly: 50, hover: true }, ab: [1, 28, 10, 13, 14, 11],
     resist: ['acid', 'cold', 'fire', 'necrotic', 'thunder', nonmagicalBPS], immune: ['lightning', 'poison'],
     conditionImmune: ['exhaustion', 'grappled', 'paralyzed', 'poisoned', 'prone', 'restrained', 'unconscious'],
@@ -176,7 +176,7 @@ export const undead = [
     settings: ['core', 'westlands'],
   },
   {
-    name: 'Mummy', size: 'Medium', type: 'undead', alignment: 'lawful evil',
+    name: 'Mummy', art: { portrait: 'fam-mummy', body: 'body-fam-mummy' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'lawful evil',
     ac: 11, armor: 'natural armor', hp: '9d8+18', speed: 20, ab: [16, 8, 15, 6, 10, 12], saves: { wis: 2 },
     vulnerable: ['fire'], resist: [nonmagicalBPS], immune: ['necrotic', 'poison'],
     conditionImmune: ['charmed', 'exhaustion', 'frightened', 'paralyzed', 'poisoned'], senses: { darkvision: 60 },
@@ -191,7 +191,7 @@ export const undead = [
     lore: lore('Silent, patient guardians obsessed with their sacred trust.', 'Embalmed and raised by priestly rites to guard a tomb for eternity.', 'Freeze intruders with a glare, curse them with rot; burn them to stop them.'),
   },
   {
-    name: 'Mummy Lord', size: 'Medium', type: 'undead', alignment: 'lawful evil',
+    name: 'Mummy Lord', art: { portrait: 'fam-mummy', body: 'body-fam-mummy', tint: 'sepia(.6) saturate(1.5)', portraitTint: 'sepia(.6) saturate(1.5)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'lawful evil',
     ac: 17, armor: 'natural armor', hp: '13d8+39', speed: 20, ab: [18, 10, 17, 11, 18, 16],
     saves: { con: 8, int: 5, wis: 9, cha: 8 }, skills: { history: 5, religion: 5 },
     vulnerable: ['fire'], immune: ['necrotic', 'poison', nonmagicalBPS],
@@ -218,7 +218,7 @@ export const undead = [
     lore: lore('A dead god-king who still expects worship.', 'Rulers and high priests who chose undeath to keep their power, their hearts kept in sealed jars.', 'Command lesser mummies, blasphemous word to stun, insect plague the clustered; find the heart to end it.'),
   },
   {
-    name: 'Vampire Spawn', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Vampire Spawn', art: { portrait: 'fam-vampire', body: 'body-vampire', tint: 'grayscale(0.4)', portraitTint: 'grayscale(.4)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 15, armor: 'natural armor', hp: '11d8+33', speed: 30, ab: [16, 16, 16, 11, 10, 12],
     saves: { dex: 6, wis: 3 }, skills: { perception: 3, stealth: 6 }, resist: ['necrotic', nonmagicalBPS],
     senses: { darkvision: 60 }, languages: 'the languages it knew in life', cr: '5',
@@ -236,7 +236,7 @@ export const undead = [
     lore: lore('Starving, servile and resentful of its master.', 'A victim drained by a vampire and raised as a thrall.', 'Grapple, bite, regenerate; obey the master\'s orders.'),
   },
   {
-    name: 'Vampire', size: 'Medium', type: 'undead', subtype: 'shapechanger', alignment: 'lawful evil',
+    name: 'Vampire', art: { portrait: 'fam-vampire', body: 'body-vampire' }, voice: 'undead', size: 'Medium', type: 'undead', subtype: 'shapechanger', alignment: 'lawful evil',
     ac: 16, armor: 'natural armor', hp: '17d8+68', speed: 30, ab: [18, 18, 18, 17, 15, 18],
     saves: { dex: 9, wis: 7, cha: 9 }, skills: { perception: 7, stealth: 9 }, resist: ['necrotic', nonmagicalBPS],
     senses: { darkvision: 120 }, languages: 'the languages it knew in life', cr: '13',
@@ -266,7 +266,7 @@ export const undead = [
     lore: lore('Aristocratic, seductive, contemptuous; treats the living as cattle.', 'A mortal who sought eternal life through blood and now hungers forever, ruling from a castle of thralls.', 'Charm a defender, summon swarms, grapple and bite; retreat as mist.'),
   },
   {
-    name: 'Lich', size: 'Medium', type: 'undead', alignment: 'any evil alignment',
+    name: 'Lich', art: { portrait: 'fam-lich', body: 'body-necromancer', tint: 'grayscale(0.4) brightness(1.1)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'any evil alignment',
     ac: 17, armor: 'natural armor', hp: '18d8+54', speed: 30, ab: [11, 16, 16, 20, 14, 16],
     saves: { con: 10, int: 12, wis: 9 }, skills: { arcana: 19, history: 12, insight: 9, perception: 9 },
     resist: ['cold', 'lightning', 'necrotic'], immune: ['poison', nonmagicalBPS],

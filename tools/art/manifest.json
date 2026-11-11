@@ -1,0 +1,955 @@
+{
+ "templates": {
+  "portrait": "A {cols} by {rows} grid of {n} separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders.",
+  "body": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a {cols} by {rows} grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours."
+ },
+ "families": {
+  "soldier": {
+   "portrait": "a grim human soldier in a steel helm and mail with a spear",
+   "body": "a human soldier in mail and a steel helm with a spear and a kite shield"
+  },
+  "gladiator": {
+   "portrait": "a muscular gladiator with a bronze crested helm, net and trident",
+   "body": "a muscular gladiator with a bronze helm, a trident and a round shield"
+  },
+  "bandit": {
+   "portrait": "a hooded bandit with a scarred face, a scarf over his mouth and a dagger",
+   "body": "a hooded bandit in a brown cloak with a short sword and a dagger"
+  },
+  "priest": {
+   "portrait": "a kindly robed priest with a holy symbol and a lantern",
+   "body": "a robed priest in white and gold with a mace and a holy symbol"
+  },
+  "commoner": {
+   "portrait": "a weathered peasant in a wool tunic and hood, holding a pitchfork",
+   "body": "a peasant in a wool tunic carrying a pitchfork"
+  },
+  "bugbear": {
+   "portrait": "a hulking hairy bugbear with a bear-like snout, pointed ears and a morningstar",
+   "body": "a hulking hairy bugbear with a morningstar"
+  },
+  "gnoll": {
+   "portrait": "a gaunt hyena-headed gnoll with spotted fur and a bone-tipped spear",
+   "body": "a hyena-headed gnoll with spotted fur and a spear"
+  },
+  "kobold": {
+   "portrait": "a small red-scaled kobold with a dog-like reptilian snout and a sling",
+   "body": "a small scaly kobold with a spear"
+  },
+  "lizardfolk": {
+   "portrait": "a green-scaled lizardfolk warrior with a bone club and a hide shield",
+   "body": "a green-scaled lizardfolk with a club and a long tail"
+  },
+  "fishfolk": {
+   "portrait": "a fish-headed sea devil with dark scales, fins and a trident",
+   "body": "a scaly fish-headed sea devil with fins and a trident"
+  },
+  "merfolk": {
+   "portrait": "a merfolk warrior with sea-green hair, scales on her shoulders and a coral spear",
+   "body": "a merfolk with a long fish tail and a spear"
+  },
+  "drow": {
+   "portrait": "a dark-skinned elf with white hair, red eyes and a black spider-silk cloak",
+   "body": "a dark elf in a black cloak with two short swords"
+  },
+  "duergar": {
+   "portrait": "a grey-skinned bald dwarf with a soot-black beard and a war pick"
+  },
+  "deep-gnome": {
+   "portrait": "a small bald grey-skinned deep gnome with large eyes and a pick"
+  },
+  "grimlock": {
+   "portrait": "an eyeless grey-skinned grimlock with a bone club",
+   "body": "an eyeless grey-skinned humanoid with a stone club"
+  },
+  "werewolf": {
+   "portrait": "a snarling werewolf with grey-black fur and burning yellow eyes",
+   "body": "a hunched werewolf with grey fur and clawed hands"
+  },
+  "werebear": {
+   "portrait": "a huge brown werebear with a bear head and human hands",
+   "body": "a huge brown werebear standing upright"
+  },
+  "weretiger": {
+   "portrait": "a tiger-headed warrior with striped orange fur and golden eyes",
+   "body": "a tiger-headed warrior with striped fur and claws"
+  },
+  "sorcerer": {
+   "portrait": "a robed sorcerer in a deep blue hood with a glowing staff"
+  },
+  "necromancer": {
+   "portrait": "a hooded cultist in black robes with a skull-topped staff"
+  },
+  "lich": {
+   "portrait": "a skeletal lich king with a jewelled crown and burning blue eye-lights"
+  },
+  "vampire": {
+   "portrait": "a pale aristocratic vampire with red eyes and a high black collar"
+  },
+  "witch": {
+   "portrait": "a hunched old hag with green warty skin, stringy grey hair and long nails"
+  },
+  "demon": {
+   "portrait": "a horned red-skinned demon with bat wings and burning eyes"
+  },
+  "aboleth": {
+   "portrait": "a huge eel-like aboleth with three red eyes and slimy tentacles",
+   "body": "a huge slimy eel-like aboleth with tentacles"
+  },
+  "chuul": {
+   "portrait": "a lobster-like chuul with great pincers and face tentacles",
+   "body": "a lobster-like chuul with two great pincers"
+  },
+  "cloaker": {
+   "portrait": "a manta-ray-like cloaker of black leather with red eyes",
+   "body": "a black manta-ray-shaped cloaker with spread wings"
+  },
+  "gibbering-mouther": {
+   "portrait": "a gibbering mouther: a blob of flesh covered in eyes and mouths",
+   "body": "a quivering mound of flesh covered in eyes and mouths"
+  },
+  "otyugh": {
+   "portrait": "a bloated otyugh with three legs, a wide toothy maw and tentacles",
+   "body": "a round bloated otyugh with three legs and two tentacles"
+  },
+  "air-elemental": {
+   "portrait": "a swirling air elemental: a whirlwind with a ghostly face",
+   "body": "a swirling pale whirlwind of air and dust"
+  },
+  "earth-elemental": {
+   "portrait": "a hulking earth elemental of boulders and soil with glowing eyes",
+   "body": "a hulking earth elemental of boulders"
+  },
+  "fire-elemental": {
+   "portrait": "a roaring fire elemental, a humanoid pillar of flame",
+   "body": "a roaring humanoid pillar of flame"
+  },
+  "water-elemental": {
+   "portrait": "a water elemental: a towering crashing wave with a face",
+   "body": "a towering swirling wave of water"
+  },
+  "mephit": {
+   "portrait": "a small winged imp-like mephit made of ice and frost",
+   "body": "a small winged mephit"
+  },
+  "azer": {
+   "portrait": "a dwarf-like azer of living brass with a beard of flames",
+   "body": "a dwarf of glowing brass with a flaming beard and a hammer"
+  },
+  "genie": {
+   "portrait": "a towering blue-skinned genie with a turban and a scimitar, lower body a whirlwind",
+   "body": "a towering genie with a scimitar, lower body a whirlwind"
+  },
+  "gargoyle": {
+   "portrait": "a grey stone gargoyle with horns, wings and a fanged grin",
+   "body": "a stone gargoyle with folded wings"
+  },
+  "bear": {
+   "portrait": "a huge brown bear, mouth open in a roar",
+   "body": "a huge brown bear on all fours"
+  },
+  "bigcat": {
+   "portrait": "a lion with a thick mane, snarling",
+   "body": "a lion with a thick mane prowling"
+  },
+  "horse": {
+   "portrait": "a brown horse with a dark mane",
+   "body": "a brown horse"
+  },
+  "deer": {
+   "portrait": "a proud stag with great antlers",
+   "body": "a stag with great antlers"
+  },
+  "boar": {
+   "portrait": "a bristling wild boar with curved tusks",
+   "body": "a bristling wild boar with tusks"
+  },
+  "ape": {
+   "portrait": "a huge black-furred ape baring its fangs",
+   "body": "a huge ape on its knuckles"
+  },
+  "eagle": {
+   "portrait": "a fierce golden eagle with spread wings",
+   "body": "an eagle with wings spread wide"
+  },
+  "owl": {
+   "portrait": "a great horned owl with huge amber eyes",
+   "body": "an owl with wings spread"
+  },
+  "raven": {
+   "portrait": "a glossy black raven with a sharp beak",
+   "body": "a black raven with wings spread"
+  },
+  "rat": {
+   "portrait": "a huge mangy grey rat with red eyes",
+   "body": "a big grey rat"
+  },
+  "badger": {
+   "portrait": "a fierce badger with a striped face",
+   "body": "a badger"
+  },
+  "snake": {
+   "portrait": "a coiled green snake rearing to strike",
+   "body": "a long coiled snake"
+  },
+  "crocodile": {
+   "portrait": "a crocodile with jaws open",
+   "body": "a long crocodile"
+  },
+  "lizard": {
+   "portrait": "a large green lizard with a frilled neck",
+   "body": "a lizard"
+  },
+  "toad": {
+   "portrait": "a fat warty giant toad with golden eyes",
+   "body": "a fat warty toad"
+  },
+  "beetle": {
+   "portrait": "a giant beetle with a glowing red carapace",
+   "body": "a giant beetle"
+  },
+  "wasp": {
+   "portrait": "a giant striped wasp with a long stinger",
+   "body": "a giant wasp with wings spread"
+  },
+  "scorpion": {
+   "portrait": "a giant black scorpion with raised stinger",
+   "body": "a giant scorpion with pincers and tail"
+  },
+  "crab": {
+   "portrait": "a giant crab with huge claws",
+   "body": "a giant crab"
+  },
+  "octopus": {
+   "portrait": "a giant red octopus with coiling arms",
+   "body": "a giant octopus with arms spread"
+  },
+  "shark": {
+   "portrait": "a great shark with jaws full of teeth",
+   "body": "a great shark"
+  },
+  "quipper": {
+   "portrait": "a small vicious silver fish with piranha teeth",
+   "body": "a small silver fish"
+  },
+  "seahorse": {
+   "portrait": "a giant sea horse with a curled tail",
+   "body": "a giant sea horse"
+  },
+  "tyrannosaur": {
+   "portrait": "a huge tyrannosaurus roaring",
+   "body": "a huge tyrannosaurus"
+  },
+  "triceratops": {
+   "portrait": "a triceratops with three horns and a bony frill",
+   "body": "a triceratops"
+  },
+  "pteranodon": {
+   "portrait": "a pteranodon with a crested head and leathery wings",
+   "body": "a pteranodon with wings spread"
+  },
+  "plesiosaur": {
+   "portrait": "a plesiosaurus with a long neck rising from the water",
+   "body": "a plesiosaurus with a long neck and flippers"
+  },
+  "elephant": {
+   "portrait": "an elephant with long curved tusks",
+   "body": "an elephant"
+  },
+  "rhino": {
+   "portrait": "a charging rhinoceros with a great horn",
+   "body": "a rhinoceros"
+  },
+  "axe-beak": {
+   "portrait": "a tall flightless axe-beak bird with a hooked beak",
+   "body": "a tall flightless bird"
+  },
+  "sphinx": {
+   "portrait": "a sphinx with a lion body, feathered wings and a crowned human face",
+   "body": "a sphinx with a lion body and folded wings"
+  },
+  "ankheg": {
+   "portrait": "an ankheg: a giant burrowing insect with mandibles",
+   "body": "an ankheg, a giant insect with mandibles"
+  },
+  "basilisk": {
+   "portrait": "an eight-legged basilisk lizard with deadly green eyes",
+   "body": "an eight-legged lizard"
+  },
+  "behir": {
+   "portrait": "a blue serpentine behir with many legs and crackling lightning",
+   "body": "a long blue many-legged serpent"
+  },
+  "bulette": {
+   "portrait": "an armoured bulette landshark with a crested back",
+   "body": "an armoured bulette with a crested back"
+  },
+  "carrion-crawler": {
+   "portrait": "a carrion crawler: a giant centipede with face tentacles",
+   "body": "a giant pale centipede with face tentacles"
+  },
+  "centaur": {
+   "portrait": "a centaur warrior with a bow, human torso on a horse body",
+   "body": "a centaur with a bow"
+  },
+  "chimera": {
+   "portrait": "a chimera with lion, goat and dragon heads",
+   "body": "a chimera with three heads and wings"
+  },
+  "cockatrice": {
+   "portrait": "a cockatrice: a rooster with bat wings and a lizard tail",
+   "body": "a cockatrice with bat wings"
+  },
+  "darkmantle": {
+   "portrait": "a darkmantle: a squid-like cave creature with a black cloak of tentacles",
+   "body": "a black squid-like darkmantle with tentacles spread"
+  },
+  "roper": {
+   "portrait": "a roper: a stalagmite-like monster with one eye, a toothy maw and tentacles",
+   "body": "a stalagmite-like roper with tentacles"
+  },
+  "doppelganger": {
+   "portrait": "a grey faceless doppelganger with large white eyes",
+   "body": "a grey faceless humanoid"
+  },
+  "drider": {
+   "portrait": "a drider: a dark elf torso on a giant spider body",
+   "body": "a drider, dark elf torso on a spider body"
+  },
+  "ettercap": {
+   "portrait": "an ettercap: a hunched spider-like humanoid with fangs and claws",
+   "body": "a hunched spider-like humanoid"
+  },
+  "gorgon": {
+   "portrait": "a gorgon: an iron-plated bull breathing green vapour",
+   "body": "an iron-plated bull"
+  },
+  "griffon": {
+   "portrait": "a griffon with an eagle head and wings and a lion body",
+   "body": "a griffon with wings spread"
+  },
+  "naga": {
+   "portrait": "a naga with a serpent body and a regal human head",
+   "body": "a coiled serpent with a human head"
+  },
+  "lamia": {
+   "portrait": "a lamia: a beautiful woman with the lower body of a lion",
+   "body": "a lamia with a lion body"
+  },
+  "harpy": {
+   "portrait": "a harpy with a woman's face, feathered wings and talons",
+   "body": "a harpy with wings spread"
+  },
+  "hydra": {
+   "portrait": "a five-headed green hydra",
+   "body": "a five-headed hydra"
+  },
+  "kraken": {
+   "portrait": "a colossal kraken with huge tentacles and one great eye",
+   "body": "a colossal kraken with tentacles spread"
+  },
+  "manticore": {
+   "portrait": "a manticore with a lion body, bat wings and a spiked tail",
+   "body": "a manticore with wings spread"
+  },
+  "medusa": {
+   "portrait": "a medusa with writhing snakes for hair and glowing eyes",
+   "body": "a medusa with snake hair and a bow"
+  },
+  "mimic": {
+   "portrait": "a mimic: a treasure chest with teeth and a long tongue",
+   "body": "a toothed treasure chest with a tongue"
+  },
+  "minotaur": {
+   "portrait": "a bull-headed minotaur with a great axe",
+   "body": "a bull-headed minotaur with a great axe"
+  },
+  "owlbear": {
+   "portrait": "an owlbear with a feathered owl head and a bear body",
+   "body": "an owlbear"
+  },
+  "purple-worm": {
+   "portrait": "a colossal purple worm with a round toothy maw",
+   "body": "a colossal purple worm"
+  },
+  "remorhaz": {
+   "portrait": "a remorhaz: a white many-legged polar worm glowing hot red on its back",
+   "body": "a long white many-legged worm with glowing back plates"
+  },
+  "rust-monster": {
+   "portrait": "a rust monster: an insect-like beast with feathery antennae",
+   "body": "an insect-like rust monster"
+  },
+  "fell-beast": {
+   "portrait": "a monstrous black winged fell beast with a long neck and leathery wings",
+   "body": "a black winged beast with wings spread"
+  },
+  "tarrasque": {
+   "portrait": "the tarrasque: a colossal armoured reptile with horns and a spiked tail",
+   "body": "a colossal armoured reptile"
+  },
+  "animated-armor": {
+   "portrait": "an empty suit of animated plate armour with a sword",
+   "body": "an empty suit of armour with a sword"
+  },
+  "golem": {
+   "portrait": "a towering stone golem carved with runes",
+   "body": "a towering stone golem"
+  },
+  "homunculus": {
+   "portrait": "a tiny winged homunculus with leathery skin",
+   "body": "a tiny winged homunculus"
+  },
+  "flying-sword": {
+   "portrait": "an animated flying longsword glowing faintly",
+   "body": "a flying longsword"
+  },
+  "rug": {
+   "portrait": "a rug of smothering: a patterned carpet rising to attack",
+   "body": "a patterned rug"
+  },
+  "treant": {
+   "portrait": "a treant: an ancient oak tree with a face in the bark",
+   "body": "a great walking tree seen from above, a crown of leaves"
+  },
+  "shrub": {
+   "portrait": "an awakened shrub with twig arms",
+   "body": "a small walking shrub"
+  },
+  "shambling-mound": {
+   "portrait": "a shambling mound of rotting vines and moss",
+   "body": "a mound of rotting vines"
+  },
+  "fungus": {
+   "portrait": "a violet fungus with tendrils, glowing faintly",
+   "body": "a cluster of violet fungus"
+  },
+  "ooze": {
+   "portrait": "a black pudding: a glistening ooze dissolving the stone floor",
+   "body": "a spreading black ooze"
+  },
+  "gelatinous-cube": {
+   "portrait": "a transparent gelatinous cube with bones and coins inside",
+   "body": "a translucent green cube with bones inside"
+  },
+  "giant": {
+   "portrait": "a towering hill giant with a tree-trunk club",
+   "body": "a towering giant with a club"
+  },
+  "ettin": {
+   "portrait": "a two-headed ettin giant with two clubs",
+   "body": "a two-headed giant with two clubs"
+  },
+  "oni": {
+   "portrait": "an oni ogre-mage with blue skin, horns and a glaive",
+   "body": "a blue-skinned horned ogre-mage with a glaive"
+  },
+  "angel": {
+   "portrait": "a radiant angel with white feathered wings and a golden sword",
+   "body": "an angel with white wings spread"
+  },
+  "couatl": {
+   "portrait": "a couatl: a feathered serpent with rainbow wings",
+   "body": "a feathered serpent with wings"
+  },
+  "pegasus": {
+   "portrait": "a white winged horse",
+   "body": "a white winged horse with wings spread"
+  },
+  "unicorn": {
+   "portrait": "a white unicorn with a spiral horn",
+   "body": "a white unicorn"
+  },
+  "dryad": {
+   "portrait": "a dryad with bark-like skin and leaves in her hair",
+   "body": "a dryad with leafy hair"
+  },
+  "satyr": {
+   "portrait": "a satyr with goat legs, small horns and panpipes",
+   "body": "a satyr with goat legs and panpipes"
+  },
+  "sprite": {
+   "portrait": "a tiny sprite with dragonfly wings and a little bow",
+   "body": "a tiny winged sprite"
+  },
+  "imp": {
+   "portrait": "a small red imp with bat wings, horns and a barbed tail",
+   "body": "a small horned imp with bat wings"
+  },
+  "hell-hound": {
+   "portrait": "a black hell hound with fire dripping from its jaws"
+  },
+  "succubus": {
+   "portrait": "a beautiful fiend with leathery wings and small horns",
+   "body": "a winged fiend with small horns"
+  },
+  "ghoul": {
+   "portrait": "a ghoul: a gaunt grey corpse with long claws and a long tongue",
+   "body": "a gaunt grey ghoul crouching"
+  },
+  "ghost": {
+   "portrait": "a pale translucent ghost in a tattered shroud",
+   "body": "a pale translucent ghost"
+  },
+  "mummy": {
+   "portrait": "a mummy wrapped in rotting bandages with glowing eyes",
+   "body": "a bandaged mummy"
+  },
+  "zombie": {
+   "portrait": "a rotting zombie with torn clothes and grasping hands",
+   "body": "a shambling zombie"
+  },
+  "wisp": {
+   "portrait": "a will-o'-wisp: a floating ball of pale blue light over a marsh",
+   "body": "a glowing ball of light"
+  },
+  "dragon-turtle": {
+   "portrait": "a dragon turtle with a craggy shell and a dragon head",
+   "body": "a dragon turtle with a craggy shell"
+  },
+  "wyvern": {
+   "portrait": "a wyvern with leathery wings, two legs and a stinger tail",
+   "body": "a wyvern with wings spread"
+  }
+ },
+ "sheets": [
+  {
+   "kind": "portrait",
+   "name": "p1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "soldier",
+    "gladiator",
+    "bandit",
+    "priest",
+    "commoner",
+    "bugbear",
+    "gnoll",
+    "kobold",
+    "lizardfolk",
+    "fishfolk",
+    "merfolk",
+    "drow"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a grim human soldier in a steel helm and mail with a spear; a muscular gladiator with a bronze crested helm, net and trident; a hooded bandit with a scarred face, a scarf over his mouth and a dagger; a kindly robed priest with a holy symbol and a lantern. Row 2, left to right: a weathered peasant in a wool tunic and hood, holding a pitchfork; a hulking hairy bugbear with a bear-like snout, pointed ears and a morningstar; a gaunt hyena-headed gnoll with spotted fur and a bone-tipped spear; a small red-scaled kobold with a dog-like reptilian snout and a sling. Row 3, left to right: a green-scaled lizardfolk warrior with a bone club and a hide shield; a fish-headed sea devil with dark scales, fins and a trident; a merfolk warrior with sea-green hair, scales on her shoulders and a coral spear; a dark-skinned elf with white hair, red eyes and a black spider-silk cloak."
+  },
+  {
+   "kind": "portrait",
+   "name": "p2",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "duergar",
+    "deep-gnome",
+    "grimlock",
+    "werewolf",
+    "werebear",
+    "weretiger",
+    "sorcerer",
+    "necromancer",
+    "lich",
+    "vampire",
+    "witch",
+    "demon"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a grey-skinned bald dwarf with a soot-black beard and a war pick; a small bald grey-skinned deep gnome with large eyes and a pick; an eyeless grey-skinned grimlock with a bone club; a snarling werewolf with grey-black fur and burning yellow eyes. Row 2, left to right: a huge brown werebear with a bear head and human hands; a tiger-headed warrior with striped orange fur and golden eyes; a robed sorcerer in a deep blue hood with a glowing staff; a hooded cultist in black robes with a skull-topped staff. Row 3, left to right: a skeletal lich king with a jewelled crown and burning blue eye-lights; a pale aristocratic vampire with red eyes and a high black collar; a hunched old hag with green warty skin, stringy grey hair and long nails; a horned red-skinned demon with bat wings and burning eyes."
+  },
+  {
+   "kind": "portrait",
+   "name": "p3",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "aboleth",
+    "chuul",
+    "cloaker",
+    "gibbering-mouther",
+    "otyugh",
+    "air-elemental",
+    "earth-elemental",
+    "fire-elemental",
+    "water-elemental",
+    "mephit",
+    "azer",
+    "genie"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a huge eel-like aboleth with three red eyes and slimy tentacles; a lobster-like chuul with great pincers and face tentacles; a manta-ray-like cloaker of black leather with red eyes; a gibbering mouther: a blob of flesh covered in eyes and mouths. Row 2, left to right: a bloated otyugh with three legs, a wide toothy maw and tentacles; a swirling air elemental: a whirlwind with a ghostly face; a hulking earth elemental of boulders and soil with glowing eyes; a roaring fire elemental, a humanoid pillar of flame. Row 3, left to right: a water elemental: a towering crashing wave with a face; a small winged imp-like mephit made of ice and frost; a dwarf-like azer of living brass with a beard of flames; a towering blue-skinned genie with a turban and a scimitar, lower body a whirlwind."
+  },
+  {
+   "kind": "portrait",
+   "name": "p4",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "gargoyle",
+    "bear",
+    "bigcat",
+    "horse",
+    "deer",
+    "boar",
+    "ape",
+    "eagle",
+    "owl",
+    "raven",
+    "rat",
+    "badger"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a grey stone gargoyle with horns, wings and a fanged grin; a huge brown bear, mouth open in a roar; a lion with a thick mane, snarling; a brown horse with a dark mane. Row 2, left to right: a proud stag with great antlers; a bristling wild boar with curved tusks; a huge black-furred ape baring its fangs; a fierce golden eagle with spread wings. Row 3, left to right: a great horned owl with huge amber eyes; a glossy black raven with a sharp beak; a huge mangy grey rat with red eyes; a fierce badger with a striped face."
+  },
+  {
+   "kind": "portrait",
+   "name": "p5",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "snake",
+    "crocodile",
+    "lizard",
+    "toad",
+    "beetle",
+    "wasp",
+    "scorpion",
+    "crab",
+    "octopus",
+    "shark",
+    "quipper",
+    "seahorse"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a coiled green snake rearing to strike; a crocodile with jaws open; a large green lizard with a frilled neck; a fat warty giant toad with golden eyes. Row 2, left to right: a giant beetle with a glowing red carapace; a giant striped wasp with a long stinger; a giant black scorpion with raised stinger; a giant crab with huge claws. Row 3, left to right: a giant red octopus with coiling arms; a great shark with jaws full of teeth; a small vicious silver fish with piranha teeth; a giant sea horse with a curled tail."
+  },
+  {
+   "kind": "portrait",
+   "name": "p6",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "tyrannosaur",
+    "triceratops",
+    "pteranodon",
+    "plesiosaur",
+    "elephant",
+    "rhino",
+    "axe-beak",
+    "sphinx",
+    "ankheg",
+    "basilisk",
+    "behir",
+    "bulette"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a huge tyrannosaurus roaring; a triceratops with three horns and a bony frill; a pteranodon with a crested head and leathery wings; a plesiosaurus with a long neck rising from the water. Row 2, left to right: an elephant with long curved tusks; a charging rhinoceros with a great horn; a tall flightless axe-beak bird with a hooked beak; a sphinx with a lion body, feathered wings and a crowned human face. Row 3, left to right: an ankheg: a giant burrowing insect with mandibles; an eight-legged basilisk lizard with deadly green eyes; a blue serpentine behir with many legs and crackling lightning; an armoured bulette landshark with a crested back."
+  },
+  {
+   "kind": "portrait",
+   "name": "p7",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "carrion-crawler",
+    "centaur",
+    "chimera",
+    "cockatrice",
+    "darkmantle",
+    "roper",
+    "doppelganger",
+    "drider",
+    "ettercap",
+    "gorgon",
+    "griffon",
+    "naga"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a carrion crawler: a giant centipede with face tentacles; a centaur warrior with a bow, human torso on a horse body; a chimera with lion, goat and dragon heads; a cockatrice: a rooster with bat wings and a lizard tail. Row 2, left to right: a darkmantle: a squid-like cave creature with a black cloak of tentacles; a roper: a stalagmite-like monster with one eye, a toothy maw and tentacles; a grey faceless doppelganger with large white eyes; a drider: a dark elf torso on a giant spider body. Row 3, left to right: an ettercap: a hunched spider-like humanoid with fangs and claws; a gorgon: an iron-plated bull breathing green vapour; a griffon with an eagle head and wings and a lion body; a naga with a serpent body and a regal human head."
+  },
+  {
+   "kind": "portrait",
+   "name": "p8",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "lamia",
+    "harpy",
+    "hydra",
+    "kraken",
+    "manticore",
+    "medusa",
+    "mimic",
+    "minotaur",
+    "owlbear",
+    "purple-worm",
+    "remorhaz",
+    "rust-monster"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a lamia: a beautiful woman with the lower body of a lion; a harpy with a woman's face, feathered wings and talons; a five-headed green hydra; a colossal kraken with huge tentacles and one great eye. Row 2, left to right: a manticore with a lion body, bat wings and a spiked tail; a medusa with writhing snakes for hair and glowing eyes; a mimic: a treasure chest with teeth and a long tongue; a bull-headed minotaur with a great axe. Row 3, left to right: an owlbear with a feathered owl head and a bear body; a colossal purple worm with a round toothy maw; a remorhaz: a white many-legged polar worm glowing hot red on its back; a rust monster: an insect-like beast with feathery antennae."
+  },
+  {
+   "kind": "portrait",
+   "name": "p9",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fell-beast",
+    "tarrasque",
+    "animated-armor",
+    "golem",
+    "homunculus",
+    "flying-sword",
+    "rug",
+    "treant",
+    "shrub",
+    "shambling-mound",
+    "fungus",
+    "ooze"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a monstrous black winged fell beast with a long neck and leathery wings; the tarrasque: a colossal armoured reptile with horns and a spiked tail; an empty suit of animated plate armour with a sword; a towering stone golem carved with runes. Row 2, left to right: a tiny winged homunculus with leathery skin; an animated flying longsword glowing faintly; a rug of smothering: a patterned carpet rising to attack; a treant: an ancient oak tree with a face in the bark. Row 3, left to right: an awakened shrub with twig arms; a shambling mound of rotting vines and moss; a violet fungus with tendrils, glowing faintly; a black pudding: a glistening ooze dissolving the stone floor."
+  },
+  {
+   "kind": "portrait",
+   "name": "p10",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "gelatinous-cube",
+    "giant",
+    "ettin",
+    "oni",
+    "angel",
+    "couatl",
+    "pegasus",
+    "unicorn",
+    "dryad",
+    "satyr",
+    "sprite",
+    "imp"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a transparent gelatinous cube with bones and coins inside; a towering hill giant with a tree-trunk club; a two-headed ettin giant with two clubs; an oni ogre-mage with blue skin, horns and a glaive. Row 2, left to right: a radiant angel with white feathered wings and a golden sword; a couatl: a feathered serpent with rainbow wings; a white winged horse; a white unicorn with a spiral horn. Row 3, left to right: a dryad with bark-like skin and leaves in her hair; a satyr with goat legs, small horns and panpipes; a tiny sprite with dragonfly wings and a little bow; a small red imp with bat wings, horns and a barbed tail."
+  },
+  {
+   "kind": "portrait",
+   "name": "p11",
+   "cols": 3,
+   "rows": 3,
+   "keys": [
+    "hell-hound",
+    "succubus",
+    "ghoul",
+    "ghost",
+    "mummy",
+    "zombie",
+    "wisp",
+    "dragon-turtle",
+    "wyvern"
+   ],
+   "prompt": "A 3 by 3 grid of 9 separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders. Row 1, left to right: a black hell hound with fire dripping from its jaws; a beautiful fiend with leathery wings and small horns; a ghoul: a gaunt grey corpse with long claws and a long tongue. Row 2, left to right: a pale translucent ghost in a tattered shroud; a mummy wrapped in rotting bandages with glowing eyes; a rotting zombie with torn clothes and grasping hands. Row 3, left to right: a will-o'-wisp: a floating ball of pale blue light over a marsh; a dragon turtle with a craggy shell and a dragon head; a wyvern with leathery wings, two legs and a stinger tail."
+  },
+  {
+   "kind": "body",
+   "name": "b1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "soldier",
+    "gladiator",
+    "bandit",
+    "priest",
+    "commoner",
+    "bugbear",
+    "gnoll",
+    "kobold",
+    "lizardfolk",
+    "fishfolk",
+    "merfolk",
+    "drow"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a human soldier in mail and a steel helm with a spear and a kite shield seen from above; a muscular gladiator with a bronze helm, a trident and a round shield seen from above; a hooded bandit in a brown cloak with a short sword and a dagger seen from above; a robed priest in white and gold with a mace and a holy symbol seen from above. Row 2, left to right: a peasant in a wool tunic carrying a pitchfork seen from above; a hulking hairy bugbear with a morningstar seen from above; a hyena-headed gnoll with spotted fur and a spear seen from above; a small scaly kobold with a spear seen from above. Row 3, left to right: a green-scaled lizardfolk with a club and a long tail seen from above; a scaly fish-headed sea devil with fins and a trident seen from above; a merfolk with a long fish tail and a spear seen from above; a dark elf in a black cloak with two short swords seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b2",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "grimlock",
+    "werewolf",
+    "werebear",
+    "weretiger",
+    "aboleth",
+    "chuul",
+    "cloaker",
+    "gibbering-mouther",
+    "otyugh",
+    "air-elemental",
+    "earth-elemental",
+    "fire-elemental"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: an eyeless grey-skinned humanoid with a stone club seen from above; a hunched werewolf with grey fur and clawed hands seen from above; a huge brown werebear standing upright seen from above; a tiger-headed warrior with striped fur and claws seen from above. Row 2, left to right: a huge slimy eel-like aboleth with tentacles seen from above; a lobster-like chuul with two great pincers seen from above; a black manta-ray-shaped cloaker with spread wings seen from above; a quivering mound of flesh covered in eyes and mouths seen from above. Row 3, left to right: a round bloated otyugh with three legs and two tentacles seen from above; a swirling pale whirlwind of air and dust seen from above; a hulking earth elemental of boulders seen from above; a roaring humanoid pillar of flame seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b3",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "water-elemental",
+    "mephit",
+    "azer",
+    "genie",
+    "gargoyle",
+    "bear",
+    "bigcat",
+    "horse",
+    "deer",
+    "boar",
+    "ape",
+    "eagle"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a towering swirling wave of water seen from above; a small winged mephit seen from above; a dwarf of glowing brass with a flaming beard and a hammer seen from above; a towering genie with a scimitar, lower body a whirlwind seen from above. Row 2, left to right: a stone gargoyle with folded wings seen from above; a huge brown bear on all fours seen from above; a lion with a thick mane prowling seen from above; a brown horse seen from above. Row 3, left to right: a stag with great antlers seen from above; a bristling wild boar with tusks seen from above; a huge ape on its knuckles seen from above; an eagle with wings spread wide seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b4",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "owl",
+    "raven",
+    "rat",
+    "badger",
+    "snake",
+    "crocodile",
+    "lizard",
+    "toad",
+    "beetle",
+    "wasp",
+    "scorpion",
+    "crab"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: an owl with wings spread seen from above; a black raven with wings spread seen from above; a big grey rat seen from above; a badger seen from above. Row 2, left to right: a long coiled snake seen from above; a long crocodile seen from above; a lizard seen from above; a fat warty toad seen from above. Row 3, left to right: a giant beetle seen from above; a giant wasp with wings spread seen from above; a giant scorpion with pincers and tail seen from above; a giant crab seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b5",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "octopus",
+    "shark",
+    "quipper",
+    "seahorse",
+    "tyrannosaur",
+    "triceratops",
+    "pteranodon",
+    "plesiosaur",
+    "elephant",
+    "rhino",
+    "axe-beak",
+    "sphinx"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a giant octopus with arms spread seen from above; a great shark seen from above; a small silver fish seen from above; a giant sea horse seen from above. Row 2, left to right: a huge tyrannosaurus seen from above; a triceratops seen from above; a pteranodon with wings spread seen from above; a plesiosaurus with a long neck and flippers seen from above. Row 3, left to right: an elephant seen from above; a rhinoceros seen from above; a tall flightless bird seen from above; a sphinx with a lion body and folded wings seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b6",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "ankheg",
+    "basilisk",
+    "behir",
+    "bulette",
+    "carrion-crawler",
+    "centaur",
+    "chimera",
+    "cockatrice",
+    "darkmantle",
+    "roper",
+    "doppelganger",
+    "drider"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: an ankheg, a giant insect with mandibles seen from above; an eight-legged lizard seen from above; a long blue many-legged serpent seen from above; an armoured bulette with a crested back seen from above. Row 2, left to right: a giant pale centipede with face tentacles seen from above; a centaur with a bow seen from above; a chimera with three heads and wings seen from above; a cockatrice with bat wings seen from above. Row 3, left to right: a black squid-like darkmantle with tentacles spread seen from above; a stalagmite-like roper with tentacles seen from above; a grey faceless humanoid seen from above; a drider, dark elf torso on a spider body seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b7",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "ettercap",
+    "gorgon",
+    "griffon",
+    "naga",
+    "lamia",
+    "harpy",
+    "hydra",
+    "kraken",
+    "manticore",
+    "medusa",
+    "mimic",
+    "minotaur"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a hunched spider-like humanoid seen from above; an iron-plated bull seen from above; a griffon with wings spread seen from above; a coiled serpent with a human head seen from above. Row 2, left to right: a lamia with a lion body seen from above; a harpy with wings spread seen from above; a five-headed hydra seen from above; a colossal kraken with tentacles spread seen from above. Row 3, left to right: a manticore with wings spread seen from above; a medusa with snake hair and a bow seen from above; a toothed treasure chest with a tongue seen from above; a bull-headed minotaur with a great axe seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b8",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "owlbear",
+    "purple-worm",
+    "remorhaz",
+    "rust-monster",
+    "fell-beast",
+    "tarrasque",
+    "animated-armor",
+    "golem",
+    "homunculus",
+    "flying-sword",
+    "rug",
+    "treant"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: an owlbear seen from above; a colossal purple worm seen from above; a long white many-legged worm with glowing back plates seen from above; an insect-like rust monster seen from above. Row 2, left to right: a black winged beast with wings spread seen from above; a colossal armoured reptile seen from above; an empty suit of armour with a sword seen from above; a towering stone golem seen from above. Row 3, left to right: a tiny winged homunculus seen from above; a flying longsword seen from above; a patterned rug seen from above; a great walking tree seen from above, a crown of leaves seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b9",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "shrub",
+    "shambling-mound",
+    "fungus",
+    "ooze",
+    "gelatinous-cube",
+    "giant",
+    "ettin",
+    "oni",
+    "angel",
+    "couatl",
+    "pegasus",
+    "unicorn"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a small walking shrub seen from above; a mound of rotting vines seen from above; a cluster of violet fungus seen from above; a spreading black ooze seen from above. Row 2, left to right: a translucent green cube with bones inside seen from above; a towering giant with a club seen from above; a two-headed giant with two clubs seen from above; a blue-skinned horned ogre-mage with a glaive seen from above. Row 3, left to right: an angel with white wings spread seen from above; a feathered serpent with wings seen from above; a white winged horse with wings spread seen from above; a white unicorn seen from above."
+  },
+  {
+   "kind": "body",
+   "name": "b10",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "dryad",
+    "satyr",
+    "sprite",
+    "imp",
+    "succubus",
+    "ghoul",
+    "ghost",
+    "mummy",
+    "zombie",
+    "wisp",
+    "dragon-turtle",
+    "wyvern"
+   ],
+   "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a dryad with leafy hair seen from above; a satyr with goat legs and panpipes seen from above; a tiny winged sprite seen from above; a small horned imp with bat wings seen from above. Row 2, left to right: a winged fiend with small horns seen from above; a gaunt grey ghoul crouching seen from above; a pale translucent ghost seen from above; a bandaged mummy seen from above. Row 3, left to right: a shambling zombie seen from above; a glowing ball of light seen from above; a dragon turtle with a craggy shell seen from above; a wyvern with wings spread seen from above."
+  }
+ ]
+}

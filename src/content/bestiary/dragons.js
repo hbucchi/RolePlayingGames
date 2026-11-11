@@ -176,6 +176,10 @@ const ageLore = {
   ancient: 'An ancient dragon has outlived kingdoms; its name is spoken in legend.',
 };
 
+/** Which painting each colour uses (a few paintings are shared); every colour has its own body. */
+const PAINTING = { white: 'white-dragon', silver: 'white-dragon', blue: 'white-dragon', green: 'green-dragon', black: 'green-dragon' };
+const dragonArt = (color, age) => ({ portrait: age === 'wyrmling' ? 'dragon-wyrmling' : PAINTING[color] ?? 'red-dragon', body: `body-dragon-${color}` });
+
 function makeDragon(color, def, row) {
   const [age, ac, hp, speed, ab, saves, skills, cr, biteExtra, clawDice, breathFeet, breathDice, breathDC, secondFeet, secondDur] = row;
   const pb = pbFor(cr);
@@ -215,7 +219,7 @@ function makeDragon(color, def, row) {
 
   const wingDC = 8 + pb + sm;
   return {
-    name, size: SIZE[age], type: 'dragon', alignment: def.alignment, ac, armor: 'natural armor', hp, speed, ab, saves, skills,
+    name, art: dragonArt(color, age), voice: 'dragon', size: SIZE[age], type: 'dragon', alignment: def.alignment, ac, armor: 'natural armor', hp, speed, ab, saves, skills,
     immune: [def.element], conditionImmune: def.element === 'poison' ? ['poisoned'] : [], senses: SENSES[age],
     languages: age === 'wyrmling' ? 'Draconic' : 'Common, Draconic', cr: String(cr), traits, actions,
     legendary: big ? {
@@ -237,7 +241,7 @@ const trueDragons = Object.entries(COLORS).flatMap(([color, def]) => def.rows.ma
 export const dragons = [
   ...trueDragons,
   {
-    name: 'Dragon Turtle', size: 'Gargantuan', type: 'dragon', alignment: 'neutral',
+    name: 'Dragon Turtle', art: { portrait: 'fam-dragon-turtle', body: 'body-dragon-green', tint: 'hue-rotate(40deg) brightness(0.8)' }, voice: 'dragon', size: 'Gargantuan', type: 'dragon', alignment: 'neutral',
     ac: 20, armor: 'natural armor', hp: '22d20+110', speed: { walk: 20, swim: 40 }, ab: [25, 10, 20, 10, 12, 12],
     saves: { dex: 6, con: 11, wis: 7 }, resist: ['fire'], senses: { darkvision: 120 }, languages: 'Aquan, Draconic', cr: '17',
     traits: [T.amphibious],
@@ -252,7 +256,7 @@ export const dragons = [
     lore: lore('Greedy, moody and old as the reefs; can be bargained with.', 'Island-sized sea dragons that demand tribute from ships crossing their waters.', 'Capsize ships, boil crews with steam, drag the treasure down.'),
   },
   {
-    name: 'Pseudodragon', size: 'Tiny', type: 'dragon', alignment: 'neutral good',
+    name: 'Pseudodragon', art: { portrait: 'dragon-wyrmling', body: 'body-dragon-red' }, voice: 'dragon', size: 'Tiny', type: 'dragon', alignment: 'neutral good',
     ac: 13, armor: 'natural armor', hp: '2d4+2', speed: { walk: 15, fly: 60 }, ab: [6, 15, 13, 10, 12, 10],
     skills: { perception: 3, stealth: 4 }, senses: { blindsight: 10, darkvision: 60 }, languages: 'understands Common and Draconic but can\'t speak', cr: '1/4',
     traits: [
@@ -267,7 +271,7 @@ export const dragons = [
     lore: lore('Affectionate, curious and a little smug; purrs when pleased.', 'Cat-sized dragons that bond with kind-hearted wizards as familiars.', 'Sting and flee; put a bully to sleep.'),
   },
   {
-    name: 'Wyvern', size: 'Large', type: 'dragon', alignment: 'unaligned',
+    name: 'Wyvern', art: { portrait: 'fam-wyvern', body: 'body-dragon-bronze', tint: 'sepia(0.6) brightness(0.8)' }, voice: 'dragon', size: 'Large', type: 'dragon', alignment: 'unaligned',
     ac: 13, armor: 'natural armor', hp: '13d10+39', speed: { walk: 20, fly: 80 }, ab: [19, 10, 16, 5, 12, 6],
     skills: { perception: 4 }, senses: { darkvision: 60 }, languages: '—', cr: '6',
     actions: [
