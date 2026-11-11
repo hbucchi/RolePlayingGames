@@ -1,0 +1,573 @@
+/**
+ * The side panel: hero card, spells, rest, creature info, talking, wrestling, nearby things, pop-ups.
+ * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
+ * and to the functions of the other parts.
+ */
+import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
+import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
+import { countOf, findItem } from '../../engine/items.js';
+import { DIAGONAL_RULES, cellKey } from '../../engine/movement.js';
+import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
+import { rollDie } from '../../engine/dice.js';
+import { play } from '../audio.js';
+import { skillXp } from '../../engine/magic.js';
+import { formatModifier } from '../../engine/abilities.js';
+import { sensesText } from '../../engine/monsters.js';
+import { TALKS, resolveOf, insightOf, contestChance, talkOptions, PATIENCE, rollTalk } from '../../engine/talk.js';
+import { cellsOf } from '../../engine/size.js';
+import { TILE, roomAt } from '../../engine/dungeon.js';
+import { checkChance } from '../../engine/features.js';
+import { xpProgress } from '../../engine/progression.js';
+import { settingsControls } from '../settings.js';
+import { monsterPortrait } from '../../content/media.js';
+
+export function installPanels(ctx) {
+  const { $, esc, host, pct, s, signed } = ctx;
+
+  function drawPanel() {
+    const h = s.hero;
+    if (!h) { $('.dg-herocard').innerHTML = '<p class="muted">Create or adopt a hero to explore.</p>'; return; }
+    const ft = s.map.feetPerCell;
+    const total = h.speed * (s.dash ? 2 : 1);
+    const combat = s.mode === 'combat';
+    const heroTurn = combat && !s.busy;
+    $('.dg-banner').classList.toggle('turn', heroTurn);
+    $('.dg-herocard').innerHTML = `${partyBar()}
+      <div class="hc-head">
+        <div><h3>${esc(h.name)}</h3><p class="muted small">${combat ? `Round ${s.round} · ${s.busy ? 'enemies are acting…' : 'your turn'}` : 'Exploring'}</p></div>
+        <div class="hc-compass" title="Facing ${FACINGS[h.facing].name}">
+          <button class="btn icon small" data-dg="turn-left" aria-label="Turn left (Q)">⟲</button>
+          <svg viewBox="-20 -20 40 40" class="hc-dial" aria-hidden="true"><circle r="17" class="hc-dial-ring"/><g transform="rotate(${facingAngle(h.facing)})"><path d="M -6 -2 L 0 -16 L 6 -2 Z" class="hc-dial-front"/><path d="M -6 2 L 0 14 L 6 2 Z" class="hc-dial-back"/></g></svg>
+          <button class="btn icon small" data-dg="turn-right" aria-label="Turn right (E)">⟳</button>
+        </div>
+      </div>
+      <p class="hc-facing small">Facing <b>${FACINGS[h.facing].name}</b>. Enemies behind you (dark half) attack with advantage.</p>
+      <div class="hc-stat"><span>Hit points</span><b>${h.hp} / ${h.maxHp}</b></div>
+      <div class="hc-bar"><span class="${h.hp <= h.maxHp / 2 ? 'low' : ''}" style="width:${(h.hp / h.maxHp) * 100}%"></span></div>
+      <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${s.moveLeft * ft} ft)` : `${h.speed} squares per move`}</b></div>
+      ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
+      <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
+      ${xpBar()}
+      <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
+      <div class="hc-actions">
+        <button class="btn small" data-dg="inventory" title="Open your pack (I)">🎒 Pack</button>
+        <button class="btn small" data-dg="bandage" ${countOf(s.draft?.inventory ?? [], 'bandage') && !s.busy ? '' : 'disabled'} title="Medicine check (DC 10): heal 1d6 + Medicine${s.mode === 'combat' ? '. Uses your action.' : ''}">🩹 Bandage <span class="muted">${countOf(s.draft?.inventory ?? [], 'bandage')}</span> <span class="muted">${signed(h.skills.medicine ?? 0)}</span></button>
+        <button class="btn small" data-dg="search" ${s.busy ? 'disabled' : ''} title="Perception or Investigation (your better one) against hidden traps and secret doors nearby${s.mode === 'combat' ? '. Uses your action.' : ''}">🔍 Search <span class="muted">${signed(Math.max(h.skills.investigation ?? 0, h.skills.perception ?? 0))}</span></button>
+      </div>
+      ${restPanel()}
+      ${s.lastCheck ? `<p class="study-result ${s.lastCheck.ok ? 'ok' : ''}">${esc(s.lastCheck.text)}</p>` : ''}
+      ${magicPanel()}
+      <h4>Weapons</h4>
+      <div class="hc-weapons">${h.weapons.map((w, i) => `
+        <button class="weapon ${i === s.weaponIdx ? 'sel' : ''}" data-dg="weapon" data-i="${i}" aria-pressed="${i === s.weaponIdx}">
+          <b>${esc(w.name)}</b><span>${signed(w.toHit)} to hit · ${esc(w.damage)} ${esc(w.type)}${w.ammo ? ` · ${countOf(s.draft.inventory, w.ammo)} ${esc(w.ammo.replace('-', ' '))}` : ''}</span>
+          <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `range ${w.normal * 5}/${w.long * 5} ft` : ''}</span>
+        </button>`).join('')}</div>
+      <div class="row wrap">
+        ${combat ? `<button class="btn small" data-dg="dash" ${s.actionUsed || s.busy ? 'disabled' : ''} title="Use your action to double your movement this turn">Dash</button>
+        <button class="btn small primary" data-dg="end-turn" ${s.busy ? 'disabled' : ''}>End turn</button>` : ''}
+        <button class="btn small ghost" data-dg="retry" title="Restart this dungeon">Restart</button>
+      </div>
+      <label class="field small" for="dg-rule">Diagonal rule
+        <select id="dg-rule" data-dg="rule">${Object.entries(DIAGONAL_RULES).map(([k, v]) => `<option value="${k}" ${k === s.rule ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select>
+      </label>`;
+    drawTargetInfo();
+    drawPop();
+    drawNearby();
+    if (s.invOpen) drawInventory();
+    $('.dg-initiative').innerHTML = combat ? `<h3>Initiative</h3><ol class="init">${s.order.map((o) => {
+      const e = o.hero ? ctx.party().find((x) => x.id === o.id) : s.monsters.find((m) => m.id === o.id);
+      if (!e || e.dead || (o.hero && e.hp <= 0)) return '';
+      return `<li class="${o.hero ? 'me' : ''} ${o.id === s.hero.id ? 'now' : ''}"><b>${o.init}</b> ${esc(e.name)}${e.side === 'ally' ? ' <span class="ally-tag">ally</span>' : ''}${o.hero || e.side === 'ally' ? ` <span class="muted small">${e.hp} HP</span>` : ` <span class="muted small">${ctx.canSee(e) ? woundState(e.hp, e.maxHp) : 'unseen'}</span>`}</li>`;
+    }).join('')}</ol>` : '';
+    $('.dg-log').innerHTML = s.log.map((l) => `<li class="${l.kind}">${esc(l.text)}</li>`).join('');
+    $('.dg-zoom').textContent = `${Math.round(s.zoom * 100)}%`;
+  }
+
+  function magicPanel() {
+    const d = s.def; const m = d?.magic;
+    if (!m || (!m.spells.length && !m.abilities.length)) return '';
+    const r = s.res;
+    const usable = [...m.abilities.filter((a) => !a.passive), ...m.spells].sort((a, b) => (a.kind === b.kind ? (a.level ?? 0) - (b.level ?? 0) : a.kind === 'ability' ? -1 : 1));
+    const btn = (it) => {
+      const why = ctx.magicBlocked(it);
+      const cost = it.kind === 'spell' ? (it.level === 0 ? 'cantrip' : `${ctx.ordinal(it.level)}`) : Number.isFinite(it.maxUses) ? `${r.uses[it.id] ?? 0}/${it.maxUses}` : it.effect?.type === 'pool' ? `${r.pool} HP` : '';
+      return `<button class="spell-btn ${it.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${it.id}" title="${esc(`${it.desc}${it.range ? ` Range ${it.range * 5} ft.` : ''} ${why ? `(${why})` : ''}`)}">
+        <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${ctx.timeLabel[it.time] ?? 'action'}${it.concentration ? ' · C' : ''}</span></button>`;
+    };
+    const slots = r.maxSlots.length ? `<div class="slots">${r.maxSlots.map((n, i) => `<span class="slot-lvl" title="${ctx.ordinal(i + 1)}-level spell slots">${ctx.ordinal(i + 1)} ${'●'.repeat(r.slots[i])}${'○'.repeat(n - r.slots[i])}</span>`).join('')}</div>` : '';
+    const buffs = [s.res.concentration && `Concentrating: ${ctx.findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 AC', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
+      s.buffs.inspiration && `Inspiration ${s.buffs.inspiration}`, s.buffs.deathward && 'Ward against Death', s.hero.tempHp && `${s.hero.tempHp} temp HP`].filter(Boolean);
+    return `<h4>Spells &amp; abilities</h4>
+      ${d.caster ? `<p class="small muted">Spell save DC <b>${d.caster.dc}</b> · spell attack <b>${signed(d.caster.attack)}</b> (${d.caster.ability.toUpperCase()})</p>` : ''}
+      ${slots}
+      ${buffs.length ? `<p class="small buffs">${buffs.map(esc).join(' · ')}${s.res.concentration ? ' <button class="linkish" data-dg="end-conc">end</button>' : ''}</p>` : ''}
+      <div class="spell-list">${usable.map(btn).join('')}</div>
+      ${m.abilities.some((a) => a.passive) ? `<p class="small muted">Always on: ${m.abilities.filter((a) => a.passive).map((a) => `<span title="${esc(a.desc)}">${esc(a.name)}</span>`).join(', ')}</p>` : ''}`;
+  }
+
+  function restPanel() {
+    if (!s.res) return '';
+    const combat = s.mode === 'combat';
+    return `<div class="hc-actions rest-row">
+      <button class="btn small" data-dg="sneak" ${combat ? 'disabled' : ''} title="Stealth check: foes whose passive Perception is lower will not notice you">${s.sneak ? `👣 Sneaking (${s.sneak.total})` : '👣 Sneak'}</button>
+      <button class="btn small" data-dg="rest-short" ${combat ? 'disabled' : ''} title="Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.">☾ Short rest <span class="muted">${s.res.hitDice} HD</span></button>
+      <button class="btn small" data-dg="rest-long" ${combat || s.longRested ? 'disabled' : ''} title="Full recovery, once per floor. 1 in 3 chance of wandering monsters.">☀ Long rest</button>
+    </div>`;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Studying a foe: skill checks that reveal what you know about it
+  // ---------------------------------------------------------------------------
+
+  /** Which knowledge skill recalls lore about a creature type. */
+  const LORE_SKILL = {
+    humanoid: 'history', giant: 'history', beast: 'nature', plant: 'nature', monstrosity: 'nature',
+    undead: 'religion', fiend: 'religion', celestial: 'religion',
+    aberration: 'arcana', construct: 'arcana', dragon: 'arcana', elemental: 'arcana', fey: 'arcana', ooze: 'arcana',
+  };
+
+  const SKILL_LABEL = { insight: 'Insight', medicine: 'Medicine', perception: 'Perception', history: 'History', nature: 'Nature', religion: 'Religion', arcana: 'Arcana',
+    persuasion: 'Persuasion', intimidation: 'Intimidation', deception: 'Deception', performance: 'Performance', 'animal-handling': 'Animal Handling', athletics: 'Athletics' };
+
+  const STUDIES = (stat) => [
+    { id: 'mind', skill: 'insight', ability: 'WIS', label: 'Read its intent', reveals: 'personality, tactics and morale' },
+    { id: 'hp', skill: 'medicine', ability: 'WIS', label: 'Judge its wounds', reveals: 'exact hit points' },
+    { id: 'gear', skill: 'perception', ability: 'WIS', label: 'Size up its gear', reveals: 'armour class and weapons' },
+    { id: 'lore', skill: LORE_SKILL[stat.type] ?? 'arcana', ability: 'INT', label: 'Recall its lore', reveals: 'abilities, senses and traits' },
+  ];
+
+  /** DC for knowing about a creature: 10 + its challenge rating (rounded down). */
+  const studyDC = (stat) => 10 + Math.floor(stat.crValue);
+
+  const known = (m, id) => (id === 'hp' ? s.knownHp.has(m.id) : s.knowledge[m.statId]?.has(id));
+
+  function study(m, studyId) {
+    if (s.busy) return;
+    if (s.mode === 'combat' && s.actionUsed) { ctx.banner('Studying a foe takes your action, and you have used it.'); return; }
+    const stat = BESTIARY_BY_ID[m.statId];
+    const st = STUDIES(stat).find((x) => x.id === studyId);
+    const bonus = s.hero.skills[st.skill] ?? 0;
+    const d20 = rollDie(20); const total = d20 + bonus; const dc = studyDC(stat);
+    const ok = total >= dc;
+    play('dice', { volume: 0.7 });
+    if (ok) {
+      if (studyId === 'hp') s.knownHp.add(m.id);
+      else (s.knowledge[m.statId] ??= new Set()).add(studyId);
+      ctx.awardXp(skillXp(dc, s.def.level), m.pos);
+    }
+    if (s.mode === 'combat') s.actionUsed = true;
+    s.lastStudy = { id: m.id, studyId, ok, text: `${SKILL_LABEL[st.skill]}: d20 (${d20}) ${signed(bonus)} = ${total} vs DC ${dc}. ${ok ? 'Success!' : 'Not this time.'}` };
+    ctx.log(`${s.hero.name} studies the ${m.name} (${SKILL_LABEL[st.skill]}): d20 (${d20}) ${signed(bonus)} = ${total} vs DC ${dc}. ${ok ? `Success: learns its ${st.reveals}.` : 'Fails to learn anything new.'}`, ok ? 'good' : 'info');
+    ctx.redraw();
+  }
+
+  function revealedHtml(m, stat) {
+    let out = '';
+    if (known(m, 'mind')) {
+      out += `<div class="reveal"><h4>Intent</h4><p>${esc(stat.lore.personality)}</p><p><b>Tactics:</b> ${esc(stat.lore.tactics)}</p>
+        <p class="muted small">${m.hp <= m.maxHp / 2 ? 'It looks shaken and is thinking about escape.' : 'It is confident and eager to fight.'}</p></div>`;
+    }
+    if (known(m, 'gear')) {
+      const weapons = stat.actions.filter((a) => a.attack);
+      out += `<div class="reveal"><h4>Gear</h4><p><b>AC ${stat.ac}</b>${stat.armor ? ` (${esc(stat.armor)})` : ''}</p>
+        <ul class="plain small">${weapons.map((a) => `<li><b>${esc(a.name)}</b>: ${formatModifier(a.attack.toHit)} to hit, ${esc(a.attack.damage.map((d) => `${d.dice} ${d.type}`).join(' + '))}${a.attack.range ? `, range ${a.attack.range} ft` : ''}</li>`).join('')}</ul></div>`;
+    }
+    if (known(m, 'lore')) {
+      out += `<div class="reveal"><h4>Lore</h4><p class="small">${esc(stat.size)} ${esc(stat.type)}, challenge ${esc(stat.cr)} · speed ${esc(stat.speedText)} · ${esc(sensesText(stat))}</p>
+        <p class="small">STR ${stat.scores.str} · DEX ${stat.scores.dex} · CON ${stat.scores.con} · INT ${stat.scores.int} · WIS ${stat.scores.wis} · CHA ${stat.scores.cha}</p>
+        ${stat.traits.map((t) => `<p class="small"><b>${esc(t.name)}.</b> ${esc(t.text)}</p>`).join('')}
+        <p class="small muted">${esc(stat.lore.origin)}</p></div>`;
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Talking, shoving and grappling, freeing captives, commanding allies
+  // ---------------------------------------------------------------------------
+
+  /** The situation around a creature, for its resolve. */
+  function talkContext(m) {
+    const near = ctx.foes().filter((f) => !f.calm && ctx.edist(f, m) <= 6).length;
+    return { heroLevel: s.def.level, hostile: !!m.aware && s.mode === 'combat', bloodied: m.hp <= m.maxHp / 2, outnumbered: ctx.partyAlive().length + ctx.allies().length > near };
+  }
+
+  /** Everything about one talk attempt: bonuses, the reasons behind the resolve, the chance. */
+  function talkMath(m, id, lang) {
+    const stat = BESTIARY_BY_ID[m.statId]; const T = TALKS[id];
+    const parts = resolveOf(stat, id, talkContext(m));
+    const insight = insightOf(stat); const resolve = parts.reduce((t, [, v]) => t + v, 0);
+    const heroBonus = s.hero.skills[T.skill] ?? 0;
+    const mode = id === 'intimidate' && !lang && stat.type !== 'beast' ? 'disadvantage' : 'normal';
+    return { stat, T, parts, insight, resolve, heroBonus, mode, targetBonus: insight + resolve, chance: contestChance(heroBonus, insight + resolve, mode) };
+  }
+
+  function talkSection(m) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    const t = talkOptions(stat, { languages: s.def.languages ?? [], skills: s.hero.skills });
+    const left = PATIENCE - (m.talks ?? 0);
+    const far = ctx.edist(s.hero, m) > 12 || !ctx.inSight(m);
+    const blocked = s.busy || (s.mode === 'combat' && s.actionUsed) || left <= 0 || far || m.calm;
+    const why = m.calm ? 'It has agreed to leave you be.' : left <= 0 ? 'It will not listen to you any more.' : far ? 'Too far to be heard (60 ft) or out of sight.' : '';
+    const buttons = t.options.map((id) => {
+      const k = talkMath(m, id, t.lang);
+      const tip = `${k.T.desc} Its roll: d20 + Insight ${signed(k.insight)}${k.parts.map(([r, v]) => ` ${signed(v)} (${r})`).join('')}.${k.mode === 'disadvantage' ? ' No shared language: disadvantage.' : ''}`;
+      return `<button class="study talk" data-dg="talk" data-talk="${id}" ${blocked ? 'disabled' : ''} title="${esc(tip)}">
+        <b>${k.T.label}</b> <span class="muted">${SKILL_LABEL[k.T.skill]} ${signed(k.heroBonus)} vs ${signed(k.targetBonus)}${k.mode === 'disadvantage' ? ' (dis.)' : ''} · <b>${pct(k.chance)}</b></span>
+        <span>${esc(k.T.desc)}</span></button>`;
+    }).join('');
+    return `<h4>Talk <span class="muted small">${t.lang ? `in ${esc(t.lang)} · ` : ''}${Math.max(0, left)} of ${PATIENCE} tries left${s.mode === 'combat' ? ' · uses your action' : ''}</span></h4>
+      ${t.why ? `<p class="small muted">${esc(t.why)}</p>` : ''}${why ? `<p class="small hint">${esc(why)}</p>` : ''}
+      ${buttons ? `<div class="studies">${buttons}</div>` : ''}`;
+  }
+
+  /** Speak to a creature: a contest of your social skill against its Insight plus its resolve. */
+  function talkTo(m, id) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    const opts = talkOptions(stat, { languages: s.def.languages ?? [], skills: s.hero.skills });
+    if (!opts.options.includes(id) || m.dead) return;
+    if ((m.talks ?? 0) >= PATIENCE) { ctx.banner(`${m.name} will not listen any more.`); return; }
+    if (ctx.edist(s.hero, m) > 12 || !ctx.inSight(m)) { ctx.banner('Too far away to be heard (60 ft), or out of sight.'); return; }
+    if (!ctx.spendAction('Talking')) return;
+    const k = talkMath(m, id, opts.lang);
+    const r = rollTalk({ heroBonus: k.heroBonus, targetBonus: k.targetBonus, mode: k.mode, rng: (n) => rollDie(n) - 1 });
+    m.talks = r.nat1 ? PATIENCE : (m.talks ?? 0) + 1;
+    play('dice', { volume: 0.5 });
+    const verb = { parley: 'talk down', recruit: 'win over', intimidate: 'frighten', taunt: 'goad', mock: 'mock', soothe: 'soothe' }[id];
+    const dice = r.heroDice.length > 1 ? `d20 (${r.heroDice.join(', ')} → ${r.hero})` : `d20 (${r.hero})`;
+    let line = `${s.hero.name} tries to ${verb} the ${m.name.toLowerCase()}${opts.lang ? ` in ${opts.lang}` : ''}: ${SKILL_LABEL[k.T.skill]} ${dice} ${signed(k.heroBonus)}${r.nat20 ? ' +10 (natural 20!)' : ''} = ${r.heroTotal} vs its Insight d20 (${r.t}) ${signed(k.insight)}${k.resolve ? ` + resolve ${signed(k.resolve)}` : ''} = ${r.targetTotal}.`;
+    if (r.ok) {
+      const c = m.cond ??= {};
+      if (k.T.goal === 'calm') {
+        m.calm = true; m.aware = false; delete c.taunt;
+        s.order = s.order.filter((o) => o.id !== m.id);
+        line += ` ${m.name} lowers its guard and lets you be. Leave it in peace and it will not fight.`;
+      } else if (k.T.goal === 'recruit') {
+        line += ' Success!';
+        ctx.joinParty(m, { reason: 'for the rest of this floor' });
+      } else if (k.T.goal === 'flee') { c.flee = 2; line += ` ${m.name} is frightened and flees for 2 rounds!`; } else if (k.T.goal === 'taunt') { c.taunt = { id: s.hero.id, rounds: 2 }; line += ` ${m.name} roars and turns on ${s.hero.name}!`; } else if (k.T.goal === 'mock') { c.mock = true; line += ` ${m.name} is rattled: disadvantage on its next attack.`; }
+      ctx.log(line, 'good');
+      ctx.awardXp(skillXp(Math.max(5, k.targetBonus + 10), s.def.level), m.pos);
+      // Winning a fight without blood still overcomes it: its XP, once.
+      if ((k.T.goal === 'calm' || k.T.goal === 'recruit') && !m.xpGiven) { m.xpGiven = true; ctx.awardPartyXp(stat.xp, m.pos); }
+      if (k.T.goal === 'flee' || k.T.goal === 'taunt' || k.T.goal === 'mock') ctx.provoke([m]);
+      ctx.checkCombatOver();
+    } else {
+      line += r.nat1 ? ' A natural 1: you insult it badly. It will not listen again.' : ` It is not swayed.${(m.talks ?? 0) >= PATIENCE ? ' It has heard enough.' : ''}`;
+      ctx.log(line, 'info');
+      if (!m.aware || k.T.goal !== 'calm') { play(ctx.cry(m, 'attack'), { volume: 0.6 }); ctx.provoke([m]); }
+    }
+    s.target = null;
+    ctx.redraw();
+  }
+
+  /** Shove (push 5 ft or knock prone) or grapple: your Athletics against its Athletics or Acrobatics. */
+  function wrestleSection(m) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    const hb = s.hero.skills.athletics ?? 0; const tb = escapeBonus(stat);
+    const near = ctx.edist(s.hero, m) <= 1;
+    const ok = canWrestle(stat) && !m.cond?.petrified;
+    const blocked = s.busy || (s.mode === 'combat' && s.actionUsed) || !near || !ok;
+    const why = !ok ? 'Too big to shove or grapple (more than one size larger than you).' : !near ? 'Move next to it to shove or grapple.' : '';
+    const pct2 = pct(wrestleChance(hb, tb));
+    return `<h4>Shove or grapple <span class="muted small">Athletics ${signed(hb)} vs its ${signed(tb)} · ${pct2}${s.mode === 'combat' ? ' · uses your action' : ''}</span></h4>
+      ${why ? `<p class="small muted">${esc(why)}</p>` : ''}
+      <div class="row wrap">
+        <button class="btn small" data-dg="wrestle" data-how="prone" ${blocked ? 'disabled' : ''} title="Knock it down: attacks within 5 ft have advantage against it; it wastes half its move getting up.">Knock prone</button>
+        <button class="btn small" data-dg="wrestle" data-how="push" ${blocked ? 'disabled' : ''} title="Push it 5 ft straight away from you (into a fire wall, perhaps).">Push 5 ft</button>
+        <button class="btn small" data-dg="wrestle" data-how="grapple" ${blocked || m.cond?.grappled ? 'disabled' : ''} title="Seize it: its speed is 0 while you stay next to it. It tries to break free each turn.">Grapple</button>
+      </div>`;
+  }
+
+  /** Contest with no natural-20 bonus: P(d20 + a > d20 + b), ties to the defender. */
+  function wrestleChance(a, b) {
+    let w = 0; for (let h = 1; h <= 20; h++) for (let t = 1; t <= 20; t++) if (h + a > t + b) w++;
+    return w / 400;
+  }
+
+  function wrestle(m, how) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    if (ctx.edist(s.hero, m) > 1 || !canWrestle(stat)) return;
+    if (!ctx.spendAction(how === 'grapple' ? 'Grappling' : 'Shoving')) return;
+    const hb = s.hero.skills.athletics ?? 0; const tb = escapeBonus(stat);
+    const h = rollDie(20); const t = rollDie(20);
+    const ok = h + hb > t + tb;
+    let line = `${s.hero.name} tries to ${how === 'grapple' ? 'grapple' : 'shove'} the ${m.name.toLowerCase()}: Athletics d20 (${h}) ${signed(hb)} = ${h + hb} vs its d20 (${t}) ${signed(tb)} = ${t + tb}.`;
+    const c = m.cond ??= {};
+    if (ok) {
+      if (how === 'prone') { c.prone = true; line += ` ${m.name} crashes to the ground!`; }
+      if (how === 'push') { const before = { ...m.pos }; pushAway(m, 1); line += m.pos.x !== before.x || m.pos.y !== before.y ? ` ${m.name} is pushed back.` : ' It is shoved against something solid and goes nowhere.'; }
+      if (how === 'grapple') { c.grappled = { by: s.hero.id, dc: 8 + hb }; line += ` ${s.hero.name} has it in a hard grip: its speed is 0.`; }
+      play('sword-hit', { volume: 0.6 });
+      ctx.awardXp(skillXp(Math.max(5, tb + 10), s.def.level), m.pos);
+    } else { line += ' It does not budge.'; play('swing-miss', { volume: 0.6 }); }
+    ctx.log(line, ok ? 'good' : 'info');
+    for (const fx of s.effects) if (fx.dice && ctx.inEffect(m, fx)) ctx.log(ctx.burnIn(m, fx), 'good');
+    ctx.finishIfDead(m);
+    s.target = null;
+    ctx.provoke([m]);
+    ctx.checkCombatOver();
+    ctx.redraw();
+  }
+
+  /** Push a creature `n` squares straight away from the active hero, stopping at walls and others. */
+  function pushAway(m, n) {
+    const dx = Math.sign(m.pos.x - s.hero.pos.x); const dy = Math.sign(m.pos.y - s.hero.pos.y);
+    const blocked = new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]);
+    for (let i = 0; i < n; i++) {
+      const next = { x: m.pos.x + dx, y: m.pos.y + dy };
+      const cells = cellsOf(next, m.size ?? 1);
+      if (cells.some((q) => s.map.tiles[q.y]?.[q.x] === undefined || s.map.tiles[q.y][q.x] === TILE.ROCK || blocked.has(cellKey(q.x, q.y)) || (s.map.tiles[q.y][q.x] === TILE.DOOR && !s.doors.get(cellKey(q.x, q.y))))) break;
+      m.pos = next;
+    }
+  }
+
+  /** Shackles off: a captive is grateful and joins your company for good. */
+  function freeCreature(m) {
+    if (m.cond) delete m.cond.bound;
+    if (m.side === 'captive') {
+      ctx.log(`The shackles fall away. "${s.hero.name}, I owe you my life. I will see this through with you," says ${m.name}.`, 'good');
+      ctx.joinParty(m, { permanent: true, reason: 'now that her chains are broken' });
+      if (!m.xpGiven) { m.xpGiven = true; ctx.awardPartyXp(BESTIARY_BY_ID[m.statId].xp * 4, m.pos); }
+    } else ctx.log(`${m.name} is free of its bonds.`, 'info');
+  }
+
+  function captivePanel(m) {
+    const bound = m.cond?.bound; const near = ctx.edist(s.hero, m) <= 1;
+    const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
+    const tools = ctx.hasTools(); const combatNote = s.mode === 'combat' ? ' · uses your action' : '';
+    return `<div class="foe-card">
+      <div class="foe-head">${ctx.portraitOf(m) ? `<img class="foe-portrait" src="${esc(ctx.portraitOf(m))}" alt="Portrait of ${esc(m.name)}">` : ''}
+        <div><h3>${esc(m.name)}</h3><p class="small"><b>${esc(woundState(m.hp, m.maxHp))}</b> · ${bound ? esc(BOUND_TEXT[bound.to] ?? 'bound') : 'free'}</p>
+        <p class="small muted">A prisoner of this place. ${bound ? 'Free her and she will join you.' : ''}</p></div>${close}</div>
+      ${bound ? (near ? `<h4>Free her</h4><div class="studies">
+        <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the shackles</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${bound.dc} · ${Math.round(checkChance(s.def.toolBonus, bound.dc) * 100)}%</span><span>${tools ? `Thieves' tools${combatNote}` : 'Needs thieves\' tools'}</span></button>
+        <button class="study" data-dg="force-lock"><b>Break the chain</b> <span class="muted">Athletics ${signed(s.hero.skills.athletics ?? 0)} vs DC ${bound.dc + 2}</span><span>Loud: nearby foes will hear${combatNote}</span></button>
+      </div>` : '<p class="small muted">Move next to her to work on the shackles.</p>') : ''}
+      <h4>Talk</h4><p class="small">"Quickly! The keys went with the guards. The lock is old, and the chain older."</p>
+    </div>`;
+  }
+
+  function allyPanel(m) {
+    const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
+    const conds = conditionLabels(m);
+    return `<div class="foe-card">
+      <div class="foe-head">${ctx.portraitOf(m) ? `<img class="foe-portrait" src="${esc(ctx.portraitOf(m))}" alt="Portrait of ${esc(m.name)}">` : ''}
+        <div><h3>${esc(m.name)} <span class="ally-tag">ally</span></h3><p class="small"><b>${m.hp} / ${m.maxHp} HP</b> · ${ctx.edist(s.hero, m) * 5} ft away${conds.length ? ` · ${esc(conds.join(', '))}` : ''}</p>
+        <p class="small muted">${m.permanent ? 'Sworn to your company: follows you down the stairs.' : m.allyRounds ? `Bound by a spell for ${m.allyRounds} more rounds.` : 'With you for the rest of this floor.'}</p></div>${close}</div>
+      <h4>Orders</h4><div class="row wrap">
+        <button class="btn small ${m.hold ? '' : 'primary'}" data-dg="ally-order" data-how="follow">Follow and fight</button>
+        <button class="btn small ${m.hold ? 'primary' : ''}" data-dg="ally-order" data-how="hold">Hold this position</button>
+        ${m.cond?.bound && ctx.edist(s.hero, m) <= 1 ? '<button class="btn small" data-dg="force-lock">Break the bonds</button>' : ''}
+        ${!m.permanent ? '<button class="btn small" data-dg="ally-order" data-how="dismiss">Part ways</button>' : ''}
+      </div>
+      <p class="small muted">Allies act on their own initiative: they attack the nearest foe and keep close to you.</p>
+    </div>`;
+  }
+
+  function foePanel(m) {
+    const stat = BESTIARY_BY_ID[m.statId];
+    const portrait = ctx.portraitOf(m);
+    const conds = conditionLabels(m);
+    const d = ctx.edist(s.hero, m);
+    const combat = s.mode === 'combat';
+    const health = s.knownHp.has(m.id) ? `${m.hp} / ${m.maxHp} HP` : woundState(m.hp, m.maxHp);
+    const weapons = s.hero.weapons.map((w, i) => {
+      const o = attackOptions({ attacker: s.hero, target: m, weapon: w, opaque: ctx.opaque(), occupied: ctx.occupied(), enemiesOf: ctx.enemiesOf });
+      const blocked = !o || !ctx.canAttack() || s.busy || !combat;
+      return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o ? `${pct(o.chance)} to hit${o.mode !== 'normal' ? ` (${o.mode})` : ''}` : esc(ctx.whyNot(m))}">
+        ${esc(w.name)}${o ? ` · ${pct(o.chance)}` : ''}</button>`;
+    }).join('');
+    const studies = STUDIES(stat).map((st) => {
+      const done = known(m, st.id);
+      return `<button class="study ${done ? 'done' : ''}" data-dg="study" data-study="${st.id}" ${s.busy || (combat && s.actionUsed) ? 'disabled' : ''}>
+        <b>${SKILL_LABEL[st.skill]}</b> <span class="muted">${st.ability} ${signed(s.hero.skills[st.skill] ?? 0)}</span>
+        <span>${done ? '✓ ' : ''}${esc(st.label)}</span></button>`;
+    }).join('');
+    const last = s.lastStudy?.id === m.id ? `<p class="study-result ${s.lastStudy.ok ? 'ok' : ''}">${esc(s.lastStudy.text)}</p>` : '';
+    return `<div class="foe-card">
+      <div class="foe-head">
+        ${portrait ? `<img class="foe-portrait" src="${esc(portrait)}" alt="Portrait of a ${esc(m.name.toLowerCase())}">` : '<div class="foe-portrait none" aria-hidden="true">?</div>'}
+        <div>
+          <h3>${esc(m.name)}</h3>
+          <p class="small"><b>${esc(health)}</b> · ${d * 5} ft away · facing ${FACINGS[m.facing].name}</p>
+          ${conds.length || m.calm ? `<p class="small cond-line">${esc([m.calm ? 'calmed: leaves you be' : null, ...conds].filter(Boolean).join(' · '))}</p>` : ''}
+          ${isBehindHero(m) ? '<p class="small hint">You are behind it: attacks have advantage.</p>' : ''}
+        </div>
+        <button class="btn icon small" data-dg="deselect" aria-label="Close">✕</button>
+      </div>
+      <h4>Attack</h4>
+      <div class="row wrap">${weapons}</div>
+      ${(() => {
+    const targeted = [...(s.def.magic?.abilities ?? []), ...(s.def.magic?.spells ?? [])].filter((x) => !x.passive && (x.target === 'enemy' || x.target === 'point'));
+    if (!targeted.length) return '';
+    return `<h4>Cast at it</h4><div class="spell-list">${targeted.map((x) => {
+      const why = ctx.magicBlocked(x) ?? (d > x.range ? `Out of range (${x.range * 5} ft)` : null);
+      return `<button class="spell-btn ${x.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${x.id}" title="${esc(`${x.desc} ${why ? `(${why})` : ''}`)}"><b>${esc(x.name)}</b><span class="muted">${x.kind === 'spell' ? (x.level ? ctx.ordinal(x.level) : 'cantrip') : `${s.res.uses[x.id] ?? ''}`} · ${x.range * 5} ft</span></button>`;
+    }).join('')}</div>`;
+  })()}
+      ${!combat ? `<p class="small muted">${m.aware ? 'Attacks are made on your turn in combat.' : m.calm ? 'Attacking it breaks the truce.' : 'It has not noticed you: attacking now gets advantage and catches it by surprise.'}</p>` : !ctx.canAttack() ? '<p class="small muted">You have used your action this turn.</p>' : '<p class="small muted">Tip: Shift+click a foe to attack it at once with your best weapon.</p>'}
+      ${talkSection(m)}
+      ${wrestleSection(m)}
+      <h4>Study it <span class="muted small">DC ${studyDC(stat)}${combat ? ' · uses your action' : ''}</span></h4>
+      <div class="studies">${studies}</div>
+      ${last}
+      ${revealedHtml(m, stat)}
+    </div>`;
+  }
+
+  const isBehindHero = (m) => {
+    const f = FACINGS[m.facing];
+    return Math.sign(s.hero.pos.x - m.pos.x) * f.dx + Math.sign(s.hero.pos.y - m.pos.y) * f.dy <= -1;
+  };
+
+  function xpBar() {
+    const d = s.def; if (!d) return '';
+    const p = xpProgress(d.xp, d.level);
+    return `<div class="hc-xp" title="${d.level >= 20 ? 'Maximum level' : `${p.needed - p.into} XP to level ${d.level + 1}`}">
+      <span class="lvl">Lv ${d.level}</span><span class="bar"><span style="width:${p.fraction * 100}%"></span></span>
+      <span class="small muted">${d.xp.toLocaleString()} XP</span></div>`;
+  }
+
+  /** Things within reach you can interact with: bodies, chests, locked doors, traps. */
+  function nearbyThings() {
+    if (!s.hero || !s.features) return [];
+    const list = [];
+    if (ctx.onExit()) list.push({ kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
+    for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && ctx.adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
+    for (const c of s.features.chests) if (ctx.adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
+    for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (ctx.adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
+    for (const t of s.features.traps) if (t.found && !t.disarmed && !t.sprung && chebyshev(t, s.hero.pos) <= 1) list.push({ kind: 'trap', id: t.id, label: `${t.name[0].toUpperCase()}${t.name.slice(1)}`, glyph: '⚠' });
+    return list;
+  }
+
+  function drawNearby() {
+    const list = nearbyThings();
+    $('.dg-nearby').innerHTML = list.length ? `<h3>Within reach</h3><div class="nearby">${list.map((t) => `<button class="btn small ${s.target?.kind === t.kind && s.target.id === t.id ? 'primary' : ''}" data-dg="pick-target" data-kind="${t.kind}" data-id="${esc(t.id)}">${t.glyph} ${esc(t.label)}</button>`).join('')}</div>` : '';
+  }
+
+  /** Panel for a chest, locked door, trap or body. */
+  function interactPanel(t) {
+    if (t.kind === 'creature') {
+      const m = s.monsters.find((x) => x.id === t.id && !x.dead);
+      if (!m) return '';
+      return m.side === 'captive' ? captivePanel(m) : m.side === 'ally' ? allyPanel(m) : foePanel(m);
+    }
+    const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
+    const near = (p) => chebyshev(s.hero.pos, p) <= 1;
+    const combatNote = s.mode === 'combat' ? ' · uses your action' : '';
+    const tools = ctx.hasTools();
+    const lockButtons = (lock) => `
+      <div class="studies">
+        <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the lock</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${lock.dc} · ${Math.round(checkChance(s.def.toolBonus, lock.dc) * 100)}%</span><span>${tools ? `Thieves' tools (${tools.charges ?? '∞'} picks)${combatNote}` : 'Needs thieves\' tools'}</span></button>
+        <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(s.hero.skills.athletics ?? 0)} vs DC ${lock.dc + 2}${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>Loud: nearby foes will hear${combatNote}</span></button>
+      </div>`;
+    if (t.kind === 'corpse') {
+      const m = s.monsters.find((x) => x.id === t.id);
+      if (!m) return '';
+      if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(m.name)}'s body</h3>${close}</div><p class="small muted">Move next to the body to search it.</p></div>`;
+      return lootHtml({ title: `${m.name}'s body`, coins: m.loot.coins, items: m.loot.items });
+    }
+    if (t.kind === 'chest') {
+      const c = s.features.chests.find((x) => x.id === t.id);
+      if (!c) return '';
+      if (!near(c)) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><p class="small muted">Move next to the chest to open it.</p></div>`;
+      if (c.locked) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked chest</h3>${close}</div><p class="small">A heavy iron-bound chest with a stout lock.</p>${lockButtons(c)}</div>`;
+      if (!c.opened) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><button class="btn small primary" data-dg="open-chest">Open it</button></div>`;
+      return lootHtml({ title: 'Chest', coins: c.loot.coins, items: c.loot.items });
+    }
+    if (t.kind === 'door') {
+      const lock = s.features.locks.get(t.id);
+      if (!lock) return '';
+      const [x, y] = t.id.split(',').map(Number);
+      if (!near({ x, y })) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small muted">Move next to the door to work on its lock.</p></div>`;
+      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small">An oak door bound in iron. It will not budge.</p>${lockButtons(lock)}</div>`;
+    }
+    if (t.kind === 'trap') {
+      const tr = s.features.traps.find((x) => x.id === t.id);
+      if (!tr) return '';
+      const state = tr.disarmed ? 'Disarmed: safe to cross.' : tr.sprung ? 'Already sprung.' : 'Armed. Your path will go around it.';
+      return `<div class="loot-card"><div class="foe-head"><h3>⚠ ${esc(tr.name[0].toUpperCase() + tr.name.slice(1))}</h3>${close}</div>
+        <p class="small">${state} Deals ${esc(tr.damage)} ${esc(tr.type)} (DEX save DC ${tr.saveDc} for half).</p>
+        ${!tr.disarmed && !tr.sprung ? (near(tr) ? `<div class="studies"><button class="study" data-dg="disarm" ${tools ? '' : 'disabled'}><b>Disarm it</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${tr.dc} · ${Math.round(checkChance(s.def.toolBonus, tr.dc) * 100)}%</span><span>${tools ? `Fail by 5 or more and it goes off!${combatNote}` : 'Needs thieves\' tools'}</span></button></div>` : '<p class="small muted">Move next to it to try disarming it.</p>') : ''}</div>`;
+    }
+    return '';
+  }
+
+  /** The in-game settings menu: how creatures are drawn (and the grid). */
+  function toggleSettings(open = $('.dg-settings').hidden) {
+    const box = $('.dg-settings');
+    box.hidden = !open;
+    host.querySelector('[data-dg="settings"]').setAttribute('aria-expanded', String(open));
+    if (!open) return;
+    box.innerHTML = `<div class="dg-settings-card">
+      <div class="foe-head"><h3>Settings</h3><button class="btn icon small" data-dg="close-settings" aria-label="Close settings">✕</button></div>
+      ${settingsControls('data-dg="setting"', undefined, 'game')}
+      <p class="small muted">Also set on the start screen. Creatures without a body yet keep their token.</p>
+    </div>`;
+  }
+
+  /** Bodies, chests, doors and traps open as a pop-up in the middle of the screen. */
+  function drawPop() {
+    const box = $('.dg-pop');
+    const html = s.target ? interactPanel(s.target) : '';
+    if (s.target && !html) s.target = null;
+    box.hidden = !html;
+    if (!html) box.innerHTML = '';
+    if (html) box.innerHTML = `<div class="dg-pop-card">${html}<p class="small muted pop-hint">Esc or click outside to close.</p></div>`;
+  }
+
+  /** Party roster: who is in the group, their health; while exploring, click to choose the leader. */
+  function partyBar() {
+    if (s.members.length < 2) return '';
+    return `<div class="party-bar">${s.members.map((m, i) => {
+      const h = m.hero; const me = h === s.hero;
+      return `<button class="party-member ${me ? 'me' : ''} ${h.hp <= 0 ? 'down' : ''}" data-dg="pick-hero" data-i="${i}" ${s.mode === 'combat' || s.busy ? 'disabled' : ''} title="${esc(h.name)}${s.mode === 'combat' ? '' : ': click to lead the party'}">
+        <img src="${esc(h.look?.url ?? '')}" alt="" style="filter:${h.look?.filter ?? 'none'};border-color:${h.look?.frameColor ?? '#c9a227'}">
+        <span><b>${esc(h.name.split(' ')[0])}</b><span class="mini-hp"><span style="width:${Math.max(0, h.hp / h.maxHp) * 100}%"></span></span><small>${h.hp}/${h.maxHp}</small></span></button>`;
+    }).join('')}</div>`;
+  }
+
+  function drawInventory() {
+    const box = $('.dg-inv');
+    box.hidden = !s.invOpen;
+    if (!s.invOpen || !s.draft) return;
+    box.innerHTML = `<div class="dg-inv-card">
+      <button class="btn icon small dg-inv-close" data-inv="close" aria-label="Close inventory">✕</button>
+      ${inventoryHtml(s.draft, { str: s.def.str, selected: s.invSel, filter: s.invFilter, combat: s.mode === 'combat', title: `${s.hero.name}'s pack` })}
+      ${s.def.gearNotes?.length ? `<ul class="gear-notes small">${s.def.gearNotes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  }
+
+  function drawTargetInfo() {
+    const box = $('.dg-target');
+    const sel = s.selectedId && s.monsters.find((m) => m.id === s.selectedId && !m.dead && ctx.canSee(m));
+    if (sel && s.target?.kind !== 'creature') { box.innerHTML = sel.side ? (sel.side === 'ally' ? allyPanel(sel) : captivePanel(sel)) : foePanel(sel); return; }
+    if (sel) { box.innerHTML = `<p class="small muted">${esc(sel.name)}: choose what to do in the pop-up.</p>`; return; }
+
+    const hov = s.hover;
+    if (!hov || !s.hero) { box.innerHTML = '<p class="muted small">Click a creature to attack it, talk to it, shove it or study it (Shift+click attacks at once). Click chests, locked doors, traps and bodies next to you. Hover to check distances.</p>'; return; }
+    const foe = ctx.alive().find((m) => covers(m, hov) && ctx.canSee(m));
+    if (foe && foe.side) {
+      box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(foe) ? `<img src="${esc(ctx.portraitOf(foe))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
+        <p class="small">${foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe) * 5} ft away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;
+      return;
+    }
+    if (foe) {
+      const plan = ctx.heroAttackPlan(foe);
+      box.innerHTML = `<div class="foe-mini">${monsterPortrait(foe.statId) ? `<img src="${esc(monsterPortrait(foe.statId))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
+        <p class="small">${woundState(foe.hp, foe.maxHp)} · ${ctx.edist(s.hero, foe) * 5} ft away</p>
+        ${plan ? `<p class="hit"><b>${pct(plan.opts.chance)}</b> to hit with ${esc(plan.weapon.name)}</p>` : `<p class="small">${esc(ctx.whyNot(foe))}</p>`}
+        <p class="small muted">Click for everything you can do: attack, talk, shove, study, cast.</p></div></div>`;
+      return;
+    }
+    const room = roomAt(s.map, hov.x, hov.y);
+    const knownSq = s.revealAll || s.revealed.has(cellKey(hov.x, hov.y));
+    const c = s.reach.get(cellKey(hov.x, hov.y));
+    box.innerHTML = knownSq ? `<p class="small"><b>Square ${hov.x}, ${hov.y}</b>${room ? ` · ${esc(room.name)}` : ''}${s.visible.has(cellKey(hov.x, hov.y)) ? ' · in sight' : ' · remembered'}</p>
+      ${c && c.cost > 0 ? `<p class="small">${c.cost} square${c.cost === 1 ? '' : 's'} away (${c.cost * s.map.feetPerCell} ft). Click to move.${c.risky ? ' <b>The only way crosses a known trap: you will need an Acrobatics check.</b>' : ''}</p>` : ''}
+      ${c && c.cost === 0 ? `<p class="small">${esc(s.hero.name)} stands here, facing ${FACINGS[s.hero.facing].name}.</p>` : ''}` : '<p class="small muted">Unexplored darkness.</p>';
+  }
+
+  return { drawPanel, magicPanel, restPanel, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo };
+}
