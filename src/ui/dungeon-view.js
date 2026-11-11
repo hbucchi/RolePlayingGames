@@ -20,7 +20,7 @@ import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { cellsOf, blockDistance, dims, spanOf, centerOf } from '../engine/size.js';
 import { reachableSquares, speedToSquares, cellKey } from '../engine/movement.js';
-import { makeOpacity, visibleSquares, revealFrom, inFieldOfView, lineOfSight } from '../engine/vision.js';
+import { makeOpacity, visibleSquares, revealFrom, inFieldOfView, lineOfSight, blockingCells } from '../engine/vision.js';
 import { facingToward, rotateFacing, chebyshev, weaponFromHeroAttack, rollInitiative, createMonster, entityDistance, covers, reachOf, immobile } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
@@ -574,7 +574,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** NPCs fighting for the party, and captives waiting to be freed. */
   const allies = () => alive().filter((m) => m.side === 'ally');
   const portraitOf = (m) => m.portrait ?? monsterPortrait(m.statId);
-  const occupied = (except) => new Set([...partyAlive(), ...alive()].filter((e) => e && e !== except).flatMap((e) => cellsOf(e.pos, e.size ?? 1).map((c) => cellKey(c.x, c.y))));
+  // Squares filled by living, standing creatures (vision.js blockingCells): bodies never block.
+  const occupied = (except) => blockingCells([...party(), ...s.monsters], except);
   const edist = (a, b) => entityDistance(a, b);
   const edistP = (e, p) => blockDistance(e.pos, e.size ?? 1, p, 1);
   /** Can the party actually see it? (Not the narrator's Reveal map view.) */

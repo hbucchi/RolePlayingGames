@@ -13,6 +13,7 @@
  * but part of its square is visible, it has half cover (+2 AC).
  */
 import { TILE } from './dungeon.js';
+import { cellsOf } from './size.js';
 
 export const cellKey = (x, y) => `${x},${y}`;
 
@@ -193,6 +194,20 @@ export function centreGrazes(a, b, opaque, own) {
 
 export const COVER_AC = { none: 0, half: 2, 'three-quarters': 5, total: Infinity };
 const COVER_OF = ['none', 'half', 'half', 'three-quarters', 'total'];
+
+/**
+ * The squares that block sight and shots: those of creatures that are alive and standing. Corpses,
+ * fallen heroes (0 hit points) and anyone else at 0 hit points lie on the floor: you see and shoot
+ * over them, and a hero standing on a body sees as well as anywhere else.
+ */
+export function blockingCells(creatures, except = null) {
+  const out = new Set();
+  for (const e of creatures) {
+    if (!e || e === except || e.dead || !(e.hp > 0)) continue;
+    for (const c of cellsOf(e.pos, e.size ?? 1)) out.add(cellKey(c.x, c.y));
+  }
+  return out;
+}
 
 /**
  * Cover between two creatures of any size: the best pair of squares counts.

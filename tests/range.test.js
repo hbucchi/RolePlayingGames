@@ -99,3 +99,19 @@ test('a monster archer will not plan a shot through its own friends', () => {
   const plan = planMonsterTurn({ m: goblin, hero, map, opaque: () => false, blocked: friend, creatures: friend, rng: () => 99 });
   assert.ok(!(plan.length === 1 && plan[0].type === 'attack'), 'it does not just shoot through the friend');
 });
+
+test('bodies on the floor never block sight or shots; the living do', async () => {
+  const { blockingCells, rangedCover } = await import('../src/engine/vision.js');
+  const open = () => false;
+  const hero = { pos: { x: 0, y: 0 }, hp: 10 };
+  const goblin = { pos: { x: 4, y: 0 }, hp: 7 };
+  const corpse = { pos: { x: 2, y: 0 }, hp: 0, dead: true };
+  const fallenHero = { pos: { x: 2, y: 0 }, hp: 0 };
+  const living = { pos: { x: 2, y: 0 }, hp: 5 };
+  const cover = (others) => rangedCover([hero.pos], [goblin.pos], open, blockingCells([hero, goblin, ...others], hero));
+  assert.equal(cover([corpse]), 'none', 'a corpse in between: a clear shot');
+  assert.equal(cover([fallenHero]), 'none', 'a fallen friend in between: a clear shot');
+  assert.equal(cover([living]), 'total', 'someone alive squarely in between blocks it');
+  const standingOnBody = rangedCover([hero.pos], [goblin.pos], open, blockingCells([hero, goblin, { ...corpse, pos: { ...hero.pos } }], hero));
+  assert.equal(standingOnBody, 'none', 'a hero standing on a body shoots as well as anywhere');
+});
