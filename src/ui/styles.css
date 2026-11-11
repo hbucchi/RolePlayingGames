@@ -1112,3 +1112,15 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .act-btn { flex: 1 1 calc(33.333% - 6px); min-height: 42px; padding: 4px 6px; gap: 4px; font-size: .88rem; flex-direction: column; }
   .act-btn .act-ico { font-size: 1.15rem; }
 }
+
+/* No blue flash when tapping: phones paint a translucent blue "tap highlight" over anything you tap
+   that responds to taps (the whole map, when you tap to move). Our buttons show their own pressed
+   state, so turn the browser's off everywhere. */
+html { -webkit-tap-highlight-color: transparent; }
+/* The map can take keyboard focus (arrow-free shortcuts like Q / E): no outline on a tap or click,
+   a gold inner outline only when reached with the keyboard. Long-press does not select or pop up
+   a menu over the board. */
+.dg-viewport { -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.dg-viewport:focus { outline: none; }
+.dg-viewport:focus-visible { outline: 3px solid var(--gold); outline-offset: -3px; }
+.dg-viewport svg, .dg-viewport image { -webkit-user-drag: none; }
