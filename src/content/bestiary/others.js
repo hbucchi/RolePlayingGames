@@ -455,7 +455,7 @@ export const aberrations = [
       mw('Bite', 6, 5, '2d6+3 piercing', 'If the target is Large or smaller, the cloaker attaches to it. If it has advantage against the target, it attaches to the target\'s head, and the target is blinded and unable to breathe while attached. While attached, it can make this attack only against the target and has advantage on the roll.', { targets: 'one creature' }),
       mw('Tail', 6, 10, '1d8+3 slashing', null, { targets: 'one creature' }),
       act('Moan', 'Each creature within 60 feet that can hear its moan and that isn\'t an aberration must succeed on a DC 13 Wisdom saving throw or become frightened until the end of the cloaker\'s next turn.'),
-      act('Phantasms (Recharges after a Short or Long Rest)', 'Magically creates three illusory duplicates of itself if it isn\'t in bright light. The duplicates move with it and mimic its actions. Attacks have a chance of hitting a duplicate instead; a duplicate is destroyed when hit.')],
+      act('Phantasms (Once per Fight)', 'Magically creates three illusory duplicates of itself if it isn\'t in bright light. The duplicates move with it and mimic its actions. Attacks have a chance of hitting a duplicate instead; a duplicate is destroyed when hit.')],
     habitat: ['underdark', 'dungeon'],
     appearance: 'A manta-ray-like creature that looks exactly like a black leather cloak, its underside revealing pale flesh, red eyes and a fanged mouth, with a whip-like tail, unfurling in a dark cave.',
     lore: lore('Alien, patient ambusher.', 'Cloak-shaped aberrations of the deep dark.', 'Disguise as a cloak, engulf the head, phantasm to confuse.') },

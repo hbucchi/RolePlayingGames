@@ -247,7 +247,7 @@ export const humanoids = [
     traits: [
       shapechanger('a boar-humanoid hybrid or into a boar (speed 40 ft.)'),
       T.charge(15, '7 (2d6)', 'slashing', 13, 'Boar or hybrid form, tusks only; the target must succeed on a Strength saving throw or be knocked prone'),
-      act('Relentless (Recharges after a Short or Long Rest)', 'If it takes 14 damage or less that would reduce it to 0 hit points, it is reduced to 1 hit point instead.'),
+      act('Relentless (Once per Fight)', 'If it takes 14 damage or less that would reduce it to 0 hit points, it is reduced to 1 hit point instead.'),
     ],
     actions: [
       multi('(Humanoid or hybrid form only.) Makes two attacks, only one of which can be with its tusks.'),
@@ -456,7 +456,7 @@ export const humanoids = [
     saves: { con: 4, wis: 2 }, languages: 'any one language (usually Common)', cr: '3',
     traits: [act('Brave', 'Has advantage on saving throws against being frightened.')],
     actions: [multi('Makes two melee attacks.'), mw('Greatsword', 5, 5, '2d6+3 slashing'), rw('Heavy Crossbow', 2, '100/400', '1d10 piercing'),
-      act('Leadership (Recharges after a Short or Long Rest)', 'For 1 minute, it can utter a special command or warning whenever a nonhostile creature it can see within 30 feet makes an attack roll or saving throw. That creature can add a d4 to its roll if it can hear and understand the knight. A creature can benefit from only one Leadership die at a time.')],
+      act('Leadership (Once per Fight)', 'For 1 minute, it can utter a special command or warning whenever a nonhostile creature it can see within 30 feet makes an attack roll or saving throw. That creature can add a d4 to its roll if it can hear and understand the knight. A creature can benefit from only one Leadership die at a time.')],
     reactions: [parry(2)], habitat: ['urban', 'grassland', 'any'],
     appearance: 'A knight in full polished plate armour with a heraldic surcoat and a plumed helm, a two-handed greatsword resting point-down, standing before a castle banner.',
     lore: lore('Bound by oaths; honourable or merely proud.', 'Sworn warriors of a lord or order, trained from childhood in arms and courtesy.', 'Lead from the front, use Leadership, challenge the enemy captain.'),

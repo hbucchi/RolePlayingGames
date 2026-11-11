@@ -27,7 +27,7 @@ export const classes = [
     skillChoices: { count: 2, from: ['acrobatics', 'animal-handling', 'athletics', 'history', 'insight', 'intimidation', 'perception', 'survival'] },
     features: [
       { name: 'Fighting Style: Shield-wall', text: 'While you wield a shield, you can use your reaction to impose disadvantage on an attack against an adjacent ally.' },
-      { name: 'Second Wind', text: 'Once per short rest, as a bonus action, regain 1d10 + your level in hit points.' },
+      { name: 'Second Wind', text: 'Once (until you recover at a mana totem, an inn or a camp), as a bonus action, regain 1d10 + your level in hit points.' },
     ],
     equipment: [A('Coat of mail', 16, 0), SHIELD, W('Longsword', '1d8', 'slashing', 'str'), W('Spear (thrown)', '1d6', 'piercing', 'str', { properties: ['thrown 20/60'] }), G('Traveller\'s pack')],
     kit: ['chain-mail', 'shield', 'longsword', 'spear', 'traveller'],
@@ -86,7 +86,7 @@ export const classes = [
     weaponProficiencies: ['Daggers', 'Quarterstaffs', 'Light crossbows'],
     skillChoices: { count: 2, from: ['arcana', 'history', 'insight', 'investigation', 'medicine', 'religion'] },
     features: [
-      { name: 'Words of Command', text: 'Twice per long rest, speak a word of power: kindle a light or flame, bar a door, or force a creature within 30 feet to make a Wisdom save (DC 8 + proficiency + INT) or be stunned until the end of its next turn.' },
+      { name: 'Words of Command', text: 'Twice (until you recover at a mana totem, an inn or a camp), speak a word of power: kindle a light or flame, bar a door, or force a creature within 30 feet to make a Wisdom save (DC 8 + proficiency + INT) or be stunned until the end of its next turn.' },
       { name: 'Ancient Lore', text: 'Add your Intelligence modifier a second time to checks about ancient history, ruins, runes and artefacts.' },
     ],
     equipment: [W('Quarterstaff', '1d6', 'bludgeoning', 'str'), W('Dagger', '1d4', 'piercing', 'dex', { finesse: true, properties: ['finesse', 'thrown 20/60'] }), G('Book of old lore'), G('Scholar\'s pack')],
@@ -106,7 +106,7 @@ export const classes = [
     weaponProficiencies: ['Simple weapons', 'Rapiers', 'Short swords', 'Longswords'],
     skillChoices: { count: 3, from: ['acrobatics', 'animal-handling', 'arcana', 'athletics', 'deception', 'history', 'insight', 'intimidation', 'investigation', 'medicine', 'nature', 'perception', 'performance', 'persuasion', 'religion', 'sleight-of-hand', 'stealth', 'survival'] },
     features: [
-      { name: 'Song of Heartening', text: 'As a bonus action, grant an ally who can hear you a d6 they can add to one roll in the next 10 minutes. Uses equal to your Charisma modifier (minimum 1) per long rest.' },
+      { name: 'Song of Heartening', text: 'As a bonus action, grant an ally who can hear you a d6 they can add to one roll in the next 10 minutes. Uses equal to your Charisma modifier (minimum 1) , refilled at a mana totem, an inn or a camp.' },
       { name: 'Welcome in Every Hall', text: 'Common folk and lords alike will offer you food and a place by the fire in exchange for a song.' },
     ],
     equipment: [A('Leather jerkin', 11, null), W('Short sword', '1d6', 'piercing', 'dex', { finesse: true, properties: ['finesse', 'light'] }), G('Harp or flute'), G('Entertainer\'s pack')],
@@ -126,7 +126,7 @@ export const classes = [
     weaponProficiencies: ['Simple weapons'],
     skillChoices: { count: 2, from: ['animal-handling', 'insight', 'medicine', 'nature', 'perception', 'survival'] },
     features: [
-      { name: 'Healing Hands', text: 'You have a pool of healing equal to 5 x your level, restored on a long rest. As an action, touch a creature to restore any number of hit points from the pool.' },
+      { name: 'Healing Hands', text: 'You have a pool of healing equal to 5 x your level, refilled at a mana totem, an inn or a camp. As an action, touch a creature to restore any number of hit points from the pool.' },
       { name: 'Steadfast', text: 'You cannot be moved against your will while standing your ground, and allies within 10 feet have advantage on saves against fear.' },
     ],
     equipment: [A('Scale coat', 14, 2), SHIELD, W('Spear', '1d6', 'piercing', 'str', { properties: ['versatile 1d8'] }), G('Herbalism kit'), G('Traveller\'s pack')],

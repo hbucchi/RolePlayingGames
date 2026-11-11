@@ -30,14 +30,33 @@
         const t = document.querySelector('.offline-toast'); if (!t) return;
         t.textContent = text; t.hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => { t.hidden = true; }, 6000);
       };
+      // Was an older copy already running this page? Then a new version is an update to switch to.
+      const hadCopy = !!navigator.serviceWorker?.controller;
       navigator.serviceWorker?.addEventListener('message', (e) => {
         if (e.data?.type !== 'offline-ready') return;
         const first = !localStorage.getItem('rpg.offline');
+        const prev = localStorage.getItem('rpg.offline');
         try { localStorage.setItem('rpg.offline', e.data.version); } catch {}
-        toast(first ? '✓ Saved for offline play: the game now works with no connection.' : '✓ Updated to the latest version (offline copy refreshed).');
+        if (first || !hadCopy || prev === e.data.version) { toast('✓ Saved for offline play: the game now works with no connection.'); return; }
+        // An update. Off the board, switch at once; in the middle of an adventure, offer a button
+        // (the adventure is saved after every fight, so loading the new version loses little).
+        if (!document.querySelector('.dg-viewport')) { location.reload(); return; }
+        const t = document.querySelector('.offline-toast'); if (!t) return;
+        clearTimeout(toast.timer); t.hidden = false;
+        t.innerHTML = 'A new version of the game is ready. <button class="btn small primary" type="button">Load it now</button>';
+        t.querySelector('button').onclick = () => location.reload();
       });
       window.addEventListener('load', () => {
-        fetch('sw.js', { method: 'HEAD' }).then((r) => { if (r.ok) navigator.serviceWorker.register('sw.js'); }).catch(() => {});
+        fetch('sw.js', { method: 'HEAD' }).then((r) => {
+          if (!r.ok) return;
+          navigator.serviceWorker.register('sw.js').then((reg) => {
+            // Look for a new version whenever the game comes back to the screen (phones keep apps
+            // open for days), and every half hour while it is open.
+            const check = () => reg.update().catch(() => {});
+            document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
+            setInterval(check, 30 * 60 * 1000);
+          });
+        }).catch(() => {});
       });
     }
   </script>

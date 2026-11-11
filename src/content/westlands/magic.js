@@ -139,18 +139,18 @@ export const SPELLS = [
 ];
 
 /**
- * Class abilities. uses: a number or a function of level; per: 'short' (back after a short or
- * long rest) or 'long'. passive abilities have no button; the engine applies them.
+ * Class abilities. uses: a number or a function of level; per: 'short' or 'long' (both now come back
+ * at a mana totem, an inn or a camp: there is no resting). passive abilities have no button; the engine applies them.
  */
 export const ABILITIES = [
   // Warrior
   A({ id: 'second-wind', name: 'Second Wind', class: 'warrior', minLevel: 1, time: 'bonus', uses: 1, per: 'short', sound: 'spell-heal',
-    effect: { type: 'heal', dice: '1d10', addLevel: true }, desc: 'Catch your breath mid-fight: heal 1d10 + your level. Bonus action, once per short rest.' }),
+    effect: { type: 'heal', dice: '1d10', addLevel: true }, desc: 'Catch your breath mid-fight: heal 1d10 + your level. Bonus action; once, until you recover at a mana totem, an inn or a camp.' }),
   A({ id: 'action-surge', name: 'Action Surge', class: 'warrior', minLevel: 2, time: 'free', uses: (l) => (l >= 17 ? 2 : 1), per: 'short', sound: 'hero-low-attack',
-    effect: { type: 'surge' }, desc: 'Push past your limits: take one more action this turn. Once per short rest (twice from level 17).' }),
+    effect: { type: 'surge' }, desc: 'Push past your limits: take one more action this turn. Once (twice from level 17), until you recover at a mana totem, an inn or a camp.' }),
   A({ id: 'extra-attack', name: 'Extra Attack', class: 'warrior', minLevel: 5, passive: true,
     desc: 'Attack twice when you take the Attack action (three times from level 11, four from level 20).' }),
-  A({ id: 'indomitable', name: 'Indomitable', class: 'warrior', minLevel: 9, passive: true, desc: 'Once per rest, reroll a failed saving throw (applied automatically).' }),
+  A({ id: 'indomitable', name: 'Indomitable', class: 'warrior', minLevel: 9, passive: true, desc: 'Once per adventure, reroll a failed saving throw (applied automatically).' }),
   // Ranger
   A({ id: 'archery', name: 'Archery Style', class: 'ranger', minLevel: 2, passive: true, desc: '+2 to attack rolls with ranged weapons.' }),
   A({ id: 'ranger-extra-attack', name: 'Extra Attack', class: 'ranger', minLevel: 5, passive: true, desc: 'Attack twice when you take the Attack action.' }),
@@ -167,13 +167,13 @@ export const ABILITIES = [
   A({ id: 'words-of-command', name: 'Words of Command', class: 'loremaster', minLevel: 1, uses: (l) => (l >= 11 ? 4 : l >= 5 ? 3 : 2), per: 'long', range: 6, target: 'enemy', sound: 'spell-arcane',
     effect: { type: 'save', save: 'wis', onFail: 'stun' }, desc: 'Speak a word of power: a creature within 30 ft makes a WIS save or is stunned until the end of its next turn.' }),
   A({ id: 'arcane-recovery', name: 'Arcane Recovery', class: 'loremaster', minLevel: 1, time: 'free', uses: 1, per: 'long', outOfCombat: true, sound: 'spell-arcane',
-    effect: { type: 'recover' }, desc: 'Out of combat, recover spent spell slots whose levels add up to half your level (rounded up). Once per long rest.' }),
+    effect: { type: 'recover' }, desc: 'Out of combat, regain mana equal to a quarter of your level (rounded up). Once, until you recover at a mana totem, an inn or a camp.' }),
   // Minstrel
   A({ id: 'song-of-heartening', name: 'Song of Heartening', class: 'minstrel', minLevel: 1, time: 'bonus', uses: (l, m) => Math.max(1, m.cha), per: (l) => (l >= 5 ? 'short' : 'long'), sound: 'spell-heal',
-    effect: { type: 'inspire' }, desc: 'Gain an inspiration die (d6; d8 at 5, d10 at 10, d12 at 15) added to your next attack roll, check or save. Uses = CHA modifier; back on a short rest from level 5.' }),
+    effect: { type: 'inspire' }, desc: 'Gain an inspiration die (d6; d8 at 5, d10 at 10, d12 at 15) added to your next attack roll, check or save. Uses = CHA modifier; they come back at a mana totem, an inn or a camp.' }),
   // Warden
   A({ id: 'healing-hands', name: 'Healing Hands', class: 'warden', minLevel: 1, uses: Infinity, per: 'long', sound: 'spell-heal',
-    effect: { type: 'pool' }, desc: 'A pool of 5 × your level hit points, restored on a long rest. Use your action to heal yourself from it.' }),
+    effect: { type: 'pool' }, desc: 'A pool of 5 × your level hit points, refilled at a mana totem, an inn or a camp. Use your action to heal yourself from it.' }),
   A({ id: 'warden-extra-attack', name: 'Extra Attack', class: 'warden', minLevel: 5, passive: true, desc: 'Attack twice when you take the Attack action.' }),
 ];
 

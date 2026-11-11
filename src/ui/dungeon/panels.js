@@ -440,10 +440,19 @@ export function installPanels(ctx) {
     const health = s.knownHp.has(m.id) ? `${m.hp} / ${m.maxHp} HP` : woundState(m.hp, m.maxHp);
     const weapons = s.hero.weapons.map((w, i) => {
       const o = attackOptions({ attacker: s.hero, target: m, weapon: w, opaque: ctx.opaque(), occupied: ctx.occupied(), enemiesOf: ctx.enemiesOf });
-      const blocked = !o || !ctx.canAttack() || s.busy || !combat;
-      return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o ? `${pct(o.chance)} to hit${o.mode !== 'normal' ? ` (${o.mode})` : ''}` : esc(ctx.whyNot(m))}">
-        ${esc(w.name)}${o ? ` · ${pct(o.chance)}` : ''}</button>`;
+      // Attacking outside a fight starts one (with surprise if it has not noticed you).
+      const blocked = !o || !ctx.canAttack() || s.busy;
+      const far = w.melee && !w.ranged && d > (w.reach ?? 1);
+      const why = !o ? (far ? `Out of reach: ${d} squares away, and a ${w.name.toLowerCase()} reaches ${w.reach ?? 1}. Close in first.` : ctx.whyNot(m))
+        : !ctx.canAttack() ? 'You have already used your action this turn.' : s.busy ? 'Wait for your turn.' : '';
+      return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o && !blocked ? `${pct(o.chance)} to hit${o.mode !== 'normal' ? ` (${o.mode})` : ''}` : esc(why)}">
+        ${esc(w.name)}${o ? ` · ${pct(o.chance)}` : far ? ' <small>(too far)</small>' : ''}</button>`;
     }).join('');
+    // Nothing can reach it from here, but a melee weapon could after a few steps: walk in and strike.
+    const melee = s.hero.weapons.findIndex((w) => w.melee);
+    const anyShot = s.hero.weapons.some((w) => attackOptions({ attacker: s.hero, target: m, weapon: w, opaque: ctx.opaque(), occupied: ctx.occupied(), enemiesOf: ctx.enemiesOf }));
+    const closeIn = !anyShot && melee >= 0 && ctx.canAttack() && !s.busy && ctx.strikeStep(m)
+      ? `<button class="btn small primary" data-dg="close-in" title="Walk up to it and attack with your ${esc(s.hero.weapons[melee].name.toLowerCase())}">🏃 Close in and strike</button>` : '';
     const studies = STUDIES(stat).map((st) => {
       const done = known(m, st.id);
       return `<button class="study ${done ? 'done' : ''}" data-dg="study" data-study="${st.id}" ${s.busy || (combat && s.actionUsed) ? 'disabled' : ''}>
@@ -464,7 +473,7 @@ export function installPanels(ctx) {
         <button class="btn icon small" data-dg="deselect" aria-label="Close">✕</button>
       </div>
       <h4>Attack</h4>
-      <div class="row wrap">${weapons}</div>
+      <div class="row wrap">${weapons}${closeIn}</div>
       ${(() => {
     const targeted = [...(s.def.magic?.abilities ?? []), ...(s.def.magic?.spells ?? [])].filter((x) => !x.passive && (x.target === 'enemy' || x.target === 'point'));
     if (!targeted.length) return '';

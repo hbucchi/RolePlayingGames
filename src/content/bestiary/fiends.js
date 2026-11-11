@@ -114,7 +114,7 @@ export const fiends = [
     traits: [T.devilSight, T.magicResistance],
     actions: [multi('Makes two attacks with its chains.'),
       mw('Chain', 8, 10, '2d6+4 slashing', 'The target is grappled (escape DC 14) if the devil isn\'t already grappling a creature. Until this grapple ends, the target is restrained and takes 7 (2d4 + 2) piercing damage at the start of each of its turns.'),
-      act('Animate Chains (Recharges after a Short or Long Rest)', 'Up to four chains it can see within 60 feet magically sprout razor-edged barbs and animate under its control for 1 minute, each becoming an object with AC 20, 20 hit points, and the ability to use the devil\'s chain attack.')],
+      act('Animate Chains (Once per Fight)', 'Up to four chains it can see within 60 feet magically sprout razor-edged barbs and animate under its control for 1 minute, each becoming an object with AC 20, 20 hit points, and the ability to use the devil\'s chain attack.')],
     reactions: [act('Unnerving Mask', 'When a creature it can see starts its turn within 30 feet, it can create the illusion that it looks like one of the creature\'s departed loved ones or bitter enemies. If the creature can see it, the creature must succeed on a DC 14 Wisdom saving throw or be frightened until the end of its turn.')],
     habitat: ['planar', 'dungeon'],
     appearance: 'A tall, pale devil wrapped in rusted, hooked chains that writhe like serpents, its face hidden by a shifting mask, in a torture chamber.',

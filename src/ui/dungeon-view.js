@@ -191,6 +191,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     boltFor: { get: () => boltFor },
     burnIn: { get: () => burnIn },
     canAttack: { get: () => canAttack },
+    strikeStep: { get: () => strikeStep },
     canSee: { get: () => canSee },
     checkCombatOver: { get: () => checkCombatOver },
     checkText: { get: () => checkText },
@@ -1526,6 +1527,28 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   }
 
   /** Walk next to something (if needed and possible), then open its pop-up. */
+  /**
+   * The nearest square from which the hero's melee weapon reaches `m`, within this turn's
+   * movement (any distance outside a fight). null if there is none.
+   */
+  function strikeStep(m) {
+    const w = s.hero.weapons.find((x) => x.melee); if (!w) return null;
+    let reach = s.reach;
+    if (s.mode !== 'combat') { const saved = s.moveLeft; s.moveLeft = 999; reach = heroReach(); s.moveLeft = saved; }
+    const cells = cellsOf(m.pos, m.size ?? 1);
+    return [...reach.values()].filter((r) => r.cost > 0 && cells.some((c) => chebyshev(r, c) <= (w.reach ?? 1)))
+      .sort((a, b) => a.cost - b.cost)[0] ?? null;
+  }
+  /** Walk up to a foe and hit it with a melee weapon. */
+  async function closeInAndStrike(m) {
+    const step = strikeStep(m); if (!step) { banner('There is no way to reach it.'); return; }
+    if (s.mode !== 'combat') { const saved = s.moveLeft; s.moveLeft = 999; s.reach = heroReach(); s.moveLeft = saved; }
+    await moveHero(s.reach.get(cellKey(step.x, step.y)) ?? step);
+    if (s.mode === 'defeat' || m.dead) return;
+    const melee = s.hero.weapons.findIndex((w) => w.melee);
+    heroAttack(m, melee >= 0 ? melee : null);
+  }
+
   async function approachThen(pos, open) {
     if (chebyshev(s.hero.pos, pos) > 1) {
       // Out of combat the hero walks any distance: plan across the whole known map.
@@ -1611,6 +1634,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         const m = s.monsters.find((x) => x.id === s.selectedId);
         s.target = null; $('.dg-pop').hidden = true; // close the pop-up so the blow can be seen
         if (m) heroAttack(m, Number(el.dataset.i));
+        break;
+      }
+      case 'close-in': {
+        const m = s.monsters.find((x) => x.id === s.selectedId);
+        s.target = null; $('.dg-pop').hidden = true;
+        if (m) closeInAndStrike(m);
         break;
       }
       case 'talk': { const m = s.monsters.find((x) => x.id === s.selectedId); if (m) talkTo(m, el.dataset.talk); break; }

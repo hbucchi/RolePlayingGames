@@ -16,8 +16,8 @@ export const races = [
     skillProficiencies: ['survival'],
     languages: ['Common Speech', 'Elvish (Grey-tongue)'],
     traits: [
-      { name: 'Blood of the Sea-Kings', text: 'You live for two centuries or more and recover quickly: when you take a short rest you may reroll any 1s on hit dice spent.' },
-      { name: 'Foresight', text: 'Once per long rest, after the Narrator describes a scene, you may ask one question about lurking danger and receive a truthful hint.' },
+      { name: 'Blood of the Sea-Kings', text: 'You live for two centuries or more and recover quickly: when you drink a healing potion you may reroll any 1s.' },
+      { name: 'Foresight', text: 'Once per adventure, after the Narrator describes a scene, you may ask one question about lurking danger and receive a truthful hint.' },
     ],
   },
   {
@@ -52,7 +52,7 @@ export const races = [
     traits: [
       { name: 'Starlit Sight', text: 'You see in dim light within 60 feet as if it were bright light, and in darkness as if it were dim light.' },
       { name: 'Undying Spirit', text: 'You have advantage on saving throws against being frightened or charmed, and magic cannot put you to sleep.' },
-      { name: 'Reverie', text: 'You do not sleep. Instead you rest in waking dreams for 4 hours and gain the benefit of a long rest.' },
+      { name: 'Reverie', text: 'You do not sleep. Instead you rest in waking dreams for 4 hours instead, and wake as refreshed as others do after a full night.' },
     ],
     subraces: [
       {
