@@ -3,6 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { trapTile } from '../../engine/features.js';
 import { dims, orientFor, spanOf, isSquare, centerOf } from '../../engine/size.js';
 import { bodyUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
 import { woundState, facingAngle, FACINGS, covers } from '../../engine/combat.js';
@@ -265,11 +266,14 @@ export function installRender(ctx) {
       </g>`;
     }
     for (const t of s.features.traps) {
-      if (!(t.found || s.revealAll) || !shown(t.x, t.y)) continue;
-      const cx = (t.x + 0.5) * sz; const cy = (t.y + 0.5) * sz; const r = sz * 0.3;
+      if (!(t.found || t.sprung || s.revealAll) || !shown(t.x, t.y)) continue;
       const cls = t.disarmed ? 'disarmed' : t.sprung ? 'sprung' : t.found ? 'armed' : 'hidden';
-      out += `<g class="trap ${cls} ${s.target?.kind === 'trap' && s.target.id === t.id ? 'sel' : ''}"><path d="M ${cx} ${cy - r} L ${cx + r} ${cy + r * 0.8} L ${cx - r} ${cy + r * 0.8} Z" class="trap-tri"/>
-        <text x="${cx}" y="${cy + r * 0.55}" class="trap-mark">${t.disarmed ? '✓' : t.sprung ? '✕' : '!'}</text></g>`;
+      // The painted floor tile (spikes, a fallen floor, rubble...), with a small badge in the corner.
+      const bx = (t.x + 0.82) * sz; const by = (t.y + 0.2) * sz; const r = sz * 0.15;
+      out += `<g class="trap ${cls} ${s.target?.kind === 'trap' && s.target.id === t.id ? 'sel' : ''}">
+        <image href="${trapTile(t)}" x="${t.x * sz + 1}" y="${t.y * sz + 1}" width="${sz - 2}" height="${sz - 2}" class="trap-tile" preserveAspectRatio="xMidYMid slice"/>
+        <rect x="${t.x * sz + 2}" y="${t.y * sz + 2}" width="${sz - 4}" height="${sz - 4}" rx="6" class="trap-edge"/>
+        <circle cx="${bx}" cy="${by}" r="${r}" class="trap-badge"/><text x="${bx}" y="${by + r * 0.42}" class="trap-mark">${t.disarmed ? '✓' : t.sprung ? '✕' : '!'}</text></g>`;
     }
     for (const m of s.monsters) {
       if (!m.dead || !m.loot || (!m.loot.coins && !m.loot.items.length) || !shown(m.pos.x, m.pos.y)) continue;
@@ -299,6 +303,42 @@ export function installRender(ctx) {
       }
     }
     return `<path d="${dim}" class="fog-dim"/><path d="${dark}" class="fog-dark"/>`;
+  }
+
+  /**
+   * Smooth movement. The map is redrawn as a whole whenever something changes, so a token would
+   * jump from square to square. Instead each token remembers a short trip: from where it was drawn
+   * (fx, fy) to its square now (tx, ty), started at time t0 and lasting dur ms. Where it appears at
+   * any moment is linear interpolation: p = (now - t0) / dur, position = from + (to - from) * p.
+   * After each redraw, a token whose square changed starts a new trip from where it APPEARS now (so
+   * a redraw in mid-glide never makes it jump back), and the browser animates the wrapper from
+   * that offset to zero. Steps last exactly as long as a glide, so a walk is one continuous float.
+   */
+  const trips = new Map();
+  function glide() {
+    const now = performance.now(); const sz = S();
+    for (const el of overlay.querySelectorAll('.tk-move')) {
+      const id = el.dataset.tid;
+      const e = id === String(s.hero?.id) ? s.hero : ctx.party().find((h) => String(h.id) === id) ?? s.monsters.find((m) => String(m.id) === id);
+      if (!e) continue;
+      const d = dims(e.size ?? 1);
+      const tx = (e.pos.x + d.w / 2) * sz; const ty = (e.pos.y + d.h / 2) * sz;
+      let t = trips.get(id);
+      const at = (tr) => { const p = tr.dur ? Math.min(1, (now - tr.t0) / tr.dur) : 1; return { x: tr.fx + (tr.tx - tr.fx) * p, y: tr.fy + (tr.ty - tr.fy) * p, p }; };
+      if (!t || ctx.reduceMotion) { trips.set(id, { fx: tx, fy: ty, tx, ty, t0: now, dur: 0 }); continue; }
+      if (t.tx !== tx || t.ty !== ty) {
+        const cur = at(t);
+        // A leap (teleport, a new floor) is not a walk: appear there at once.
+        if (Math.hypot(tx - cur.x, ty - cur.y) > sz * 2.6) { trips.set(id, { fx: tx, fy: ty, tx, ty, t0: now, dur: 0 }); continue; }
+        const dur = e.isHero ? ctx.HERO_STEP_MS : Math.max(ctx.STEP_MS, 120);
+        t = { fx: cur.x, fy: cur.y, tx, ty, t0: now, dur };
+        trips.set(id, t);
+      }
+      const cur = at(t);
+      if (cur.p >= 1) continue;
+      const left = t.dur * (1 - cur.p);
+      el.animate([{ transform: `translate(${cur.x - tx}px, ${cur.y - ty}px)` }, { transform: 'translate(0px, 0px)' }], { duration: left, easing: 'linear' });
+    }
   }
 
   function drawOverlay() {
@@ -348,9 +388,11 @@ export function installRender(ctx) {
     // Tokens
     // The fallen first, so the living stand over them.
     for (const m of s.monsters) if (m.dead && (ctx.canSee(m) || s.revealAll || s.revealed.has(cellKey(m.pos.x, m.pos.y)))) out += remains(m);
-    for (const m of s.monsters) if (!m.dead && ctx.canSee(m)) out += token(m);
-    for (const h of ctx.party()) if (h !== s.hero) out += token(h, { hero: true });
-    if (s.hero) out += token(s.hero, { hero: true });
+    // Each living token sits in a wrapper the glide animation moves (see glide() below).
+    const wrap = (e, svg) => `<g class="tk-move" data-tid="${esc(String(e.id))}">${svg}</g>`;
+    for (const m of s.monsters) if (!m.dead && ctx.canSee(m)) out += wrap(m, token(m));
+    for (const h of ctx.party()) if (h !== s.hero) out += wrap(h, token(h, { hero: true }));
+    if (s.hero) out += wrap(s.hero, token(s.hero, { hero: true }));
     // Arrow in flight
     if (s.projectile) {
       const { from, to, t, color, shape } = s.projectile;
@@ -385,6 +427,7 @@ export function installRender(ctx) {
     // Floating numbers
     for (const f of s.floats) out += `<text x="${(f.x + 0.5) * sz}" y="${f.y * sz}" class="dg-float ${f.kind} ${f.big ? 'big' : ''}">${esc(f.text)}</text>`;
     overlay.innerHTML = out;
+    glide();
   }
 
   return { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay };

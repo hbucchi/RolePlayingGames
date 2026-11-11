@@ -4,7 +4,7 @@
  * and to the functions of the other parts.
  */
 import { rollDice, diceWanted } from '../dice.js';
-import { findItem, removeItem, itemDef } from '../../engine/items.js';
+import { findItem, removeItem, itemDef, makeItem, itemName } from '../../engine/items.js';
 import { play } from '../audio.js';
 import { roll, rollDie } from '../../engine/dice.js';
 import { skillXp, freshResources, monsterSave, sneakAttackDice, concentrationDC } from '../../engine/magic.js';
@@ -187,6 +187,27 @@ export function installActions(ctx) {
     ctx.persist(); ctx.redraw();
   }
 
+  /** Which room an iron door leads into, for the key's name: "the Armoury door". */
+  function doorName(k) {
+    const [x, y] = k.split(',').map(Number);
+    const room = s.map.rooms.find((r) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= r.x && x + dx < r.x + r.w && y + dy >= r.y && y + dy < r.y + r.h && !r.entrance))
+      ?? s.map.rooms.find((r) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => x + dx >= r.x && x + dx < r.x + r.w && y + dy >= r.y && y + dy < r.y + r.h));
+    return room?.name ? `${room.name} door` : 'an iron door';
+  }
+  /** The key for a door, if the hero carries it. */
+  const keyFor = (k) => s.draft?.inventory.find((it) => it.id === 'iron-key' && it.door === k) ?? null;
+  /** Turn the key: the door opens quietly, and the key stays in the lock (it opens nothing else). */
+  function useKey(t) {
+    const key = keyFor(t.id); if (!key) return;
+    if (!spendAction('Unlocking a door')) return;
+    s.draft.inventory = s.draft.inventory.filter((it) => it !== key);
+    unlock(t);
+    play('door-open', { volume: 0.6 });
+    ctx.log(`${s.hero.name} turns the ${itemName(key).toLowerCase()} in the lock. The iron door swings open; the key stays in the lock.`, 'good');
+    s.lastCheck = { text: 'Unlocked with its key', ok: true };
+    ctx.persist(); ctx.redraw();
+  }
+
   /** Noise wakes foes within `radius` squares: they come looking for you. */
   function makeNoise(radius, limit = Infinity) {
     // Only foes with a way to reach you come running (a walk of up to ~4 turns).
@@ -229,6 +250,8 @@ export function installActions(ctx) {
     if (!c.opened) {
       c.opened = true;
       c.loot ??= rollChestLoot(s.def.level ?? 1); // a campaign chest holds what was put in it
+      // The key to an iron door somewhere in this dungeon (features.js: one key, one door).
+      if (c.keyFor && !c.loot.items.some((it) => it.door === c.keyFor)) c.loot.items.unshift(makeItem('iron-key', 1, { door: c.keyFor, label: doorName(c.keyFor) }));
       play('chest-open', { volume: 0.9 });
       ctx.log(`${s.hero.name} opens a chest.`, 'loot');
       const said = ctx.campaign?.event({ kind: 'chest', id: c.id });
@@ -396,5 +419,5 @@ export function installActions(ctx) {
     ctx.onKill(m);
   }
 
-  return { spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead };
+  return { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead };
 }

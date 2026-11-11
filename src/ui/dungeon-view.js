@@ -52,9 +52,12 @@ const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').mat
 // Monster turns: a step of movement, and the pause after an action. The Monster turns setting
 // stretches both (and the flight of arrows and spells) so the eye can follow.
 let STEP_MS = 0; let PAUSE_MS = 0; let PACE = 1;
+/** One square of your own heroes' walk, in milliseconds (tokens glide across it in this time). */
+const HERO_STEP_MS = 190;
 function applyPace() {
   PACE = PACE_FACTOR[getSetting('pace')] ?? 1.4;
-  STEP_MS = reduceMotion ? 0 : Math.round(110 * PACE);
+  // One square of a monster's walk; tokens glide across it in exactly this time (render.js).
+  STEP_MS = reduceMotion ? 0 : Math.round(190 * PACE);
   PAUSE_MS = reduceMotion ? 0 : Math.round(420 * PACE);
 }
 applyPace();
@@ -168,6 +171,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     PAUSE_MS: { get: () => PAUSE_MS, set: (v) => { PAUSE_MS = v; } },
     S: { get: () => S },
     STEP_MS: { get: () => STEP_MS, set: (v) => { STEP_MS = v; } },
+    HERO_STEP_MS: { get: () => HERO_STEP_MS },
+    reduceMotion: { get: () => reduceMotion },
     activate: { get: () => activate },
     addGround: { get: () => addGround },
     adjacent: { get: () => adjacent },
@@ -198,6 +203,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     endConcentration: { get: () => endConcentration },
     enemiesOf: { get: () => enemiesOf },
     styleOf: { get: () => styleOf },
+    keyFor: { get: () => keyFor },
     enterCombat: { get: () => enterCombat },
     esc: { get: () => esc },
     drawCharacters: { get: () => drawCharacters },
@@ -280,7 +286,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
-  const { spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
+  const { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
   const { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, rest, sneak } = installMagic(ctx);
   const { drawPanel, magicPanel, actionBar, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo } = installPanels(ctx);
 
@@ -807,7 +813,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         return; // the trap stops you in your tracks
       }
       const spotted = updateVision();
-      redraw(); await sleep(reduceMotion ? 0 : 110); // your own heroes walk at a brisk pace
+      redraw(); await sleep(reduceMotion ? 0 : HERO_STEP_MS); // a brisk but smooth walk: the token glides the whole time
       if (spotted.length) {
         s.moveLeft = Math.max(0, s.moveLeft - costAt(p));
         s.busy = false;
@@ -1411,6 +1417,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'open-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c); break; }
       case 'pick-lock': if (s.target) pickLock(s.target); break;
       case 'force-lock': if (s.target) forceLock(s.target); break;
+      case 'use-key': if (s.target) useKey(s.target); break;
       case 'disarm': { const t = s.features.traps.find((x) => x.id === s.target?.id); if (t) disarm(t); break; }
       case 'corpse-search': { const ids = s.target?.ids ?? []; s.target = null; searchBodies(ids); break; }
       case 'corpse-move': {

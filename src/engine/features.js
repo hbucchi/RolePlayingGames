@@ -47,11 +47,19 @@ function countWalkable(map, blocked) {
   return n;
 }
 
-const TRAP_KINDS = [
+/** Trap kinds. Each has a painted floor tile for when it is found, sprung and disarmed (assets/traps). */
+export const TRAP_KINDS = [
+  { kind: 'spikes', name: 'spike plate', type: 'piercing', text: 'Iron spikes shoot up through the floor!' },
+  { kind: 'pit', name: 'collapsing floor', type: 'bludgeoning', text: 'The floor gives way beneath you!' },
+  { kind: 'ceiling', name: 'falling ceiling', type: 'bludgeoning', text: 'Stones crash down from the ceiling!' },
   { kind: 'darts', name: 'dart trap', type: 'piercing', text: 'Darts hiss out of holes in the wall!' },
-  { kind: 'pit', name: 'hidden pit', type: 'bludgeoning', text: 'The floor gives way into a shallow pit!' },
-  { kind: 'blade', name: 'scything blade', type: 'slashing', text: 'A rusty blade swings out of the wall!' },
+  { kind: 'blade', name: 'scything blade', type: 'slashing', text: 'A rusty blade swings up out of the floor!' },
 ];
+/** The tile to draw for a trap: armed (found), sprung, or made safe. */
+export function trapTile(t) {
+  if (t.disarmed) return `assets/traps/${t.kind === 'pit' ? 'pit-nailed' : t.kind === 'ceiling' ? 'ceiling-armed' : 'plate-jammed'}.jpg`;
+  return `assets/traps/${t.kind}-${t.sprung ? 'sprung' : 'armed'}.jpg`;
+}
 /** Trap damage by level tier (DMG "setback" to "dangerous"). */
 export const trapDamage = (level) => (level <= 4 ? '1d10' : level <= 10 ? '2d10' : level <= 16 ? '4d10' : '10d10');
 
@@ -81,11 +89,13 @@ export function placeFeatures(map, seed, level = 1) {
   for (const d of map.doors) {
     const k = cellKey(d.x, d.y);
     if (secretDoors.has(k) || rng(100) >= 18) continue;
-    // Most locked doors are oak (easy to force, but loud if you botch it); about one in five, more
-    // deeper down, is iron (almost impossible to force). From a hash of the square, so the rest of
-    // the dungeon's dice stay the same.
-    const iron = (((d.x * 73856093) ^ (d.y * 19349663)) >>> 0) % 100 < 18 + tier * 4;
-    locks.set(k, { dc: 10 + rng(5) + tier, material: iron ? 'iron' : 'wood' });
+    // Most locked doors are oak (easy to force, but loud if you botch it). Some could be iron: that
+    // is decided below, once the chests are placed (an early iron door needs a key to be found).
+    // From a hash of the square, so the rest of the dungeon's dice stay the same.
+    const ironish = (((d.x * 73856093) ^ (d.y * 19349663)) >>> 0) % 100 < 18 + tier * 4;
+    const r = rng(5);
+    // Early on, locks are simple (DC 8-12 at levels 1-2); they get better deeper and later.
+    locks.set(k, { dc: (tier === 0 ? 8 : 10) + r + tier, material: 'wood', ironish });
   }
 
   // Chests: about a third of the rooms, against a wall, away from doors.
@@ -103,6 +113,25 @@ export function placeFeatures(map, seed, level = 1) {
       chests.push({ id: `c${chests.length + 1}`, x, y, roomId: r.id, locked, dc: 10 + rng(5) + tier, opened: false, loot: null });
       break;
     }
+  }
+
+  // Iron doors. Early in the game (levels 1-5) an iron door appears only if its key can be put in a
+  // chest the party can reach without passing that door (or any other iron door): one key, one door.
+  // From level 6 iron doors may also stand without a key (then: pick the lock, or a giant's shove);
+  // about half of them still have a key hidden somewhere.
+  const ironDoors = new Set();
+  for (const [k, lock] of locks) {
+    const want = lock.ironish; delete lock.ironish;
+    if (!want) continue;
+    const before = reachable(map, map.entrance, new Set([...secretDoors, ...ironDoors, k]));
+    // Making this door iron must not lock away a key already hidden for another door.
+    if (chests.some((c) => c.keyFor && !before.has(cellKey(c.x, c.y)))) continue;
+    const holders = chests.filter((c) => before.has(cellKey(c.x, c.y)) && !c.keyFor);
+    const keyed = tier < 2 || (((k.length * 7919) ^ seed) >>> 0) % 2 === 0;
+    if (keyed && holders.length) {
+      const chest = holders[(((seed * 31) ^ k.length * 17) >>> 0) % holders.length];
+      chest.keyFor = k; lock.material = 'iron'; lock.key = chest.id; ironDoors.add(k);
+    } else if (tier >= 2) { lock.material = 'iron'; ironDoors.add(k); }
   }
 
   // Traps: in corridors and rooms, never on doors, chests or the stairs.
@@ -159,13 +188,14 @@ export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = 
 }
 
 /**
- * Forcing something open (Athletics). Oak doors give way easily (DC 9 + tier): the check only
- * decides whether you ease it open quietly or splinter it with a crash. Iron doors barely move
- * (DC 22 + tier). Chests and shackles: the lock's DC + 2.
+ * Forcing something open (Athletics). Oak doors give way easily (DC 7-9 early, up to 10 later):
+ * the check only decides whether you ease it open quietly or splinter it with a crash. Iron doors
+ * barely move (DC 20+); their key opens them. Chests and shackles: the lock's DC + 2.
  * Botched attempts are loud: foes within NOISE.fail squares hear it, NOISE.fumble on a natural 1.
  */
 export const NOISE = { fail: 10, fumble: 15 };
 export function forceDc(lock, kind = 'door') {
   if (kind !== 'door') return lock.dc + 2;
-  return lock.material === 'iron' ? 22 + Math.max(0, lock.dc - 10 - 4) : 9 + Math.max(0, Math.min(4, lock.dc - 10) >> 1);
+  // Oak: DC 7-9 for a first-level hero, a little more deeper down. Iron: 20 + the lock's quality.
+  return lock.material === 'iron' ? 20 + Math.max(0, lock.dc - 10) : 7 + Math.max(0, Math.min(6, lock.dc - 8) >> 1);
 }

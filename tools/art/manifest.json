@@ -1089,6 +1089,27 @@
    "kind": "ui",
    "name": "body",
    "note": "body figure for the Characters window: crop x 400-880 to assets/ui/body-figure.jpg"
+  },
+  {
+   "kind": "tile",
+   "name": "t1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "spikes-armed",
+    "spikes-sprung",
+    "pit-armed",
+    "pit-sprung",
+    "ceiling-armed",
+    "ceiling-sprung",
+    "darts-armed",
+    "darts-sprung",
+    "blade-armed",
+    "blade-sprung",
+    "plate-jammed",
+    "pit-nailed"
+   ],
+   "note": "trap floor tiles: centre 208 px square of each cell, 192 px jpg in assets/traps. Prompts naming blood, spikes, blades or darts were blocked; neutral words (iron pins, pendulum, pegs) passed."
   }
  ]
 }

@@ -138,6 +138,7 @@ add({ id: 'antidote', name: 'Antitoxin', cat: 'consumable', stack: true, weight:
 // Tools and gear (functional items)
 // ---------------------------------------------------------------------------
 const tool = (id, name, value, weight, desc, extra = {}) => add({ id, name, cat: 'tool', value, weight, desc, glyph: '🔧', ...extra });
+tool('iron-key', 'Iron key', 0, 0, 'A heavy iron key. It fits one iron door in this dungeon, and only that one.', { glyph: '🗝', key: true });
 tool('thieves-tools', 'Thieves\' tools', 25 * GP, 1, 'Picks, a small mirror, narrow scissors and pliers. Needed to pick locks and disarm traps (DEX check). A bad failure (by 5 or more) snaps a pick.', { charges: 10, glyph: '🗝' });
 tool('healers-kit', 'Healer\'s kit', 5 * GP, 3, 'Salves, splints and a needle. While you carry it, you bandage with advantage on your Medicine check.', { glyph: '✚' });
 tool('crowbar', 'Crowbar', 2 * GP, 5, 'A bar of iron with a flattened end. Gives advantage on Strength checks to force doors and chests open.', { glyph: '🔩' });

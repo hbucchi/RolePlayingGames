@@ -554,7 +554,17 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .trap.disarmed .trap-tri { fill: rgb(90 140 90 / .7); }
 .trap.sprung .trap-tri { fill: rgb(70 60 50 / .7); }
 .trap.hidden .trap-tri { fill: rgb(200 40 30 / .35); stroke-dasharray: 6 4; }
-.trap-mark { fill: #fff; font: 700 22px var(--font-body); text-anchor: middle; pointer-events: none; }
+.trap-mark { fill: #fff; font: 700 15px var(--font-body); text-anchor: middle; pointer-events: none; }
+/* Trap tiles: the painted floor shows what the trap is; a coloured edge and badge show its state. */
+.trap-tile { pointer-events: none; }
+.trap-edge { fill: none; stroke: rgb(200 40 30 / .9); stroke-width: 3; stroke-dasharray: 8 5; }
+.trap-badge { fill: rgb(200 40 30 / .92); stroke: #2a0c08; stroke-width: 2; }
+.trap.sprung .trap-edge { stroke: rgb(70 60 50 / .8); stroke-dasharray: none; }
+.trap.sprung .trap-badge { fill: rgb(70 60 50 / .9); }
+.trap.disarmed .trap-edge { stroke: rgb(90 150 90 / .9); stroke-dasharray: none; }
+.trap.disarmed .trap-badge { fill: rgb(70 130 70 / .95); }
+.trap.hidden .trap-tile { opacity: .55; }
+.trap.sel .trap-edge { stroke: #ffe28a; stroke-width: 5; }
 .lock-glyph, .loot-sack { font-size: 20px; text-anchor: middle; pointer-events: none; }
 .secret-cover { stroke: #0d0a07; stroke-width: 2; }
 .secret-hint { fill: none; stroke: #ffe28a; stroke-width: 3; stroke-dasharray: 8 6; }

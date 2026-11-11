@@ -42,6 +42,8 @@ export function itemName(inst) {
   const def = itemDef(inst);
   if (!def) return 'Unknown item';
   const suffix = inst.bonus && ENCHANT[def.cat]?.[inst.bonus];
+  // A key names the door it opens: "Iron key (Armoury door)".
+  if (inst.label) return `${def.name} (${inst.label})`;
   return suffix ? `${def.name} ${suffix}` : def.name;
 }
 

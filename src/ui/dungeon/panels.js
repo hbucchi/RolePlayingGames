@@ -557,7 +557,9 @@ export function installPanels(ctx) {
       if (!lock) return '';
       const [x, y] = t.id.split(',').map(Number);
       if (!near({ x, y })) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked door</h3>${close}</div><p class="small muted">Move next to the door to work on its lock.</p></div>`;
-      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked ${lock.material === 'iron' ? 'iron door' : 'door'}</h3>${close}</div><p class="small">${lock.material === 'iron' ? 'A door of solid iron, riveted and cold. Forcing it would take a giant\'s strength; better to pick the lock.' : 'An old oak door with a rusty lock. A good shoulder would break it, but not quietly.'}</p>${lockButtons(lock, 'door')}</div>`;
+      return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked ${lock.material === 'iron' ? 'iron door' : 'door'}</h3>${close}</div><p class="small">${lock.material === 'iron' ? `A door of solid iron, riveted and cold. Forcing it would take a giant's strength.${lock.key ? ' Its key must be somewhere in this dungeon.' : ''}` : 'An old oak door with a rusty lock. A good shoulder would break it, but not quietly.'}</p>
+        ${ctx.keyFor?.(t.id) ? `<div class="studies"><button class="study key" data-dg="use-key"><b>🗝 Use the iron key</b><span class="muted">It fits. Opens quietly; the key stays in the lock.</span><span>${s.mode === 'combat' ? 'Uses your action' : 'Silent'}</span></button></div>` : ''}
+        ${lockButtons(lock, 'door')}</div>`;
     }
     if (t.kind === 'trap') {
       const tr = s.features.traps.find((x) => x.id === t.id);
