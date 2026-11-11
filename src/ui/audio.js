@@ -19,11 +19,16 @@ export function setMuted(v) {
   try { localStorage.setItem(KEY, muted ? '1' : '0'); } catch { /* ignore */ }
 }
 
+/** Spoken hero lines have more takes than effects: 6 lines, each performed twice. */
+export const variantsOf = (key) => (/-say-/.test(key) ? SAY_TAKES : VARIANTS);
+const SAY_TAKES = 12;
+
 /** Play one variation of a sound, never the same variation twice in a row. */
 export function play(key, { volume = 0.9, delay = 0 } = {}) {
   if (muted || !key) return;
-  let n = 1 + Math.floor(Math.random() * VARIANTS);
-  if (n === last.get(key)) n = (n % VARIANTS) + 1;
+  const count = variantsOf(key);
+  let n = 1 + Math.floor(Math.random() * count);
+  if (n === last.get(key)) n = (n % count) + 1;
   last.set(key, n);
   const start = () => {
     const a = new Audio(packed(`assets/sounds/${key}-${n}.mp3`));
@@ -36,7 +41,7 @@ export function play(key, { volume = 0.9, delay = 0 } = {}) {
 /** Warm the browser cache so the first hit isn't late. */
 export function preload(keys) {
   for (const k of keys) {
-    for (let n = 1; n <= VARIANTS; n++) {
+    for (let n = 1; n <= variantsOf(k); n++) {
       const a = new Audio(); a.preload = 'auto'; a.src = packed(`assets/sounds/${k}-${n}.mp3`);
     }
   }
@@ -81,10 +86,22 @@ export const SOUND_KEYS = [
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
   'whip-crack', 'goblin-laugh',
+  'hero-low-say-attack', 'hero-low-say-hurt', 'hero-high-say-attack', 'hero-high-say-hurt',
   'beast-attack', 'beast-hurt', 'bird-attack', 'bird-hurt', 'undead-attack', 'undead-hurt', 'elemental-attack', 'elemental-hurt',
   'construct-attack', 'construct-hurt', 'ooze-attack', 'ooze-hurt',
   'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',
 ];
+
+/**
+ * A hero's sound when attacking or hurt. Grunts and screams most of the time; about one time in
+ * seven (15%) a spoken line instead ("Take that!", "You almost got me!"), so words stay special.
+ * `random` is there for tests.
+ */
+export const HERO_LINE_CHANCE = 0.15;
+export function heroSound(voice, what, random = Math.random) {
+  if ((what === 'attack' || what === 'hurt') && random() < HERO_LINE_CHANCE) return `hero-${voice}-say-${what}`;
+  return `hero-${voice}-${what}`;
+}
 
 /** The sound for a voice family doing something; some families share one sound for several moments. */
 export function voiceSound(voice, what) {

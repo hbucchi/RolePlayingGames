@@ -6,7 +6,7 @@
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
 import { cellKey } from '../../engine/movement.js';
-import { monsterVoice, voiceSound, play } from '../audio.js';
+import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 
@@ -96,9 +96,11 @@ export function installAttacks(ctx) {
   }
 
   /** Voice family for sounds: the hero's chosen voice, or goblin / boss by monster size. */
-  const voiceOf = (e) => (e === s.hero ? `hero-${s.hero.voice}` : monsterVoice(BESTIARY_BY_ID[e.statId]));
+  // Every hero (not only the active one) speaks with their own voice.
+  const voiceOf = (e) => (e.isHero ? `hero-${e.voice ?? 'low'}` : monsterVoice(BESTIARY_BY_ID[e.statId]));
 
-  const cry = (e, what) => voiceSound(voiceOf(e), what);
+  // Heroes mostly grunt and scream; now and then they speak a line instead (see heroSound).
+  const cry = (e, what) => { const v = voiceOf(e); return v.startsWith('hero-') ? heroSound(v.slice(5), what) : voiceSound(v, what); };
 
   /** Animate an arrow flying from one square to another. */
   /**

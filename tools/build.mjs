@@ -15,7 +15,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { BESTIARY } from '../src/content/bestiary/index.js';
 import { PORTRAITS, PORTRAIT_VARIANTS, HERO_BODIES } from '../src/content/media.js';
-import { SOUND_KEYS } from '../src/ui/audio.js';
+import { SOUND_KEYS, variantsOf } from '../src/ui/audio.js';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -48,7 +48,7 @@ const add = (pack, asset, kind) => {
 };
 for (const key of Object.keys(PORTRAITS)) for (let n = 1; n <= PORTRAIT_VARIANTS; n++) add('core', `assets/portraits/${key}-${n}.jpg`, 'portrait');
 for (const key of new Set(Object.values(HERO_BODIES))) add('core', `assets/bodies/${key}.png`, 'body');
-for (const key of SOUND_KEYS) for (let n = 1; n <= 4; n++) add('sounds', `assets/sounds/${key}-${n}.mp3`, 'sound');
+for (const key of SOUND_KEYS) for (let n = 1; n <= variantsOf(key); n++) add('sounds', `assets/sounds/${key}-${n}.mp3`, 'sound');
 for (const m of [...BESTIARY].sort((a, b) => a.type.localeCompare(b.type))) {
   if (m.art.portrait) add(`portraits-${m.type}`, `assets/portraits/${m.art.portrait}-1.jpg`, 'portrait');
   if (m.art.body) add(`bodies-${m.type}`, `assets/bodies/${m.art.body}.png`, 'body');
