@@ -30,6 +30,9 @@ import { getFigures, getSetting, setSetting, PACE_FACTOR } from './settings.js';
 import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { furnishDungeon } from '../engine/props.js';
+import { sellItem, haggleRate, whyUnsellable, BASE_RATE } from '../engine/trade.js';
+import { terrainCost } from '../engine/terrain.js';
+import { GOODS } from './trade-view.js';
 import { installCharacters } from './dungeon/characters.js';
 import { rollMonsterLoot } from '../engine/loot.js';
 import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
@@ -204,6 +207,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     enemiesOf: { get: () => enemiesOf },
     styleOf: { get: () => styleOf },
     keyFor: { get: () => keyFor },
+    tradeRate: { get: () => tradeRate },
     enterCombat: { get: () => enterCombat },
     esc: { get: () => esc },
     drawCharacters: { get: () => drawCharacters },
@@ -445,6 +449,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y), ...party().map((h) => cellKey(h.pos.x, h.pos.y))]);
       s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid, partySize: Math.max(1, s.members.length) });
       placeCaptive(avoid);
+      placeTrader(avoid);
       // Friends who came down the stairs with you.
       const spots = freeNear(s.map.entrance, (carry?.allies?.length ?? 0) + s.members.length).slice(s.members.length);
       (carry?.allies ?? []).forEach((a, i) => {
@@ -520,6 +525,30 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       return;
     }
   }
+
+  /**
+   * A travelling trader's caravan, camped in a quiet room on some floors (about one in three):
+   * it buys your loot (engine/trade.js). Seeded, so the same floor always has it or not.
+   */
+  function placeTrader(avoid) {
+    const rng = seededRng(((s.seed * 69069) ^ (s.depth * 40503)) >>> 0);
+    if (rng(100) >= 35) return;
+    const busy = new Set([...avoid, ...s.monsters.flatMap((m) => cellsOf(m.pos, m.size ?? 1).map((c) => cellKey(c.x, c.y)))]);
+    // A room nobody lives in, not too far from the stairs.
+    const ent = s.map.entrance;
+    const rooms = s.map.rooms.filter((r) => !r.entrance && !s.monsters.some((m) => m.pos.x >= r.x - 1 && m.pos.x <= r.x + r.w && m.pos.y >= r.y - 1 && m.pos.y <= r.y + r.h))
+      .sort((a, b) => (Math.abs(a.x - ent.x) + Math.abs(a.y - ent.y)) - (Math.abs(b.x - ent.x) + Math.abs(b.y - ent.y)));
+    for (const r of rooms.slice(0, 4)) {
+      const cells = [];
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (isFloor(x, y) && !busy.has(cellKey(x, y)) && s.map.tiles[y][x] !== TILE.DOOR && terrainCostAt(x, y) < Infinity) cells.push({ x, y });
+      if (!cells.length) continue;
+      const pos = cells[rng(cells.length)];
+      const names = ['Odo Tallowby, a travelling trader', 'Gerda of the Grey Caravan', 'Bram Stonehand, a dwarf pedlar'];
+      s.monsters.push({ ...createMonster(BESTIARY_BY_ID.commoner, 'trader1', pos, rng(8)), name: names[rng(names.length)], side: 'npc', trader: true, aware: false, haggles: {} });
+      return;
+    }
+  }
+  const terrainCostAt = (x, y) => terrainCost(s.map, x, y);
 
   // ---------------------------------------------------------------------------
   // Vision and fog
@@ -938,6 +967,50 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.draft.coins -= def.value; addItem(s.draft.inventory ??= [], makeItemSafe(id));
     play('coins', { volume: 0.7 }); log(`${s.hero.name} buys ${def.name} from ${m.name} for ${formatCoins(def.value)}.`, 'loot');
     persist(); redraw();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Selling to a trader (a caravan in the dungeon, or a campaign shopkeeper): engine/trade.js
+  // ---------------------------------------------------------------------------
+
+  /** The rate this trader gives the active hero: 50%, or what their haggling earned this visit. */
+  const tradeRate = (m) => m?.haggles?.[s.hero.id]?.rate ?? BASE_RATE;
+  function traderHaggle() {
+    const m = npcTalking(); if (!m) return;
+    m.haggles ??= {};
+    if (m.haggles[s.hero.id]) return;
+    const bonus = s.hero.skills.persuasion ?? 0;
+    const c = heroCheck(bonus, 10);
+    const rate = haggleRate(c.total, c.d20);
+    const pct = Math.round(rate * 100);
+    const text = c.d20 === 1 ? `Natural 1: ${m.name.split(',')[0]} takes offence (${pct}%).`
+      : `Persuasion ${c.total}${c.d20 === 20 ? ' (natural 20!)' : ''}: ${pct}%.`;
+    m.haggles[s.hero.id] = { rate, text };
+    play(rate > BASE_RATE ? 'coins' : 'swing-miss', { volume: 0.5 });
+    log(`${s.hero.name} haggles with ${m.name.split(',')[0]}: ${checkText('Persuasion', c)}. ${rate > BASE_RATE ? `The price rises to ${pct}%.` : rate < BASE_RATE ? `Offended, the trader drops to ${pct}%.` : 'The trader will not budge from half price.'}`, rate >= BASE_RATE ? 'good' : 'warn');
+    redraw();
+  }
+  function traderSell(uid, qty) {
+    const m = npcTalking(); if (!m) return;
+    const inst = s.draft.inventory.find((x) => x.uid === uid); if (!inst) return;
+    const name = itemName(inst);
+    const r = sellItem(s.draft, uid, tradeRate(m), qty);
+    if (!r.ok) { banner(r.message); return; }
+    play('coins', { volume: 0.7 });
+    log(`${s.hero.name} sells ${r.sold > 1 ? `${r.sold} × ` : ''}${name} to ${m.name.split(',')[0]} for ${formatCoins(r.coins)}.`, 'loot');
+    persist(); refreshHero(); redraw();
+  }
+  function traderSellGoods() {
+    const m = npcTalking(); if (!m) return;
+    const rate = tradeRate(m); let coins = 0; let n = 0;
+    for (const inst of [...s.draft.inventory]) {
+      if (!GOODS.has(itemDef(inst)?.cat) || whyUnsellable(s.draft, inst)) continue;
+      const r = sellItem(s.draft, inst.uid, rate); if (r.ok) { coins += r.coins; n += r.sold; }
+    }
+    if (!n) return;
+    play('coins', { volume: 0.8 });
+    log(`${s.hero.name} sells ${n} goods to ${m.name.split(',')[0]} for ${formatCoins(coins)}.`, 'loot');
+    persist(); refreshHero(); redraw();
   }
 
   function descend() {
@@ -1412,6 +1485,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'leave-arena': leavePlace(); break;
       case 'npc-opt': npcOption(Number(el.dataset.i)); break;
       case 'npc-buy': npcBuy(el.dataset.id); break;
+      case 'trade-haggle': traderHaggle(); break;
+      case 'trade-sell': traderSell(el.dataset.uid, el.dataset.qty === 'all' ? null : Number(el.dataset.qty) || 1); break;
+      case 'trade-sell-goods': traderSellGoods(); break;
       case 'story-continue': onOutcome?.(s.mode === 'victory'); break;
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }

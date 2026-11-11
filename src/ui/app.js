@@ -2,6 +2,8 @@
  * UI layer. Plain DOM rendering: every state change calls render(), which rebuilds the
  * view from `state`. All game rules live in src/engine; this file only displays them.
  */
+import { tradeHtml, GOODS } from './trade-view.js';
+import { sellItem, haggleRate, whyUnsellable, BASE_RATE } from '../engine/trade.js';
 import {
   ABILITIES, ABILITY_IDS, ABILITY_METHODS, POINT_BUY, abilityModifier, autoAssign,
   formatModifier, pointBuyScoreCost, pointBuyTotal,
@@ -43,6 +45,7 @@ const state = {
   view: 'home', // home | start | wizard | sheet | dungeon | monster
   start: { mode: 'standard', level: 5 },
   inv: { selected: null, filter: 'all', dropArm: null },
+  market: { heroId: null, haggles: {} }, // the Trading post: who is selling, and this visit's haggling
   tab: 'heroes', // heroes | adventures | bestiary
   bestiary: defaultBestiaryFilters(),
   monsterId: null,
@@ -129,6 +132,7 @@ function render() {
     start: startView,
     sheet: sheetView,
     dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
+    market: marketView,
     arena: () => `<div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">Arena</h1>
       <p class="muted small">Practice bouts: no risk, no XP, no loot.</p></div>
       <div id="arena-host"></div>`,
@@ -338,6 +342,72 @@ function heroCard(d, source) {
     </article>`;
 }
 
+/**
+ * The Trading Post, between adventures: pick a hero, sell their loot (engine/trade.js). Haggling
+ * is once per hero per visit; leaving and coming back starts a new visit.
+ */
+function marketView() {
+  const heroes = explorerHeroes();
+  const id = state.market.heroId ?? heroes[0]?.id;
+  const d = marketDraft(id);
+  const c = d ? deriveCharacter(d, settingFor(d)) : null;
+  const persuasion = c?.skills.find((k) => k.id === 'persuasion')?.bonus ?? 0;
+  const h = state.market.haggles[id];
+  return `<section class="market">
+    <div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">The Trading Post</h1>
+      <p class="muted small">Sell loot between adventures.</p></div>
+    <div class="chips market-heroes">${heroes.map((x) => `<button class="chip ${x.id === id ? 'sel' : ''}" data-action="market-hero" data-id="${esc(x.id)}" aria-pressed="${x.id === id}">${esc(x.label.split(',')[0])}</button>`).join('')}</div>
+    ${d ? `<div class="card market-card-body">
+      <div class="market-hero"><img src="${esc(heroLook(d).url ?? '')}" alt="" style="filter:${heroLook(d).filter ?? 'none'}"><div><h3>${esc(c.name)}</h3><p class="small muted">Level ${c.level} ${esc(c.race.name)} ${esc(c.cls.name)} · CHA ${c.scores.cha} (${c.mods.cha >= 0 ? '+' : ''}${c.mods.cha})</p></div></div>
+      ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader' })}
+    </div>` : '<p class="muted">Make or adopt a hero first.</p>'}
+  </section>`;
+}
+
+/**
+ * The hero being served, loaded once per visit. (A ready-made hero's starting kit is made afresh,
+ * with new item ids, every time it is loaded: re-loading on each click would lose track of items.)
+ */
+function marketDraft(id) {
+  if (!id) return null;
+  if (state.market.draft?.id !== id && state.market.draft?.premadeOf !== id) state.market.draft = heroApi.load(id);
+  return state.market.draft;
+}
+
+/** Selling at the Trading Post: the hero's pack and purse are saved after every sale. */
+root.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-tr]');
+  if (!el || el.disabled || state.view !== 'market') return;
+  const id = state.market.heroId; const d = marketDraft(id); if (!d) return;
+  const c = deriveCharacter(d, settingFor(d));
+  const keep = (saved) => { // a ready-made hero is adopted on their first sale: follow the new id
+    if (saved?.id && saved.id !== id) { state.market.haggles[saved.id] = state.market.haggles[id]; state.market.heroId = saved.id; }
+    if (saved) state.market.draft = saved;
+  };
+  if (el.dataset.tr === 'trade-haggle') {
+    if (state.market.haggles[id]) return;
+    const bonus = c.skills.find((k) => k.id === 'persuasion')?.bonus ?? 0;
+    const r = rollDie(20); const total = r + bonus; const rate = haggleRate(total, r); const pct = Math.round(rate * 100);
+    if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 20, value: r }], caption: `${bonus >= 0 ? '+' : '−'} ${Math.abs(bonus)} = ${total}` }], label: 'Haggle (Persuasion)', verdict: `${pct}%`, verdictKind: rate > BASE_RATE ? 'good' : rate < BASE_RATE ? 'bad' : '' });
+    state.market.haggles[id] = { rate, text: r === 1 ? `Natural 1: Marta is offended (${pct}%).` : `Persuasion ${total}${r === 20 ? ' (natural 20!)' : ''}: ${pct}%.` };
+    notify(rate > BASE_RATE ? `Marta raises her price to ${pct}%.` : rate < BASE_RATE ? `Marta is offended: ${pct}% for this visit.` : 'Marta will not budge from half price.', rate >= BASE_RATE ? 'ok' : 'bad');
+    render(); return;
+  }
+  const rate = state.market.haggles[id]?.rate ?? BASE_RATE;
+  if (el.dataset.tr === 'trade-sell') {
+    const inst = d.inventory.find((x) => x.uid === el.dataset.uid); const name = inst ? itemName(inst) : '';
+    const r = sellItem(d, el.dataset.uid, rate, el.dataset.qty === 'all' ? null : 1);
+    if (!r.ok) { notify(r.message, 'bad'); return; }
+    keep(heroApi.save(d)); notify(`Sold ${r.sold > 1 ? `${r.sold} × ` : ''}${name} for ${formatCoins(r.coins)}.`, 'ok');
+  }
+  if (el.dataset.tr === 'trade-sell-goods') {
+    let coins = 0; let n = 0;
+    for (const inst of [...d.inventory]) { if (!GOODS.has(ITEMS_BY_ID[inst.id]?.cat) || whyUnsellable(d, inst)) continue; const r = sellItem(d, inst.uid, rate); if (r.ok) { coins += r.coins; n += r.sold; } }
+    if (n) { keep(heroApi.save(d)); notify(`Sold ${n} goods for ${formatCoins(coins)}.`, 'ok'); }
+  }
+  render();
+});
+
 function adventuresView() {
   return `
     <section>
@@ -350,6 +420,12 @@ function adventuresView() {
           <p class="muted small">Levels ${esc(cp.levels)} · a world map, 6 places, a quest</p>
           <button class="btn small primary" data-action="open-campaign" data-id="${esc(cp.id)}">${loadCampaignRun(cp.id) ? 'Continue the campaign' : 'Begin the campaign'}</button>
         </article>`).join('')}
+        <article class="card adventure market-card">
+          <div class="card-head"><h3>The Trading Post</h3><span class="badge">Playable</span></div>
+          <p>Between adventures, sell what you brought back: gems, trinkets, ore and hides, spare weapons. Traders pay half the price new; haggle with Charisma for more.</p>
+          <p class="muted small">Any level · sell loot for coin</p>
+          <button class="btn small primary" data-action="open-market">Visit the trading post</button>
+        </article>
         <article class="card adventure arena-card">
           <div class="card-head"><h3>The Arena</h3><span class="badge">Playable</span></div>
           <p>Build your own battlefield square by square (grass, mud, rivers, castle floors, walls), choose up to four heroes and any of the 356 creatures, place them, and fight. Save your arenas to use again.</p>
@@ -944,6 +1020,8 @@ const actions = {
   'close-settings-bg'(el, e) { if (e?.target === el) { state.settingsOpen = false; render(); } },
   'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
+  'open-market'() { Object.assign(state, { view: 'market', market: { heroId: explorerHeroes()[0]?.id ?? null, haggles: {}, draft: null } }); render(); window.scrollTo(0, 0); },
+  'market-hero'(el) { state.market.heroId = el.dataset.id; state.market.draft = null; render(); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
   'enter-dungeon'() {
     Object.assign(state, { view: 'dungeon' });

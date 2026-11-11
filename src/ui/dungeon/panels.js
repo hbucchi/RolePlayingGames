@@ -3,6 +3,7 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { tradeHtml } from '../trade-view.js';
 import { morphInto } from '../morph.js';
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
 import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
@@ -360,9 +361,24 @@ export function installPanels(ctx) {
   }
 
   /** Talking with someone in a campaign place: what they say, what you can ask, what they sell. */
+  /** What a trader offers for the active hero's loot (trade-view.js), with haggling. */
+  function sellSection(m) {
+    const h = m.haggles?.[s.hero.id];
+    return tradeHtml({ gear: s.draft, rate: ctx.tradeRate(m), haggle: h ?? null, persuasion: s.hero.skills.persuasion ?? 0, heroName: s.hero.name, attr: 'data-dg', trader: m.name.split(',')[0] });
+  }
+
   function npcPanel(m) {
     const close = '<button class="btn icon small" data-dg="close-loot" aria-label="Close">✕</button>';
     const pic = ctx.portraitOf(m);
+    if (m.trader) {
+      // A travelling trader met in a dungeon: buys loot.
+      const near = chebyshev(s.hero.pos, m.pos) <= 1;
+      return `<div class="npc-card">
+        <div class="foe-head">${pic ? `<img class="npc-pic" src="${esc(pic)}" alt="">` : ''}<h3>${esc(m.name)}</h3>${close}</div>
+        <p class="npc-say">“${s.mode === 'combat' ? 'Not now! Deal with them first!' : 'Well met, well met. Bring out what you found down there; I pay fair coin.'}”</p>
+        ${!near ? '<p class="small muted">Walk up to the trader to sell.</p>' : s.mode === 'combat' ? '' : sellSection(m)}
+      </div>`;
+    }
     if (!ctx.campaign) return '';
     const near = chebyshev(s.hero.pos, m.pos) <= 1;
     const v = ctx.campaign.npcView(m.npcId, ctx.wallet());
@@ -376,7 +392,7 @@ export function installPanels(ctx) {
       ${v.options.length ? `<div class="npc-options">${v.options.map((o) => `<button class="btn npc-opt" data-dg="npc-opt" data-i="${o.i}" ${o.why ? `title="${esc(o.why)}"` : ''}>${esc(o.label)}${o.why ? ` <small>(${esc(o.why)})</small>` : ''}</button>`).join('')}</div>` : ''}
       ${shop.length ? `<h4>For sale</h4><ul class="shop">${shop.map(({ id, def }) => `<li><span>${def.glyph ?? '•'} ${esc(def.name)}</span><span class="muted small">${esc(formatCoinsShort(def.value))}</span>
         <button class="btn small" data-dg="npc-buy" data-id="${esc(id)}" ${(s.draft?.coins ?? 0) < def.value ? 'disabled title="Not enough coin"' : ''}>Buy</button></li>`).join('')}</ul>` : ''}
-      <div class="small muted npc-purse">Purse (${esc(s.hero.name)}): ${coinsHtml(s.draft?.coins ?? 0)}</div>`}
+      ${shop.length ? `<h4>Sell</h4>${sellSection(m)}` : `<div class="small muted npc-purse">Purse (${esc(s.hero.name)}): ${coinsHtml(s.draft?.coins ?? 0)}</div>`}`}
     </div>`;
   }
 
