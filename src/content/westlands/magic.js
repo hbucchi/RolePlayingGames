@@ -4,7 +4,7 @@
  * only loremasters and minstrels are full casters; rangers and wardens learn a little from
  * level 2; warriors and burglars rely on trained abilities.
  *
- * Ranges are in squares (1 square = 5 ft). Shapes: 'single' target, 'radius' around the chosen
+ * Ranges are in squares (1 square = 1.5 m). Shapes: 'single' target, 'radius' around the chosen
  * foe, 'cone' in front of you, 'around' you. time: action | bonus | reaction | free.
  */
 
@@ -26,16 +26,16 @@ export const SPELLS = [
     desc: 'Three glowing darts that never miss: 1d4+1 force each. One more dart per slot level above 1st.' }),
   S({ id: 'sleep', name: 'Sleep', level: 1, classes: ['loremaster', 'minstrel'], range: 18, target: 'point', sound: 'spell-arcane', color: '#b8a8ff',
     effect: { type: 'sleep', pool: '5d8', radius: 4 }, upcast: { pool: '2d8' },
-    desc: 'Roll 5d8: creatures within 20 ft of the target fall asleep, weakest first, until their hit points use up the total. Sleepers wake when hurt.' }),
+    desc: 'Roll 5d8: creatures within 6 m of the target fall asleep, weakest first, until their hit points use up the total. Sleepers wake when hurt.' }),
   S({ id: 'shield', name: 'Ward of Iron', level: 1, classes: ['loremaster'], time: 'reaction', range: 0, target: 'self', sound: 'spell-arcane', color: '#9ad7ff',
     effect: { type: 'buff', buff: 'shield', ac: 5, rounds: 1 },
     desc: 'An unseen barrier: +5 AC until the start of your next turn. Uses your reaction.' }),
   S({ id: 'burning-hands', name: 'Burning Hands', level: 1, classes: ['loremaster'], range: 0, target: 'cone', sound: 'spell-fire', color: '#ff7a2f',
     effect: { type: 'save', save: 'dex', dice: '3d6', damageType: 'fire', half: true, shape: 'cone', size: 3, linger: 'fire', lingerRounds: 1 }, upcast: { dice: '1d6' },
-    desc: 'A fan of flame, 15 ft in front of you. DEX save: 3d6 fire, half on a success. +1d6 per slot level above 1st. It leaves the ground burning for 1 round.' }),
+    desc: 'A fan of flame, 4.5 m in front of you. DEX save: 3d6 fire, half on a success. +1d6 per slot level above 1st. It leaves the ground burning for 1 round.' }),
   S({ id: 'thunderwave', name: 'Thunderclap', level: 1, classes: ['loremaster', 'minstrel'], range: 0, target: 'around', sound: 'spell-thunder', color: '#cfe3ff',
     effect: { type: 'save', save: 'con', dice: '2d8', damageType: 'thunder', half: true, shape: 'around', size: 1, onFail: 'push', linger: 'rubble', lingerRounds: 3 }, upcast: { dice: '1d8' },
-    desc: 'A wave of force from you. Each adjacent foe makes a CON save: 2d8 thunder and pushed 10 ft back, or half damage. It leaves the ground shattered (difficult terrain) for 3 rounds.' }),
+    desc: 'A wave of force from you. Each adjacent foe makes a CON save: 2d8 thunder and pushed 3 m back, or half damage. It leaves the ground shattered (difficult terrain) for 3 rounds.' }),
   S({ id: 'cure-wounds', name: 'Cure Wounds', level: 1, classes: ['minstrel', 'warden', 'ranger'], range: 1, target: 'self', sound: 'spell-heal', color: '#8ef0a2',
     effect: { type: 'heal', dice: '1d8', addMod: true }, upcast: { dice: '1d8' },
     desc: 'Heal 1d8 + your spellcasting modifier. +1d8 per slot level above 1st.' }),
@@ -66,10 +66,10 @@ export const SPELLS = [
     desc: 'Three rays of fire, each a spell attack for 2d6 fire. One more ray per slot level above 2nd.' }),
   S({ id: 'misty-step', name: 'Misty Step', level: 2, classes: ['loremaster', 'minstrel'], time: 'bonus', range: 6, target: 'square', sound: 'spell-arcane', color: '#cde',
     effect: { type: 'teleport' },
-    desc: 'Vanish in silver mist and reappear on a visible free square up to 30 ft away. Bonus action.' }),
+    desc: 'Vanish in silver mist and reappear on a visible free square up to 9 m away. Bonus action.' }),
   S({ id: 'shatter', name: 'Shatter', level: 2, classes: ['loremaster', 'minstrel'], range: 12, target: 'point', sound: 'spell-thunder', color: '#cfe3ff',
     effect: { type: 'save', save: 'con', dice: '3d8', damageType: 'thunder', half: true, shape: 'radius', size: 2, linger: 'rubble', lingerRounds: 4 }, upcast: { dice: '1d8' },
-    desc: 'A painful ringing burst. CON save: 3d8 thunder to all within 10 ft of the target, half on a success. It leaves the ground shattered (difficult terrain) for 4 rounds.' }),
+    desc: 'A painful ringing burst. CON save: 3d8 thunder to all within 3 m of the target, half on a success. It leaves the ground shattered (difficult terrain) for 4 rounds.' }),
   S({ id: 'hold-person', name: 'Hold Person', level: 2, classes: ['loremaster', 'minstrel', 'warden'], range: 12, target: 'enemy', concentration: true, sound: 'spell-arcane', color: '#b8a8ff',
     effect: { type: 'save', save: 'wis', onFail: 'paralyze', humanoidOnly: true },
     desc: 'A humanoid makes a WIS save or is paralysed: it cannot act, attacks against it have advantage and melee hits are critical. It repeats the save each turn. Concentration.' }),
@@ -94,20 +94,20 @@ export const SPELLS = [
     desc: 'Your words bind a creature to a brief, fierce loyalty. WIS save or it fights beside you for 10 rounds (1 minute); the spell ends if you or your friends harm it. Beasts and humanoids only. Concentration.' }),
   S({ id: 'daylight', name: 'Daylight', level: 3, classes: ['warden', 'ranger', 'loremaster'], range: 0, target: 'self', sound: 'spell-heal', color: '#fff6c0',
     effect: { type: 'reveal', radius: 12 },
-    desc: 'Sunlight fills the halls around you, revealing every trap and secret door within 60 ft.' }),
+    desc: 'Sunlight fills the halls around you, revealing every trap and secret door within 18 m.' }),
   // ---- Level 4-9 (for veteran heroes) ----
   S({ id: 'ice-storm', name: 'Ice Storm', level: 4, classes: ['loremaster'], range: 30, target: 'point', sound: 'spell-thunder', color: '#bfe8ff',
     effect: { type: 'save', save: 'dex', dice: '6d6', damageType: 'cold', half: true, shape: 'radius', size: 4, linger: 'ice', lingerRounds: 10 }, upcast: { dice: '1d6' },
     desc: 'Hail and freezing rain hammer a 20-ft area. DEX save: 6d6 cold and bludgeoning, half on a success. It leaves a sheet of ice (difficult terrain) for 10 rounds.' }),
   S({ id: 'wall-of-fire', name: 'Wall of Fire', level: 4, classes: ['loremaster'], range: 24, target: 'point', concentration: true, sound: 'spell-fire', color: '#ff6a2f',
     effect: { type: 'wall', save: 'dex', dice: '5d8', damageType: 'fire', length: 7, rounds: 10 }, upcast: { dice: '1d8' },
-    desc: 'A wall of roaring flame, 35 ft long, across the chosen spot (at right angles to you). Anyone in it makes a DEX save: 5d8 fire, half on a success. It burns for 10 rounds: creatures that start their turn in it or walk into it burn again. Concentration.' }),
+    desc: 'A wall of roaring flame, 10.5 m long, across the chosen spot (at right angles to you). Anyone in it makes a DEX save: 5d8 fire, half on a success. It burns for 10 rounds: creatures that start their turn in it or walk into it burn again. Concentration.' }),
   S({ id: 'death-ward', name: 'Ward against Death', level: 4, classes: ['warden'], range: 0, target: 'self', sound: 'spell-heal', color: '#fff2b0',
     effect: { type: 'buff', buff: 'deathward' },
     desc: 'The first time you would drop to 0 hit points, you drop to 1 instead.' }),
   S({ id: 'cone-of-cold', name: 'Cone of Cold', level: 5, classes: ['loremaster'], range: 0, target: 'cone', sound: 'spell-thunder', color: '#bfe8ff',
     effect: { type: 'save', save: 'con', dice: '8d8', damageType: 'cold', half: true, shape: 'cone', size: 6, linger: 'ice', lingerRounds: 3 }, upcast: { dice: '1d8' },
-    desc: 'A blast of killing cold, 30 ft in front of you. CON save: 8d8 cold, half on a success. It leaves a sheet of ice (difficult terrain) for 3 rounds.' }),
+    desc: 'A blast of killing cold, 9 m in front of you. CON save: 8d8 cold, half on a success. It leaves a sheet of ice (difficult terrain) for 3 rounds.' }),
   S({ id: 'mass-cure-wounds', name: 'Healing Tide', level: 5, classes: ['minstrel', 'warden'], range: 0, target: 'self', sound: 'spell-heal', color: '#8ef0a2',
     effect: { type: 'heal', dice: '3d8', addMod: true }, upcast: { dice: '1d8' },
     desc: 'A wave of restoring light: heal 3d8 + your modifier.' }),
@@ -165,7 +165,7 @@ export const ABILITIES = [
   A({ id: 'evasion', name: 'Evasion', class: 'burglar', minLevel: 7, passive: true, desc: 'When a DEX save would halve damage (traps, fire), you take none on a success and half on a failure.' }),
   // Loremaster
   A({ id: 'words-of-command', name: 'Words of Command', class: 'loremaster', minLevel: 1, uses: (l) => (l >= 11 ? 4 : l >= 5 ? 3 : 2), per: 'long', range: 6, target: 'enemy', sound: 'spell-arcane',
-    effect: { type: 'save', save: 'wis', onFail: 'stun' }, desc: 'Speak a word of power: a creature within 30 ft makes a WIS save or is stunned until the end of its next turn.' }),
+    effect: { type: 'save', save: 'wis', onFail: 'stun' }, desc: 'Speak a word of power: a creature within 9 m makes a WIS save or is stunned until the end of its next turn.' }),
   A({ id: 'arcane-recovery', name: 'Arcane Recovery', class: 'loremaster', minLevel: 1, time: 'free', uses: 1, per: 'long', outOfCombat: true, sound: 'spell-arcane',
     effect: { type: 'recover' }, desc: 'Out of combat, regain mana equal to a quarter of your level (rounded up). Once, until you recover at a mana totem, an inn or a camp.' }),
   // Minstrel

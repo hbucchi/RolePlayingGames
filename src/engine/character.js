@@ -13,6 +13,7 @@ import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } 
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
 import { addItem, makeItem, carriedWeight, carryCapacity, loadLimits, bagUsed, BAG_SLOTS } from './items.js';
 import { magicFor, casterInfo, attacksPerAction, manaFor } from './magic.js';
+import { kg } from './units.js';
 
 export const DRAFT_VERSION = 1;
 
@@ -263,8 +264,8 @@ export function deriveCharacter(draft, setting) {
   const capacity = carryCapacity(scores.str);
   const limits = loadLimits(scores.str);
   const burden = load > capacity ? 20 : load > limits.burdened ? 10 : 0;
-  if (burden === 10) g.notes.push(`Burdened (${load} lb; over ${limits.burdened} lb): speed −10 ft.`);
-  if (burden === 20) g.notes.push(`Overloaded (${load} / ${capacity} lb): speed −20 ft. Drop something.`);
+  if (burden === 10) g.notes.push(`Burdened (${kg(load)}; over ${kg(limits.burdened)}): speed −3 m.`);
+  if (burden === 20) g.notes.push(`Overloaded (${kg(load)} / ${kg(capacity)}): speed −6 m. Drop something.`);
   const attacks = g.attacks;
   // Ranger Archery style (level 2): +2 to hit with ranged weapons.
   if (cls?.id === 'ranger' && level >= 2) for (const at of attacks) if (at.slot === 'ranged') { at.toHit += 2; at.archery = true; }

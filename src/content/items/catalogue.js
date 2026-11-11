@@ -13,6 +13,8 @@
  *           (a hero wears 1 necklace, a bracelet on each wrist and up to 10 rings: items.js JEWEL_SLOTS)
  */
 
+import { metricText } from '../../engine/units.js';
+
 const GP = 100; const SP = 10;
 const icon = (id) => `assets/items/${id}.jpg`;
 // Every item has its own picture in assets/items/<id>.jpg (tests/items-art.test.js checks it);
@@ -43,7 +45,7 @@ const weapon = (id, name, group, damage, type, value, weight, props = [], extra 
   }
   add({
     id, name, cat: 'weapon', weight, value, glyph: w.ranged ? '🏹' : '⚔', slot: w.ranged ? 'ranged' : 'mainHand',
-    weapon: w, desc: extra.desc ?? `${group === 'simple' ? 'A simple' : 'A martial'} weapon: ${damage} ${type}${props.length ? ` (${props.join(', ')})` : ''}.`, ...extra,
+    weapon: w, desc: extra.desc ?? metricText(`${group === 'simple' ? 'A simple' : 'A martial'} weapon: ${damage} ${type}${props.length ? ` (${props.join(', ')})` : ''}.`), ...extra,
   });
 };
 
@@ -142,8 +144,8 @@ tool('iron-key', 'Iron key', 0, 0, 'A heavy iron key. It fits one iron door in t
 tool('thieves-tools', 'Thieves\' tools', 25 * GP, 1, 'Picks, a small mirror, narrow scissors and pliers. Needed to pick locks and disarm traps (DEX check). A bad failure (by 5 or more) snaps a pick.', { charges: 10, glyph: '🗝' });
 tool('healers-kit', 'Healer\'s kit', 5 * GP, 3, 'Salves, splints and a needle. While you carry it, you bandage with advantage on your Medicine check.', { glyph: '✚' });
 tool('crowbar', 'Crowbar', 2 * GP, 5, 'A bar of iron with a flattened end. Gives advantage on Strength checks to force doors and chests open.', { glyph: '🔩' });
-tool('rope', 'Hempen rope (50 ft)', 1 * GP, 10, 'Fifty feet of strong hemp. Used to climb out of pits and down shafts.', { glyph: '➰' });
-tool('elven-rope', 'Elven rope (30 ft)', 20 * GP, 2, 'Grey, silken and astonishingly strong. Knots seem to untie themselves when you call them.', { rarity: 'uncommon', glyph: '➰' });
+tool('rope', 'Hempen rope (15 m)', 1 * GP, 10, 'Fifteen metres of strong hemp. Used to climb out of pits and down shafts.', { glyph: '➰' });
+tool('elven-rope', 'Elven rope (9 m)', 20 * GP, 2, 'Grey, silken and astonishingly strong. Knots seem to untie themselves when you call them.', { rarity: 'uncommon', glyph: '➰' });
 tool('torch', 'Torch', 1, 1, 'A pitch-soaked torch that burns for an hour.', { stack: true, glyph: '🔥' });
 tool('lantern', 'Hooded lantern', 5 * GP, 2, 'An oil lantern with a shutter to hide its light.', { glyph: '🏮' });
 tool('tinderbox', 'Tinderbox', 5 * SP, 1, 'Flint, fire steel and tinder.', { glyph: '🔥' });

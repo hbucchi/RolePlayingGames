@@ -33,8 +33,8 @@ export const races = [
     skillProficiencies: ['animal-handling'],
     languages: ['Common Speech', 'Plains-tongue'],
     traits: [
-      { name: 'Born in the Saddle', text: 'Mounting or dismounting costs you only 5 feet of movement, and you have advantage on checks to stay mounted.' },
-      { name: 'Thunder of Hooves', text: 'When you charge at least 20 feet on horseback, your first melee hit deals an extra 1d6 damage.' },
+      { name: 'Born in the Saddle', text: 'Mounting or dismounting costs you only 1.5 m of movement, and you have advantage on checks to stay mounted.' },
+      { name: 'Thunder of Hooves', text: 'When you charge at least 6 m on horseback, your first melee hit deals an extra 1d6 damage.' },
     ],
   },
   {
@@ -50,7 +50,7 @@ export const races = [
     skillProficiencies: ['perception'],
     languages: ['Common Speech', 'Elvish (Grey-tongue)'],
     traits: [
-      { name: 'Starlit Sight', text: 'You see in dim light within 60 feet as if it were bright light, and in darkness as if it were dim light.' },
+      { name: 'Starlit Sight', text: 'You see in dim light within 18 m as if it were bright light, and in darkness as if it were dim light.' },
       { name: 'Undying Spirit', text: 'You have advantage on saving throws against being frightened or charmed, and magic cannot put you to sleep.' },
       { name: 'Reverie', text: 'You do not sleep. Instead you rest in waking dreams for 4 hours instead, and wake as refreshed as others do after a full night.' },
     ],
@@ -86,7 +86,7 @@ export const races = [
     skillProficiencies: [],
     languages: ['Common Speech', 'Dwarvish (secret tongue)'],
     traits: [
-      { name: 'Darkvision', text: 'Accustomed to life underground, you see in darkness within 60 feet as if it were dim light.' },
+      { name: 'Darkvision', text: 'Accustomed to life underground, you see in darkness within 18 m as if it were dim light.' },
       { name: 'Stout Heart', text: 'You have advantage on saving throws against poison and resistance to poison damage. Heavy armour does not slow you.' },
       { name: 'Stonecunning', text: 'When you make a History check about stonework, add double your proficiency bonus.' },
     ],

@@ -24,6 +24,7 @@ import { checkChance, forceDc } from '../../engine/features.js';
 import { xpProgress } from '../../engine/progression.js';
 import { settingsControls } from '../settings.js';
 import { monsterPortrait } from '../../content/media.js';
+import { m as mtr, metricText } from '../../engine/units.js';
 
 export function installPanels(ctx) {
   const { $, esc, host, pct, s, signed } = ctx;
@@ -49,7 +50,7 @@ export function installPanels(ctx) {
       <div class="hc-stat"><span>Hit points</span><b>${h.hp} / ${h.maxHp}</b></div>
       <div class="hc-bar"><span class="${h.hp <= h.maxHp / 2 ? 'low' : ''}" style="width:${(h.hp / h.maxHp) * 100}%"></span></div>
       ${s.res?.maxMana ? `<div class="hc-mana">${manaHtml(s.res.mana, s.res.maxMana)}</div>` : ''}
-      <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${s.moveLeft * ft} ft)` : `${h.speed} squares per move`}</b></div>
+      <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${mtr(s.moveLeft * ft)})` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
       <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
       ${xpBar()}
@@ -61,7 +62,7 @@ export function installPanels(ctx) {
       <div class="hc-weapons">${h.weapons.map((w, i) => `
         <button class="weapon ${i === s.weaponIdx ? 'sel' : ''}" data-dg="weapon" data-i="${i}" aria-pressed="${i === s.weaponIdx}">
           <b>${esc(w.name)}</b><span>${signed(w.toHit)} to hit · ${esc(w.damage)} ${esc(w.type)}${w.ammo ? ` · ${countOf(s.draft.inventory, w.ammo)} ${esc(w.ammo.replace('-', ' '))}` : ''}</span>
-          <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `${w.thrown ? 'thrown, ' : ''}reach ${w.long} squares` : ''}</span>
+          <span class="muted">${w.melee ? 'melee 1.5 m' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `${w.thrown ? 'thrown, ' : ''}reach ${w.long} squares` : ''}</span>
         </button>`).join('')}</div>
       <div class="row wrap">
         <button class="btn small ghost" data-dg="retry" title="Restart this dungeon">Restart</button>
@@ -200,12 +201,12 @@ export function installPanels(ctx) {
     if (known(m, 'gear')) {
       const weapons = stat.actions.filter((a) => a.attack);
       out += `<div class="reveal"><h4>Gear</h4><p><b>AC ${stat.ac}</b>${stat.armor ? ` (${esc(stat.armor)})` : ''}</p>
-        <ul class="plain small">${weapons.map((a) => `<li><b>${esc(a.name)}</b>: ${formatModifier(a.attack.toHit)} to hit, ${esc(a.attack.damage.map((d) => `${d.dice} ${d.type}`).join(' + '))}${a.attack.range ? `, range ${a.attack.range} ft` : ''}</li>`).join('')}</ul></div>`;
+        <ul class="plain small">${weapons.map((a) => `<li><b>${esc(a.name)}</b>: ${formatModifier(a.attack.toHit)} to hit, ${esc(a.attack.damage.map((d) => `${d.dice} ${d.type}`).join(' + '))}${a.attack.range ? `, range ${metricText(`${a.attack.range} ft`)}` : ''}</li>`).join('')}</ul></div>`;
     }
     if (known(m, 'lore')) {
-      out += `<div class="reveal"><h4>Lore</h4><p class="small">${esc(stat.size)} ${esc(stat.type)}, challenge ${esc(stat.cr)} · speed ${esc(stat.speedText)} · ${esc(sensesText(stat))}</p>
+      out += `<div class="reveal"><h4>Lore</h4><p class="small">${esc(stat.size)} ${esc(stat.type)}, challenge ${esc(stat.cr)} · speed ${esc(metricText(stat.speedText))} · ${esc(sensesText(stat))}</p>
         <p class="small">STR ${stat.scores.str} · DEX ${stat.scores.dex} · CON ${stat.scores.con} · INT ${stat.scores.int} · WIS ${stat.scores.wis} · CHA ${stat.scores.cha}</p>
-        ${stat.traits.map((t) => `<p class="small"><b>${esc(t.name)}.</b> ${esc(t.text)}</p>`).join('')}
+        ${stat.traits.map((t) => `<p class="small"><b>${esc(t.name)}.</b> ${esc(metricText(t.text))}</p>`).join('')}
         <p class="small muted">${esc(stat.lore.origin)}</p></div>`;
     }
     return out;
@@ -237,7 +238,7 @@ export function installPanels(ctx) {
     const left = PATIENCE - (m.talks ?? 0);
     const far = ctx.edist(s.hero, m) > 12 || !ctx.inSight(m);
     const blocked = s.busy || (s.mode === 'combat' && s.actionUsed) || left <= 0 || far || m.calm;
-    const why = m.calm ? 'It has agreed to leave you be.' : left <= 0 ? 'It will not listen to you any more.' : far ? 'Too far to be heard (60 ft) or out of sight.' : '';
+    const why = m.calm ? 'It has agreed to leave you be.' : left <= 0 ? 'It will not listen to you any more.' : far ? 'Too far to be heard (18 m) or out of sight.' : '';
     const buttons = t.options.map((id) => {
       const k = talkMath(m, id, t.lang);
       const tip = `${k.T.desc} Its roll: d20 + Insight ${signed(k.insight)}${k.parts.map(([r, v]) => ` ${signed(v)} (${r})`).join('')}.${k.mode === 'disadvantage' ? ' No shared language: disadvantage.' : ''}`;
@@ -256,7 +257,7 @@ export function installPanels(ctx) {
     const opts = talkOptions(stat, { languages: s.def.languages ?? [], skills: s.hero.skills });
     if (!opts.options.includes(id) || m.dead) return;
     if ((m.talks ?? 0) >= PATIENCE) { ctx.banner(`${m.name} will not listen any more.`); return; }
-    if (ctx.edist(s.hero, m) > 12 || !ctx.inSight(m)) { ctx.banner('Too far away to be heard (60 ft), or out of sight.'); return; }
+    if (ctx.edist(s.hero, m) > 12 || !ctx.inSight(m)) { ctx.banner('Too far away to be heard (18 m), or out of sight.'); return; }
     if (!ctx.spendAction('Talking')) return;
     const k = talkMath(m, id, opts.lang);
     const r = rollTalk({ heroBonus: k.heroBonus, targetBonus: k.targetBonus, mode: k.mode, rng: (n) => rollDie(n) - 1 });
@@ -290,7 +291,7 @@ export function installPanels(ctx) {
     ctx.redraw();
   }
 
-  /** Shove (push 5 ft or knock prone) or grapple: your Athletics against its Athletics or Acrobatics. */
+  /** Shove (push 1.5 m or knock prone) or grapple: your Athletics against its Athletics or Acrobatics. */
   function wrestleSection(m) {
     const stat = BESTIARY_BY_ID[m.statId];
     const hb = s.hero.skills.athletics ?? 0; const tb = escapeBonus(stat);
@@ -302,8 +303,8 @@ export function installPanels(ctx) {
     return `<h4>Shove or grapple <span class="muted small">Athletics ${signed(hb)} vs its ${signed(tb)} · ${pct2}${s.mode === 'combat' ? ' · uses your action' : ''}</span></h4>
       ${why ? `<p class="small muted">${esc(why)}</p>` : ''}
       <div class="row wrap">
-        <button class="btn small" data-dg="wrestle" data-how="prone" ${blocked ? 'disabled' : ''} title="Knock it down: attacks within 5 ft have advantage against it; it wastes half its move getting up.">Knock prone</button>
-        <button class="btn small" data-dg="wrestle" data-how="push" ${blocked ? 'disabled' : ''} title="Push it 5 ft straight away from you (into a fire wall, perhaps).">Push 5 ft</button>
+        <button class="btn small" data-dg="wrestle" data-how="prone" ${blocked ? 'disabled' : ''} title="Knock it down: attacks within 1.5 m have advantage against it; it wastes half its move getting up.">Knock prone</button>
+        <button class="btn small" data-dg="wrestle" data-how="push" ${blocked ? 'disabled' : ''} title="Push it one square (1.5 m) straight away from you (into a fire wall, perhaps).">Push 1.5 m</button>
         <button class="btn small" data-dg="wrestle" data-how="grapple" ${blocked || m.cond?.grappled ? 'disabled' : ''} title="Seize it: its speed is 0 while you stay next to it. It tries to break free each turn.">Grapple</button>
       </div>`;
   }
@@ -419,7 +420,7 @@ export function installPanels(ctx) {
     const conds = conditionLabels(m);
     return `<div class="foe-card">
       <div class="foe-head">${ctx.portraitOf(m) ? `<img class="foe-portrait" src="${esc(ctx.portraitOf(m))}" alt="Portrait of ${esc(m.name)}">` : ''}
-        <div><h3>${esc(m.name)} <span class="ally-tag">ally</span></h3><p class="small"><b>${m.hp} / ${m.maxHp} HP</b> · ${ctx.edist(s.hero, m) * 5} ft away${conds.length ? ` · ${esc(conds.join(', '))}` : ''}</p>
+        <div><h3>${esc(m.name)} <span class="ally-tag">ally</span></h3><p class="small"><b>${m.hp} / ${m.maxHp} HP</b> · ${mtr(ctx.edist(s.hero, m) * 5)} away${conds.length ? ` · ${esc(conds.join(', '))}` : ''}</p>
         <p class="small muted">${m.permanent ? 'Sworn to your company: follows you down the stairs.' : m.allyRounds ? `Bound by a spell for ${m.allyRounds} more rounds.` : 'With you for the rest of this floor.'}</p></div>${close}</div>
       <h4>Orders</h4><div class="row wrap">
         <button class="btn small ${m.hold ? '' : 'primary'}" data-dg="ally-order" data-how="follow">Follow and fight</button>
@@ -704,7 +705,7 @@ export function installPanels(ctx) {
     const knownSq = s.revealAll || s.revealed.has(cellKey(hov.x, hov.y));
     const c = s.reach.get(cellKey(hov.x, hov.y));
     box.innerHTML = knownSq ? `<p class="small"><b>Square ${hov.x}, ${hov.y}</b>${room ? ` · ${esc(room.name)}` : ''}${s.visible.has(cellKey(hov.x, hov.y)) ? ' · in sight' : ' · remembered'}</p>
-      ${c && c.cost > 0 ? `<p class="small">${c.cost} square${c.cost === 1 ? '' : 's'} away (${c.cost * s.map.feetPerCell} ft). Click to move.${c.risky ? ' <b>The only way crosses a known trap: you will need an Acrobatics check.</b>' : ''}</p>` : ''}
+      ${c && c.cost > 0 ? `<p class="small">${c.cost} square${c.cost === 1 ? '' : 's'} away (${mtr(c.cost * s.map.feetPerCell)}). Click to move.${c.risky ? ' <b>The only way crosses a known trap: you will need an Acrobatics check.</b>' : ''}</p>` : ''}
       ${c && c.cost === 0 ? `<p class="small">${esc(s.hero.name)} stands here, facing ${FACINGS[s.hero.facing].name}.</p>` : ''}` : '<p class="small muted">Unexplored darkness.</p>';
   }
 

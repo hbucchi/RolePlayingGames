@@ -10,6 +10,7 @@ import { bodyUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.
 import { woundState, facingAngle, FACINGS, covers } from '../../engine/combat.js';
 import { TILE } from '../../engine/dungeon.js';
 import { cellKey } from '../../engine/movement.js';
+import { metres } from '../../engine/units.js';
 
 export function installRender(ctx) {
   const { S, esc, overlay, s } = ctx;
@@ -406,7 +407,7 @@ export function installRender(ctx) {
       if (t && t.cost > 0) {
         out += `<polyline points="${t.path.map((p) => `${(p.x + 0.5) * sz},${(p.y + 0.5) * sz}`).join(' ')}" class="dg-path"/>`;
         out += `<rect x="${t.x * sz + 2}" y="${t.y * sz + 2}" width="${sz - 4}" height="${sz - 4}" rx="7" class="dg-target-sq"/>`;
-        out += `<text x="${(t.x + 0.5) * sz}" y="${(t.y + 0.5) * sz + 9}" class="dg-cost">${t.cost * s.map.feetPerCell}</text>`;
+        out += `<text x="${(t.x + 0.5) * sz}" y="${(t.y + 0.5) * sz + 9}" class="dg-cost">${metres(t.cost * s.map.feetPerCell)}</text>`;
       } else if (s.revealed.has(cellKey(hov.x, hov.y)) || s.revealAll) {
         out += `<rect x="${hov.x * sz + 2}" y="${hov.y * sz + 2}" width="${sz - 4}" height="${sz - 4}" rx="7" class="dg-hover"/>`;
       }

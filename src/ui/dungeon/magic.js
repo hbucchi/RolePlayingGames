@@ -14,6 +14,7 @@ import { centerOf, cellsOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
 import { areaCells, GROUND } from '../../engine/monster-magic.js';
 import { cellKey } from '../../engine/movement.js';
+import { m as mtr } from '../../engine/units.js';
 
 export function installMagic(ctx) {
   const { reduceMotion, s, signed, sleep } = ctx;
@@ -84,7 +85,7 @@ export function installMagic(ctx) {
       if (item.effect.onFail === 'enthrall' && target.side) { ctx.banner('It is already on your side.'); return; }
     }
     if ((item.target === 'cone' || item.target === 'around') && !areaTargets(item.effect.shape, item.effect.size, s.hero.pos).length) {
-      ctx.banner(item.target === 'cone' ? `No foe in the cone in front of you (${item.effect.size * 5} ft). Turn to face them (Q / E).` : 'No foe is close enough.');
+      ctx.banner(item.target === 'cone' ? `No foe in the cone in front of you (${mtr(item.effect.size * 5)}). Turn to face them (Q / E).` : 'No foe is close enough.');
       return;
     }
     if (item.target === 'square') { s.pending = { id: item.id }; ctx.banner(`${item.name}: click a free square you can see, up to ${item.range} squares away. Esc cancels.`); ctx.redraw(); return; }
@@ -377,7 +378,7 @@ export function installMagic(ctx) {
     s.hero.pos = { x: c.x, y: c.y };
     s.hero.facing = facingToward(from, c) >= 0 ? facingToward(from, c) : s.hero.facing;
     ctx.float(from, '✦', 'muted'); ctx.float(c, '✦', 'good');
-    ctx.log(`${s.hero.name} steps into silver mist and reappears ${chebyshev(from, c) * 5} ft away.`, 'good');
+    ctx.log(`${s.hero.name} steps into silver mist and reappears ${mtr(chebyshev(from, c) * 5)} away.`, 'good');
     const spotted = ctx.updateVision();
     if (spotted.length) ctx.enterCombat(spotted);
     ctx.redraw();

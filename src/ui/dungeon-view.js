@@ -15,7 +15,7 @@
  *   monster-turns.js  monsters' and allies' turns, their powers, lingering ground
  *   endings.js        victory and defeat; mods (./mods/) can add defeat modes such as captivity
  */
-import { generateDungeon, TILE } from '../engine/dungeon.js';
+import { generateDungeon, TILE, roomAt as roomAtMap } from '../engine/dungeon.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { cellsOf, blockDistance, dims, spanOf, centerOf } from '../engine/size.js';
@@ -703,11 +703,19 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     }
   }
 
+  const roomAt = (x, y) => (s.map.rooms ? roomAtMap(s.map, x, y) : null);
   function enterCombat(spotted) {
     spotted = spotted.filter((m) => !m.side);
     if (!spotted.length) return;
+    // A fight is loud: every foe in the same room as the fighting (heroes or foes) joins in,
+    // except those under a spell (asleep, charmed or calmed).
+    const rooms = new Set([...spotted, ...partyAlive()].map((e) => { const c = centerOf(e.pos, e.size ?? 1); return roomAt(Math.floor(c.x), Math.floor(c.y)); }).filter(Boolean));
+    const roused = rooms.size ? foes().filter((m) => !m.aware && !m.calm && !m.cond?.asleep && !spotted.includes(m)
+      && cellsOf(m.pos, m.size ?? 1).some((c) => rooms.has(roomAt(c.x, c.y)))) : [];
+    for (const m of roused) { m.aware = true; m.unnoticed = false; }
     const kinds = [...new Set(spotted.map((m) => m.name.toLowerCase()))];
     const names = spotted.length === 1 ? `A ${kinds[0]}` : `${spotted.length} foes (${kinds.join(', ')})`;
+    spotted = [...spotted, ...roused];
     const isNew = s.mode !== 'combat';
     if (isNew) {
       s.mode = 'combat'; s.round = 1;
@@ -723,6 +731,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     } else {
       log(`${names} join the fight!`, 'warn');
     }
+    if (roused.length) log(`The noise of the fight rouses ${roused.length === 1 ? `the ${roused[0].name.toLowerCase()}` : `${roused.length} more foes`} in the room!`, 'warn');
     // Allies join the order too (once).
     for (const m of [...spotted, ...allies()]) {
       if (s.order.some((o) => o.id === m.id)) continue;

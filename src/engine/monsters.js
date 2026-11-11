@@ -11,6 +11,7 @@
  */
 import { ABILITY_IDS, abilityModifier, formatModifier } from './abilities.js';
 import { parseNotation } from './dice.js';
+import { metres } from './units.js';
 
 /** XP awarded and proficiency bonus for each Challenge Rating. */
 export const CR_TABLE = {
@@ -147,8 +148,9 @@ export function buildMonster(raw) {
   };
 }
 
+/** Senses for the player to read (in metres: engine/units.js). */
 export function sensesText(m) {
-  const parts = Object.entries(m.senses).map(([k, v]) => (typeof v === 'number' ? `${k} ${v} ft.` : `${k} ${v}`));
+  const parts = Object.entries(m.senses).map(([k, v]) => (typeof v === 'number' ? `${k} ${metres(v)} m` : `${k} ${v}`));
   parts.push(`passive Perception ${m.passivePerception}`);
   return parts.join(', ');
 }

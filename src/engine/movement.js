@@ -17,8 +17,8 @@ import { isWalkable } from './dungeon.js';
 import { terrainCost } from './terrain.js';
 
 export const DIAGONAL_RULES = {
-  standard: { name: 'Standard (every square 5 ft)' },
-  alternating: { name: 'Variant 5-10-5 (every 2nd diagonal 10 ft)' },
+  standard: { name: 'Standard (every square 1.5 m)' },
+  alternating: { name: 'Variant 1.5-3-1.5 (every 2nd diagonal 3 m)' },
 };
 
 const STEPS = [

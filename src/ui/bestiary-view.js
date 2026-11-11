@@ -3,6 +3,7 @@ import { ABILITIES, ABILITY_IDS, formatModifier } from '../engine/abilities.js';
 import { CREATURE_TYPES, filterMonsters, sensesText } from '../engine/monsters.js';
 import { BESTIARY } from '../content/bestiary/index.js';
 import { monsterPortrait, portraitTint } from '../content/media.js';
+import { metricText } from '../engine/units.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -98,7 +99,7 @@ function rollButtons(m, a) {
 }
 
 function actionList(m, list) {
-  return list.map((a) => `<p class="sb-action"><b><i>${esc(a.name)}${a.recharge && !/Recharge/.test(a.name) ? ` (Recharge ${esc(a.recharge)})` : ''}${a.uses && !a.name.includes(a.uses) ? ` (${esc(a.uses)})` : ''}.</i></b> ${esc(a.text)} ${rollButtons(m, a)}</p>`).join('');
+  return list.map((a) => `<p class="sb-action"><b><i>${esc(a.name)}${a.recharge && !/Recharge/.test(a.name) ? ` (Recharge ${esc(a.recharge)})` : ''}${a.uses && !a.name.includes(a.uses) ? ` (${esc(a.uses)})` : ''}.</i></b> ${esc(metricText(a.text))} ${rollButtons(m, a)}</p>`).join('');
 }
 
 const listLine = (label, items) => (items && items.length ? `<p><b>${label}</b> ${esc(Array.isArray(items) ? items.join('; ') : items)}</p>` : '');
@@ -121,7 +122,7 @@ export function monsterView(m) {
         <p><b>Armor Class</b> ${m.ac}${m.armor ? ` (${esc(m.armor)})` : ''}</p>
         <p><b>Hit Points</b> ${m.hp}${m.hitDice ? ` (${esc(m.hitDice.replace(/([+-])/, ' $1 '))})` : ''}
           ${m.hitDice ? `<button class="roll-chip" data-action="damage" data-label="${esc(`${m.name} hit points`)}" data-notation="${esc(m.hitDice)}" title="Roll hit points">🎲</button>` : ''}</p>
-        <p><b>Speed</b> ${esc(m.speedText)}</p>
+        <p><b>Speed</b> ${esc(metricText(m.speedText))}</p>
         <div class="sb-rule"></div>
         <div class="sb-abilities">
           ${ABILITY_IDS.map((id) => `<button class="sb-ab" data-action="check" data-label="${esc(`${m.name}: ${ABILITIES[id].short} check`)}" data-bonus="${m.mods[id]}"><b>${ABILITIES[id].short}</b><span>${m.scores[id]} (${fmt(m.mods[id])})</span></button>`).join('')}
@@ -137,7 +138,7 @@ export function monsterView(m) {
         <p><b>Languages</b> ${esc(m.languages)}</p>
         <p><b>Challenge</b> ${esc(m.cr)} (${m.xp.toLocaleString()} XP) <span class="muted">· Proficiency Bonus ${fmt(m.proficiencyBonus)}</span></p>
         <div class="sb-rule"></div>
-        ${m.traits.map((t) => `<p><b><i>${esc(t.name)}.</i></b> ${esc(t.text)}</p>`).join('')}
+        ${m.traits.map((t) => `<p><b><i>${esc(t.name)}.</i></b> ${esc(metricText(t.text))}</p>`).join('')}
         ${spellcastingHtml(m)}
         ${m.actions.length ? `<h3>Actions</h3>${actionList(m, m.actions)}` : ''}
         ${m.bonusActions.length ? `<h3>Bonus Actions</h3>${actionList(m, m.bonusActions)}` : ''}

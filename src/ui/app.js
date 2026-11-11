@@ -38,6 +38,7 @@ import { setSetting, settingsControls, applyTheme } from './settings.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
 import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
+import { m as mtr } from '../engine/units.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -552,7 +553,7 @@ function raceStep(d, s) {
           </div>` : ''}
         <dl class="facts">
           <div><dt>Ability bonuses</dt><dd>${esc(bonusList(resolved.abilityBonuses))}</dd></div>
-          <div><dt>Speed</dt><dd>${resolved.speed} ft</dd></div>
+          <div><dt>Speed</dt><dd>${mtr(resolved.speed)}</dd></div>
           <div><dt>Size</dt><dd>${esc(resolved.size)}</dd></div>
           <div><dt>Languages</dt><dd>${esc(resolved.languages.join(', '))}</dd></div>
           ${resolved.skillProficiencies.length ? `<div><dt>Skill</dt><dd>${esc(resolved.skillProficiencies.map(skillName).join(', '))}</dd></div>` : ''}
@@ -777,7 +778,7 @@ function sheetHtml(c, look) {
         </div>
       </header>
       <section class="vitals">
-        ${[['Armour Class', c.ac], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', `${c.speed} ft`], ['Initiative', fmt(c.initiative)],
+        ${[['Armour Class', c.ac], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
     ['Proficiency', fmt(c.proficiencyBonus)], ['Passive Perception', c.passivePerception], ['Hit Die', `1d${c.hitDie}`]]
     .map(([k, v]) => `<div class="vital"><span class="v">${v}</span><span class="k">${k}</span></div>`).join('')}
       </section>

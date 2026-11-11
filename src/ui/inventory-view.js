@@ -4,6 +4,7 @@
  */
 import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/catalogue.js';
 import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor, loadLimits, bagUsed, BAG_SLOTS } from '../engine/items.js';
+import { kg, kilos, metricText } from '../engine/units.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -38,7 +39,7 @@ function statLine(inst) {
   const b = inst.bonus ?? def.bonus ?? 0;
   if (def.weapon) {
     const w = def.weapon;
-    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${w.range} ft` : ''}${w.thrown ? ` · thrown ${w.thrown} ft` : ''}`;
+    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
   }
   if (def.armor) return `AC ${def.armor.base + b}${def.armor.type === 'light' ? ' + DEX' : def.armor.type === 'medium' ? ' + DEX (max 2)' : ''} · ${def.armor.type}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
   if (def.cat === 'shield') return `+${(def.acBonus ?? 2) + b} AC`;
@@ -107,7 +108,7 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
         ${statLine(sel) ? `<p class="small"><b>${esc(statLine(sel))}</b></p>` : ''}
       </div></div>
       <p class="small">${esc(def.desc)}</p>
-      <p class="small muted">Weight ${def.weight * (sel.qty ?? 1)} lb · worth ${esc(fmtValue(itemValue(sel)))}</p>
+      <p class="small muted">Weight ${kg(def.weight * (sel.qty ?? 1))} · worth ${esc(fmtValue(itemValue(sel)))}</p>
       ${editable ? `<div class="row wrap">
         ${canEquip && !eq ? `<button class="btn small primary" data-inv="equip" data-uid="${esc(sel.uid)}" ${armourLocked ? 'disabled title="Putting on armour takes minutes: not during a fight."' : ''}>Equip</button>` : ''}
         ${offOk && slotFor(sel, 'offHand') ? `<button class="btn small" data-inv="equip" data-slot="offHand" data-uid="${esc(sel.uid)}">Off hand</button>` : ''}
@@ -124,8 +125,8 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
       <div class="inv-weight ${used >= BAG_SLOTS ? 'over' : ''}" title="The bag holds ${BAG_SLOTS} things. A stack of the same thing shares one slot; what you wear is not in the bag.">
         <span>🎒 Bag: <b>${used} / ${BAG_SLOTS}</b> slots</span><span class="bar"><span style="width:${Math.min(100, (used / BAG_SLOTS) * 100)}%"></span></span>
       </div>
-      <div class="inv-weight ${weight > cap ? 'over' : weight > burdened ? 'heavy' : ''}" title="Everything you carry counts, worn gear and coins too. Over ${burdened} lb (Strength × 10) you are burdened: −10 ft speed. ${cap} lb (Strength × 15) is all you can carry.">
-        <span>⚖ ${weight} / ${cap} lb${weight > cap ? ' · overloaded' : weight > burdened ? ' · burdened' : ''}</span><span class="bar"><span style="width:${Math.min(100, (weight / cap) * 100)}%"></span><i style="left:${(burdened / cap) * 100}%"></i></span>
+      <div class="inv-weight ${weight > cap ? 'over' : weight > burdened ? 'heavy' : ''}" title="Everything you carry counts, worn gear and coins too. Over ${kg(burdened)} (Strength × 4.5 kg) you are burdened: −3 m speed. ${kg(cap)} (Strength × 6.8 kg) is all you can carry.">
+        <span>⚖ ${kilos(weight)} / ${kg(cap)}${weight > cap ? ' · overloaded' : weight > burdened ? ' · burdened' : ''}</span><span class="bar"><span style="width:${Math.min(100, (weight / cap) * 100)}%"></span><i style="left:${(burdened / cap) * 100}%"></i></span>
       </div>
     </div>
     <div class="inv-body">
@@ -153,7 +154,7 @@ export function lootHtml({ title, coins, items, note = '', closeAttr = 'data-dg=
   return `<div class="loot-card">
     <div class="foe-head"><h3>${esc(title)}</h3><button class="btn icon small" ${closeAttr} aria-label="Close">✕</button></div>
     ${note ? `<p class="small muted">${esc(note)}</p>` : ''}
-    ${bag && !empty ? `<p class="small loot-bag ${full ? 'bad' : ''}">🎒 Your bag: <b>${bag.used} / ${bag.slots}</b> slots${full ? ' (full: only coins, and more of what you already carry, still fit)' : ''} · ⚖ ${bag.load} / ${bag.max} lb</p>` : ''}
+    ${bag && !empty ? `<p class="small loot-bag ${full ? 'bad' : ''}">🎒 Your bag: <b>${bag.used} / ${bag.slots}</b> slots${full ? ' (full: only coins, and more of what you already carry, still fit)' : ''} · ⚖ ${kilos(bag.load)} / ${kg(bag.max)}</p>` : ''}
     ${empty ? '<p class="muted small">Nothing left to take.</p>' : `
     <ul class="loot-list">
       ${coins ? `<li><span class="item-icon sm"><img src="assets/items/gold.jpg" alt=""></span><span>${esc(fmtValue(coins))}</span><button class="btn small" data-dg="take" data-uid="coins">Take</button></li>` : ''}

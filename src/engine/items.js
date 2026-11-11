@@ -7,6 +7,7 @@
  * smallest unit avoids rounding errors (0.1 + 0.2 !== 0.3 in floating point, but 10 + 20 === 30).
  */
 import { ITEMS_BY_ID, ENCHANT, ENCHANT_RARITY, RARITY_ORDER } from '../content/items/catalogue.js';
+import { kg } from './units.js';
 
 /** Arms and armour: the paper doll's first tab. */
 export const SLOTS = [
@@ -154,7 +155,7 @@ export function whyNoRoom(gear, inst, str, { slot = true } = {}) {
   if (str) {
     const after = carriedWeight([...(gear.inventory ?? []), inst], gear.coins ?? 0);
     const { max } = loadLimits(str);
-    if (after > max) return `Too heavy: that would make ${after} lb, and you can carry at most ${max} lb (Strength ${str} × 15).`;
+    if (after > max) return `Too heavy: that would make ${kg(after)}, and you can carry at most ${kg(max)} (Strength ${str}).`;
   }
   return null;
 }
@@ -257,7 +258,7 @@ export function gearStats(gear, { mods, scores, pb, weaponProfs, armorProfs }) {
     const a = body.armor;
     const dex = a.dexCap === null || a.dexCap === undefined ? mods.dex : Math.min(mods.dex, a.dexCap);
     ac = a.base + dex + (bodyInst.bonus ?? 0);
-    if (a.str && scores.str < a.str) notes.push(`${body.name} needs STR ${a.str}: your speed drops by 10 ft.`);
+    if (a.str && scores.str < a.str) notes.push(`${body.name} needs STR ${a.str}: your speed drops by 3 m.`);
     if (a.stealthDis) notes.push(`${body.name} is noisy: disadvantage on Stealth.`);
     if (!armorProficient(body, armorProfs)) notes.push(`You are not trained in ${a.type} armour: disadvantage on STR and DEX checks and attacks.`);
   }
