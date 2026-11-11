@@ -8,7 +8,7 @@ import {
 } from '../engine/abilities.js';
 import {
   STEPS, abilityPool, deriveCharacter, grantedSkills, isComplete, newDraft, pruneSkillChoices,
-  resolveRace, setAbilityMethod, skillName, syncBaseFromAssignment, validateStep, makeId, ensureGear, gainXp,
+  resolveRace, setAbilityMethod, skillName, syncBaseFromAssignment, validateStep, makeId, ensureGear, gainXp, pendingLevelUps,
 } from '../engine/character.js';
 import { XP_FOR_LEVEL, xpProgress, startingWealth } from '../engine/progression.js';
 import { slotsFor } from '../engine/magic.js';
@@ -22,6 +22,7 @@ import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
 import { mountStory, resolveBattle, savedRun } from './story-view.js';
+import { levelUpDialog } from './level-up.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { setSetting, settingsControls } from './settings.js';
@@ -160,7 +161,7 @@ function render() {
     mountDungeon(root.querySelector('#dungeon-host'), {
       heroes: explorerHeroes(), api: heroApi, arena: structuredClone(state.storyFight),
       onLeave: () => { state.view = 'story'; render(); },
-      onOutcome: (won) => { resolveBattle(state.storyId, won, heroApi); state.view = 'story'; render(); window.scrollTo(0, 0); },
+      onOutcome: async (won) => { await resolveBattle(state.storyId, won, heroApi); state.view = 'story'; render(); window.scrollTo(0, 0); },
     });
   }
   if (key) root.querySelector(key)?.focus({ preventScroll: true });
@@ -718,6 +719,8 @@ function sheetView() {
         <button class="btn" data-action="export" data-id="${esc(draft.id)}">Export</button>`
     : `<button class="btn primary" data-action="adopt" data-id="${esc(draft.id)}">Adopt this hero</button>`}
     </div>
+    ${source === 'roster' && pendingLevelUps(draft).length ? `<div class="lu-waiting" role="status"><span>✦ <b>Level-up choices are waiting</b> (level ${pendingLevelUps(draft).join(', ')}): improve your abilities or train a new skill.</span>
+      <button class="btn primary" data-action="level-choices" data-id="${esc(draft.id)}">Choose now</button></div>` : ''}
     ${sheetHtml(c, heroLook(draft))}
     ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, title: 'Inventory' })}</section>`
     : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
@@ -760,6 +763,8 @@ const heroApi = {
   },
   derive: dungeonStats,
   gainXp,
+  /** The level-up pop-up: choices for the new level and what changed. Resolves when OK is clicked. */
+  levelUp: (d, from, to) => levelUpDialog({ draft: d, setting: settingFor(d), from, to }),
   /** Save progress. A ready-made hero is adopted into the company the first time. */
   save(d) {
     d.adventured = true;
@@ -872,6 +877,13 @@ const actions = {
     el.title = isMuted() ? 'Sound off' : 'Sound on';
     el.innerHTML = `${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span>`;
     if (!isMuted()) play('dice', { volume: 0.5 });
+  },
+  async 'level-choices'(el) {
+    const d = roster.get(el.dataset.id); if (!d) return;
+    const pend = pendingLevelUps(d); if (!pend.length) return;
+    await levelUpDialog({ draft: d, setting: settingFor(d), from: pend[0] - 1, to: d.level });
+    state.sheet = { ...state.sheet, draft: roster.save(d) };
+    render();
   },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },

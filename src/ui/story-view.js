@@ -20,12 +20,15 @@ const saveRun = (id, run) => { const all = loadAll(); if (run) all[id] = run; el
 export const savedRun = (id) => loadAll()[id] ?? null;
 
 /** Apply a scene's rewards: XP to every hero, coins and items to the leader. Returns lines for the page. */
-function applyEffects(effects, partyIds, api) {
+async function applyEffects(effects, partyIds, api) {
   if (!effects.length) return [];
   const drafts = partyIds.map((id) => api.load(id)).filter(Boolean);
   const lines = [];
   for (const e of effects) {
-    if (e.xp) { for (const d of drafts) api.gainXp(d, e.xp); lines.push(`Each hero gains ${e.xp} XP.`); }
+    if (e.xp) {
+      for (const d of drafts) { const r = api.gainXp(d, e.xp); if (r.to > r.from) await api.levelUp?.(d, r.from, r.to); }
+      lines.push(`Each hero gains ${e.xp} XP.`);
+    }
     if (e.coins && drafts[0]) { drafts[0].coins = (drafts[0].coins ?? 0) + e.coins; lines.push(`${drafts[0].name} takes ${formatCoins(e.coins)}.`); }
     if (e.item && drafts[0]) { addItem(drafts[0].inventory ??= [], makeItem(e.item, e.qty ?? 1)); lines.push(`${drafts[0].name} takes ${itemName({ id: e.item })}.`); }
   }
@@ -44,11 +47,11 @@ export function battleSetup(story, run) {
 }
 
 /** A battle ended: go to the scene for winning or losing, and apply its rewards. */
-export function resolveBattle(storyId, won, api) {
+export async function resolveBattle(storyId, won, api) {
   const story = STORIES_BY_ID[storyId]; const run = savedRun(storyId);
   if (!story || !run) return;
   const { progress, effects } = battleOver(story, run.progress, won);
-  const r = applyEffects(effects, run.party, api);
+  const r = await applyEffects(effects, run.party, api);
   saveRun(storyId, { ...run, progress, party: r.ids ?? run.party, gained: r.lines ?? [] });
 }
 
@@ -110,7 +113,7 @@ export function mountStory(host, ctx) {
     if (el.checked) pick.add(el.value); else pick.delete(el.value);
     render();
   });
-  host.addEventListener('click', (e) => {
+  host.addEventListener('click', async (e) => {
     const el = e.target.closest('[data-st]'); if (!el || el.dataset.st === 'pick') return;
     const a = el.dataset.st;
     if (a === 'leave') { ctx.onLeave?.(); return; }
@@ -126,7 +129,7 @@ export function mountStory(host, ctx) {
         return { success, text: success ? 'success' : 'failure' };
       };
       const { progress, effects } = choose(story, run.progress, Number(el.dataset.i), { rollCheck });
-      const r = applyEffects(effects, run.party, ctx.api);
+      const r = await applyEffects(effects, run.party, ctx.api);
       run = { ...run, progress, party: r.ids ?? run.party, gained: r.lines ?? [] };
       saveRun(story.id, run); render();
       host.scrollIntoView?.({ block: 'start' });

@@ -12,7 +12,7 @@ import { SKILLS, SKILLS_BY_ID } from './skills.js';
 import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
 import { addItem, makeItem, carriedWeight, carryCapacity } from './items.js';
-import { magicFor, casterInfo, attacksPerAction } from './magic.js';
+import { magicFor, casterInfo, attacksPerAction, slotsFor } from './magic.js';
 
 export const DRAFT_VERSION = 1;
 
@@ -221,15 +221,21 @@ export function deriveCharacter(draft, setting) {
 
   const base = Object.fromEntries(ABILITY_IDS.map((id) => [id, draft.baseAbilities[id] ?? 10]));
   const scores = applyBonuses(base, race?.abilityBonuses);
+  // Ability Score Improvements chosen at level-ups (only up to the current level), at most 20.
+  for (const [lv, up] of Object.entries(draft.levelUps ?? {})) {
+    if (Number(lv) > level) continue;
+    for (const [id, n] of Object.entries(up.abilities ?? {})) if (id in scores) scores[id] = Math.min(20, scores[id] + n);
+  }
   const mods = Object.fromEntries(ABILITY_IDS.map((id) => [id, abilityModifier(scores[id])]));
 
-  const profSkills = new Set([...grantedSkills(draft, setting), ...draft.skillChoices]);
+  const trained = Object.entries(draft.levelUps ?? {}).filter(([lv, up]) => Number(lv) <= level && up.skill).map(([, up]) => up.skill);
+  const profSkills = new Set([...grantedSkills(draft, setting), ...draft.skillChoices, ...trained]);
   const skills = SKILLS.map((sk) => ({
     ...sk,
     proficient: profSkills.has(sk.id),
     source: race?.skillProficiencies.includes(sk.id) ? 'kindred'
       : bg?.skills.includes(sk.id) ? 'background'
-        : draft.skillChoices.includes(sk.id) ? 'calling' : null,
+        : draft.skillChoices.includes(sk.id) ? 'calling' : trained.includes(sk.id) ? 'training' : null,
     bonus: mods[sk.ability] + (profSkills.has(sk.id) ? pb : 0),
   }));
 
@@ -339,6 +345,69 @@ export function ensureGear(draft, setting) {
 }
 
 /** Add experience. Returns { gained, from, to } so the UI can celebrate a level-up. */
+// ---------------------------------------------------------------------------
+// Level-ups: what a new level lets the player choose
+// ---------------------------------------------------------------------------
+
+/** Ability Score Improvement levels (as in the rules): +2 to one ability or +1 to two, max 20. */
+export const ASI_LEVELS = [4, 8, 12, 16, 19];
+/** House rule: a hero also trains a new skill at these levels (something to choose more often). */
+export const SKILL_LEVELS = [3, 7, 11, 15];
+
+export const levelChoices = (level) => ({ asi: ASI_LEVELS.includes(level), skill: SKILL_LEVELS.includes(level) });
+
+/** Levels up to the hero's current one whose choices have not been made yet. */
+export function pendingLevelUps(draft) {
+  const out = [];
+  for (let lv = 2; lv <= (draft.level ?? 1); lv++) {
+    const c = levelChoices(lv);
+    if ((c.asi || c.skill) && !draft.levelUps?.[lv]) out.push(lv);
+  }
+  return out;
+}
+
+/**
+ * Record a level's choices. abilities: { str: 2 } or { str: 1, dex: 1 }; skill: a skill id.
+ * Returns problems as sentences (empty when it is valid and saved).
+ */
+export function applyLevelUp(draft, setting, level, { abilities = null, skill = null } = {}) {
+  const c = levelChoices(level); const issues = [];
+  if (c.asi) {
+    const pts = Object.values(abilities ?? {}).reduce((a, b) => a + b, 0);
+    if (pts !== 2 || Object.values(abilities).some((n) => n < 1 || n > 2)) issues.push('Spend exactly 2 points: +2 to one ability, or +1 to two.');
+    const before = deriveCharacter({ ...draft, level: level - 1 }, setting).scores;
+    for (const [id, n] of Object.entries(abilities ?? {})) if (before[id] + n > 20) issues.push(`${id.toUpperCase()} cannot go above 20.`);
+  }
+  if (c.skill) {
+    const ch = deriveCharacter({ ...draft, level: level - 1 }, setting);
+    if (!skill) issues.push('Choose a skill to train.');
+    else if (ch.skills.find((x) => x.id === skill)?.proficient) issues.push('Your hero already knows that skill.');
+  }
+  if (!issues.length) draft.levelUps = { ...(draft.levelUps ?? {}), [level]: { abilities: c.asi ? abilities : null, skill: c.skill ? skill : null } };
+  return issues;
+}
+
+/** What changed between two levels, for the level-up summary. */
+export function levelUpSummary(draft, setting, from, to) {
+  const a = deriveCharacter({ ...draft, level: from }, setting);
+  const b = deriveCharacter({ ...draft, level: to }, setting);
+  const names = (c) => new Set([...(c.magic?.spells ?? []), ...(c.magic?.abilities ?? [])].map((x) => x.name));
+  const before = names(a);
+  const slots = (c, lv) => (c.magic?.type ? slotsFor(c.magic.type, lv).join(' / ') : '');
+  return {
+    from, to,
+    lines: [
+      { label: 'Hit points', from: a.maxHp, to: b.maxHp },
+      { label: 'Proficiency bonus', from: `+${a.proficiencyBonus}`, to: `+${b.proficiencyBonus}` },
+      { label: 'Attacks per action', from: a.attacksPerAction, to: b.attacksPerAction },
+      { label: 'Spell slots (by spell level)', from: slots(a, from) || '—', to: slots(b, to) || '—' },
+      ...ABILITY_IDS.map((id) => ({ label: id.toUpperCase(), from: a.scores[id], to: b.scores[id] })),
+    ].filter((l) => String(l.from) !== String(l.to)),
+    newMagic: [...names(b)].filter((n) => !before.has(n)),
+    newSkills: b.skills.filter((sk) => sk.proficient && !a.skills.find((x) => x.id === sk.id)?.proficient).map((sk) => sk.name),
+  };
+}
+
 export function gainXp(draft, amount) {
   const from = draft.level ?? 1;
   draft.xp = (draft.xp ?? XP_FOR_LEVEL[from]) + Math.max(0, Math.floor(amount));

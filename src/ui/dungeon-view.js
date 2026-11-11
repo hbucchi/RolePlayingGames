@@ -869,11 +869,31 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     float(pos ?? s.hero.pos, `+${xp} XP`, 'xp');
     refreshHero();
     if (r.to > r.from) {
-      play('level-up', { delay: 500 });
       banner(`Level ${r.to}! ${s.hero.name} grows stronger.`);
       log(`LEVEL UP! ${s.hero.name} reaches level ${r.to}: ${s.hero.maxHp} hit points, proficiency bonus +${s.def.proficiencyBonus}.`, 'level');
+      levelUpNow(s.draft, r.from, r.to);
     }
     persist();
+  }
+
+  /**
+   * The level-up pop-up (choices and a summary) opens right away. Several heroes levelling at once
+   * get theirs one after another. The choices go into that hero's sheet and their stats refresh.
+   */
+  let levelQueue = Promise.resolve();
+  function levelUpNow(draft, from, to) {
+    if (!api.levelUp) return;
+    const slot = s.active; // the hero levelling up is the active one while XP is handed out
+    levelQueue = levelQueue.then(() => api.levelUp(structuredClone(draft), from, to)).then((chosen) => {
+      if (!host.isConnected || !s.members[slot]) return;
+      const back = s.active;
+      activate(slot);
+      // Saving may have given the hero a new sheet (a ready-made hero is adopted), so copy the
+      // choices onto whatever sheet the hero has now.
+      s.draft.levelUps = { ...(s.draft.levelUps ?? {}), ...(chosen.levelUps ?? {}) };
+      persist(); refreshHero(); activate(back);
+      redraw();
+    }).catch(() => { /* a closed screen: the choices wait on the hero sheet */ });
   }
 
   /** Move loot from a body or chest into the pack. uid 'coins' takes the money; null takes everything. */
@@ -1291,7 +1311,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   });
 
   // Developer hook for automated tests (only with ?debug in the address): end the fight in defeat.
-  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); } };
+  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); } };
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }

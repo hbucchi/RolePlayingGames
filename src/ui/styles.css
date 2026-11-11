@@ -765,3 +765,31 @@ main:has(.dungeon-host) { max-width: 1480px; }
   .act-btn { flex: 1 1 calc(50% - 8px); justify-content: center; }
   .act-btn kbd { display: none; }
 }
+
+/* ---- Level-up pop-up ---------------------------------------------------------------------- */
+.lu-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(10 6 2 / .6); backdrop-filter: blur(2px); }
+.lu-card { width: min(40rem, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 16px; padding: 22px 24px; background: var(--card); color: var(--ink); border: 2px solid var(--gold); border-radius: 14px; box-shadow: 0 20px 60px rgb(0 0 0 / .5); animation: lu-in .35s ease-out; }
+@keyframes lu-in { from { transform: scale(.92) translateY(12px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lu-card { animation: none; } }
+.lu-head { display: flex; align-items: center; gap: 14px; }
+.lu-head h2 { margin: 0; text-wrap: balance; }
+.lu-kicker { margin: 0; color: var(--gold); font: 700 .8rem/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+.lu-burst { font-size: 2.4rem; color: var(--gold); }
+.lu-choice { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 8px; }
+.lu-choice h3, .lu-summary h3 { margin: 0; font-size: 1.05rem; }
+.lu-choice p { margin: 0; }
+.lu-points b { color: var(--accent); font-size: 1.15rem; }
+.lu-abilities { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 8px; }
+.lu-ab { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.lu-ab.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+.lu-ab-name { font: 700 .85rem var(--font-display); width: 2.6rem; }
+.lu-score { min-width: 1.6rem; text-align: center; font-size: 1.15rem; }
+.lu-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.lu-skill small { opacity: .7; }
+.lu-table { border-collapse: collapse; width: 100%; }
+.lu-table th { text-align: left; font-weight: 600; padding: 4px 8px 4px 0; }
+.lu-table td { padding: 4px 6px; color: var(--muted); }
+.lu-table td:last-child { color: var(--good); }
+.lu-summary p { margin: 6px 0 0; }
+.lu-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lu-waiting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; padding: 12px 16px; border: 2px solid var(--gold); border-radius: var(--radius); background: color-mix(in srgb, var(--gold) 10%, var(--card)); }
