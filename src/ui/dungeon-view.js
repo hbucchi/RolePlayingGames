@@ -124,6 +124,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           <div class="dg-stage">
             <div class="dg-base"></div>
             <svg class="dg-overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+            <svg class="dg-fx" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"></svg>
           </div>
         </div>
         <p class="dg-help muted small">Click a lit square to move · click a creature for everything you can do (attack, talk, shove…) · Shift+click a foe to attack at once · click chests, doors, traps and bodies next to you · I opens your pack · Q / E turn · drag to pan, scroll to zoom</p>
@@ -224,6 +225,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     ordinal: { get: () => ordinal },
     overlay: { get: () => overlay },
     party: { get: () => party },
+    SPIRIT: { get: () => SPIRIT },
+    bloodOf: { get: () => bloodOf },
     onOutcome: { get: () => onOutcome },
     defeatButtons: { get: () => defeatButtons }, // for defeat-mode mods
     partyAlive: { get: () => partyAlive },
@@ -256,7 +259,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     whyNot: { get: () => whyNot },
   });
   const { runMonsterTurns, monsterTurn, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves } = installMonsterTurns(ctx);
-  const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
+  const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
   const { spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
@@ -379,6 +382,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     $('#dg-seed').value = s.seed;
     base.innerHTML = arena ? renderArenaSVG(s.map, { grid: s.grid }) : renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
     overlay.setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`);
+    $('.dg-fx').setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`); // blood spray and other quick effects
     resetDelve(carry);
     // Start close to the hero: a fresh map is mostly unexplored darkness anyway.
     requestAnimationFrame(() => { setZoom(0.9); centerOn(s.hero.pos, false); });
@@ -511,7 +515,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   }
   const chestAt = (x, y) => s.features?.chests.find((c) => c.x === x && c.y === y) ?? null;
   const trapAt = (x, y) => s.features?.traps.find((t) => t.x === x && t.y === y) ?? null;
-  const corpseAt = (x, y) => s.monsters.find((m) => m.dead && covers(m, { x, y }) && m.loot && (m.loot.coins || m.loot.items.length)) ?? null;
+  // Every fallen creature leaves something to search (a body, or a spirit's empty garb).
+  const corpseAt = (x, y) => s.monsters.find((m) => m.dead && covers(m, { x, y })) ?? null;
   const doorAt = (x, y) => s.map.doors.find((d) => d.x === x && d.y === y) ?? null;
   const adjacent = (p) => chebyshev(s.hero.pos, p) <= 1;
 
@@ -1311,7 +1316,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   });
 
   // Developer hook for automated tests (only with ?debug in the address): end the fight in defeat.
-  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); } };
+  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); }, wound(n) { for (const m of foes()) { s.hitFrom = { x: s.hero.pos.x + 0.5, y: s.hero.pos.y + 0.5 }; damageMonster(m, n); finishIfDead(m); } redraw(); } };
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }

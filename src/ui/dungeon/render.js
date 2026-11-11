@@ -28,7 +28,43 @@ export function installRender(ctx) {
    * rectangle of the same proportions, so the painting is never squashed: it is cropped to fit,
    * and an arrow on the edge shows which way the creature faces.
    */
+  /** A number from an id, so each body lies at its own fixed angle. */
+  const hashOf = (id) => [...String(id)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 9973, 7);
+
+  /**
+   * What a fallen creature leaves: its body on its side in its own blood, darkened; a spirit
+   * (ghost, wraith...) fades away and leaves only its cloak and mail on the floor. Click to search.
+   */
+  function remains(m, hero = false) {
+    const sz = S(); const d = dims(m.size ?? 1); const h = hashOf(m.id);
+    const cx = (m.pos.x + d.w / 2) * sz; const cy = (m.pos.y + d.h / 2) * sz;
+    const sel = s.selectedId === m.id || (s.target?.kind === 'corpse' && s.target.id === m.id);
+    if (!hero && ctx.SPIRIT.test(m.statId ?? '')) {
+      const k = Math.min(d.w, d.h) * sz;
+      return `<g class="remains garb" transform="translate(${cx} ${cy}) rotate(${h % 360})">
+        ${sel ? `<circle r="${k * 0.55}" class="tk-selring"/>` : ''}
+        <image href="assets/items/hooded-cloak.jpg" x="${-k * 0.42}" y="${-k * 0.36}" width="${k * 0.8}" height="${k * 0.8}" mask="url(#blood-mask)" preserveAspectRatio="xMidYMid slice" style="filter:grayscale(.6) brightness(.7)"/>
+        <image href="assets/items/chain-mail.jpg" x="${-k * 0.12}" y="${-k * 0.2}" width="${k * 0.5}" height="${k * 0.5}" mask="url(#blood-mask)" preserveAspectRatio="xMidYMid slice" transform="rotate(35)" style="filter:brightness(.75)"/>
+      </g>`;
+    }
+    const url = bodyUrl(hero ? m.race : m.statId);
+    const turn = facingAngle(m.facing ?? 0) + (h % 2 ? 90 : -90) + ((h % 41) - 20);
+    const dark = `${hero ? 'none' : bodyTint(m.statId)} grayscale(.35) brightness(.55) sepia(.35) contrast(1.15)`.replace(/^none /, '');
+    const north = dims(orientFor(m.size ?? 1, 0));
+    const scale = (spanOf(m.size ?? 1) === 1 ? 1.2 : 1) * bodyScale(hero ? m.race : m.statId);
+    const bw = north.w * sz * scale; const bh = north.h * sz * scale;
+    const pic = url
+      ? `<image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" preserveAspectRatio="xMidYMid meet" style="filter:${dark}"/>`
+      : (() => { const img = hero ? m.look?.url : ctx.portraitOf(m); const r = Math.min(d.w, d.h) * sz * 0.4;
+        return img ? `<clipPath id="rm-${esc(m.id)}"><ellipse rx="${r}" ry="${r * 0.62}"/></clipPath><image href="${esc(img)}" x="${-r}" y="${-r}" width="${2 * r}" height="${2 * r}" clip-path="url(#rm-${esc(m.id)})" preserveAspectRatio="xMidYMid slice" style="filter:${dark}"/>` : ''; })();
+    return `<g class="remains ${hero ? 'fallen-hero' : ''}" transform="translate(${cx} ${cy})">
+      ${sel ? `<ellipse rx="${d.w * sz * 0.5}" ry="${d.h * sz * 0.5}" class="tk-selring"/>` : ''}
+      <g transform="rotate(${turn})">${pic}</g>
+    </g>`;
+  }
+
   function token(e, { hero = false } = {}) {
+    if (hero && e.hp <= 0) return remains(e, true); // a fallen hero lies where they dropped
     const d = dims(e.size ?? 1);
     const body = s.view === 'bodies' ? bodyUrl(hero ? e.race : e.statId) : null;
     if (body) return bodyToken(e, d, body, hero);
@@ -253,6 +289,9 @@ export function installRender(ctx) {
       <radialGradient id="tk-feather-grad"><stop offset=".62" stop-color="#fff"/><stop offset="1" stop-color="#000"/></radialGradient>
       <mask id="tk-feather" maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill="url(#tk-feather-grad)"/></mask>
       <radialGradient id="blood-grad"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+      <radialGradient id="bl-red"><stop offset="0" stop-color="#a3121a"/><stop offset=".65" stop-color="#7a0910"/><stop offset="1" stop-color="#4d0408" stop-opacity=".85"/></radialGradient>
+      <radialGradient id="bl-black"><stop offset="0" stop-color="#2c2427"/><stop offset=".65" stop-color="#151012"/><stop offset="1" stop-color="#080607" stop-opacity=".85"/></radialGradient>
+      <radialGradient id="bl-green"><stop offset="0" stop-color="#6b8f1f"/><stop offset=".65" stop-color="#456614"/><stop offset="1" stop-color="#25380a" stop-opacity=".85"/></radialGradient>
       <mask id="blood-mask" maskContentUnits="objectBoundingBox"><ellipse cx="0.5" cy="0.5" rx="0.5" ry="0.36" fill="url(#blood-grad)"/><ellipse cx="0.62" cy="0.42" rx="0.22" ry="0.3" fill="url(#blood-grad)"/></mask></defs>`;
     out += ctx.drawBlood();
     for (const fx of s.effects) {
@@ -288,10 +327,9 @@ export function installRender(ctx) {
       }
     }
     // Tokens
-    for (const m of s.monsters) {
-      if (m.dead) { const c = centerOf(m.pos, m.size ?? 1); if (ctx.canSee(m) || s.revealed.has(cellKey(m.pos.x, m.pos.y))) out += `<text x="${(c.x + 0.5) * sz}" y="${(c.y + 0.5) * sz + 10}" class="tk-dead" style="font-size:${30 * Math.min(dims(m.size ?? 1).w, dims(m.size ?? 1).h)}px">✕</text>`; continue; }
-      if (ctx.canSee(m)) out += token(m);
-    }
+    // The fallen first, so the living stand over them.
+    for (const m of s.monsters) if (m.dead && (ctx.canSee(m) || s.revealAll || s.revealed.has(cellKey(m.pos.x, m.pos.y)))) out += remains(m);
+    for (const m of s.monsters) if (!m.dead && ctx.canSee(m)) out += token(m);
     for (const h of ctx.party()) if (h !== s.hero) out += token(h, { hero: true });
     if (s.hero) out += token(s.hero, { hero: true });
     // Arrow in flight

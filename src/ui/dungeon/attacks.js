@@ -9,9 +9,10 @@ import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
+import { TILE } from '../../engine/dungeon.js';
 
 export function installAttacks(ctx) {
-  const { S, overlay, reduceMotion, s, signed, sleep, viewport } = ctx;
+  const { S, host, overlay, reduceMotion, s, signed, sleep, viewport } = ctx;
 
   // ---------------------------------------------------------------------------
   // Attacks
@@ -159,32 +160,97 @@ export function installAttacks(ctx) {
    * wounds, bigger splashes); a death leaves a pool. Bloodless things (undead, constructs,
    * elementals, oozes, stone) leave nothing. Splashes stay for the whole floor.
    */
-  const BLOODLESS = new Set(['undead', 'construct', 'elemental', 'ooze', 'plant']);
+  const BLOODLESS = new Set(['construct', 'elemental']);
+  /**
+   * What a creature bleeds: red blood for most, black ichor for fiends, aberrations and the
+   * walking dead, green for insects, plants and oozes; nothing for bones, spirits, constructs and
+   * elementals (null). A creature's record may say it outright with `blood`.
+   */
+  function bloodOf(e) {
+    if (e.isHero) return 'red';
+    const st = BESTIARY_BY_ID[e.statId]; if (!st || e.cond?.petrified) return null;
+    if (st.blood !== undefined) return st.blood;
+    if (BLOODLESS.has(st.type) || SPIRIT.test(st.id) || /skelet|bone|lich|mummy/.test(st.id)) return null;
+    if (st.type === 'undead' || st.type === 'fiend' || st.type === 'aberration') return 'black';
+    if (st.type === 'ooze' || st.type === 'plant' || /spider|beetle|centipede|scorpion|wasp|ankheg|ettercap|insect|crawler|stirge|weaver|brood/.test(st.id)) return 'green';
+    return 'red';
+  }
+  const SPIRIT = /ghost|specter|spectre|wraith|shadow(?!-?bred|flame|-wolf)|banshee|will-o|poltergeist|hooded-rider|dread-sovereign|wisp|phantom|spirit-(?!wolf)/;
+  /** CSS filters that turn the red blood pictures into ichor or sap. */
+  const BLOOD_FILTER = { red: 'none', black: 'grayscale(1) brightness(.32) contrast(1.3)', green: 'hue-rotate(95deg) saturate(.75) brightness(.62)' };
+  const SPRAY_COLOR = { red: '#8d0b0b', black: '#151012', green: '#3e5a12' };
 
+  /** Pools and splatters on the floor, and a spray of drops flying away from the blow. */
   function bleed(e, n, death = false) {
     if (!(n > 0) || !s.map) return;
-    if (!e.isHero && (BLOODLESS.has(BESTIARY_BY_ID[e.statId]?.type) || e.cond?.petrified)) return;
+    const blood = bloodOf(e); if (!blood) return;
     const { w, h } = dims(e.size ?? 1);
     const share = Math.min(1, n / Math.max(1, e.maxHp));
-    const count = death ? w * h : 1 + (share >= 0.25 ? 1 : 0);
-    for (let i = 0; i < count; i++) {
+    // Which way the blood flies: away from whoever struck the blow.
+    const c = { x: e.pos.x + w / 2, y: e.pos.y + h / 2 };
+    const from = s.hitFrom ?? { x: c.x, y: c.y + 1 };
+    let dx = c.x - from.x; let dy = c.y - from.y; const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
+    const pools = death ? w * h + 1 : 1 + (share >= 0.25 ? 1 : 0);
+    for (let i = 0; i < pools; i++) {
       const x = e.pos.x + (death ? i % w : Math.floor(Math.random() * w));
-      const y = e.pos.y + (death ? Math.floor(i / w) : Math.floor(Math.random() * h));
-      s.blood.push({
-        x, y, ox: (Math.random() - 0.5) * 0.5, oy: (Math.random() - 0.5) * 0.5,
-        r: death ? 0.55 + Math.random() * 0.2 : 0.18 + share * 0.5 + Math.random() * 0.1,
-        rot: Math.floor(Math.random() * 360), n: 1 + Math.floor(Math.random() * 4),
-      });
+      const y = e.pos.y + (death ? Math.floor(i / w) % h : Math.floor(Math.random() * h));
+      s.blood.push({ x, y, ox: (Math.random() - 0.5) * 0.5, oy: (Math.random() - 0.5) * 0.5, color: blood,
+        r: death ? 0.6 + Math.random() * 0.25 : 0.2 + share * 0.55 + Math.random() * 0.1, rot: Math.floor(Math.random() * 360), n: 1 + Math.floor(Math.random() * 4) });
     }
-    if (s.blood.length > 400) s.blood.splice(0, s.blood.length - 400);
+    // Splatter: small drops thrown a square or so beyond the target, more for harder blows.
+    const drops = 2 + Math.round(share * 6) + (death ? 3 : 0);
+    for (let i = 0; i < drops; i++) {
+      const spread = (Math.random() - 0.5) * 1.4; const dist = w / 2 + 0.2 + Math.random() * (0.6 + share * 1.2);
+      const px = c.x + (dx * Math.cos(spread) - dy * Math.sin(spread)) * dist; const py = c.y + (dy * Math.cos(spread) + dx * Math.sin(spread)) * dist;
+      const x = Math.floor(px); const y = Math.floor(py);
+      if (!s.map.tiles[y]?.[x] || s.map.tiles[y][x] === TILE.ROCK) continue;
+      s.blood.push({ x, y, ox: px - x - 0.5, oy: py - y - 0.5, color: blood, r: 0.06 + Math.random() * 0.1, rot: Math.floor(Math.random() * 360), n: 1 + Math.floor(Math.random() * 4) });
+    }
+    if (s.blood.length > 700) s.blood.splice(0, s.blood.length - 700);
+    spray(c, dx, dy, blood, share, death);
   }
 
+  /** A burst of drops flying from the wound (an animation on its own layer, gone in a moment). */
+  function spray(c, dx, dy, blood, share, death) {
+    const fx = host.querySelector('.dg-fx'); if (!fx || reduceMotion) return;
+    const sz = S(); const count = Math.round(8 + share * 22 + (death ? 14 : 0));
+    const ns = 'http://www.w3.org/2000/svg';
+    for (let i = 0; i < count; i++) {
+      const dot = document.createElementNS(ns, 'circle');
+      const r = sz * (0.025 + Math.random() * 0.05);
+      dot.setAttribute('r', r); dot.setAttribute('cx', c.x * sz); dot.setAttribute('cy', c.y * sz);
+      dot.setAttribute('fill', SPRAY_COLOR[blood]);
+      fx.append(dot);
+      const spread = (Math.random() - 0.5) * (death ? 3.2 : 1.6); const dist = sz * (0.3 + Math.random() * (0.8 + share * 1.4));
+      const tx = (dx * Math.cos(spread) - dy * Math.sin(spread)) * dist; const ty = (dy * Math.cos(spread) + dx * Math.sin(spread)) * dist;
+      const ms = 280 + Math.random() * 320;
+      dot.animate([
+        { transform: 'translate(0,0) scale(1)', opacity: 1 },
+        { transform: `translate(${tx * 0.6}px,${ty * 0.6 - sz * 0.12}px) scale(1.1)`, opacity: 1, offset: 0.55 },
+        { transform: `translate(${tx}px,${ty}px) scale(.6)`, opacity: 0 },
+      ], { duration: ms, easing: 'cubic-bezier(.2,.7,.4,1)' }).onfinish = () => dot.remove();
+    }
+  }
+
+  /** A splat's shape: a main pool and satellite drops, made once so it stays the same. */
+  function splatShape(big) {
+    const blobs = [[0, 0, 1]];
+    const n = big ? 7 + Math.floor(Math.random() * 6) : 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2; const d = 0.55 + Math.random() * (big ? 0.75 : 0.6);
+      blobs.push([Math.cos(a) * d, Math.sin(a) * d, 0.12 + Math.random() * (big ? 0.42 : 0.3)]);
+    }
+    return blobs;
+  }
+
+  /** Blood on the floor, drawn as wet-looking splats in the creature's own colour. */
   function drawBlood() {
     const sz = S(); let out = '';
     for (const b of s.blood) {
       if (!s.revealAll && !s.revealed.has(cellKey(b.x, b.y))) continue;
-      const cx = (b.x + 0.5 + b.ox) * sz; const cy = (b.y + 0.5 + b.oy) * sz; const w = b.r * 2 * sz;
-      out += `<image href="assets/terrain/blood-${b.n}.jpg" x="${cx - w / 2}" y="${cy - w / 2}" width="${w}" height="${w}" mask="url(#blood-mask)" class="blood" transform="rotate(${b.rot} ${cx} ${cy})" preserveAspectRatio="xMidYMid slice"/>`;
+      b.blobs ??= splatShape(b.r > 0.3);
+      const cx = (b.x + 0.5 + b.ox) * sz; const cy = (b.y + 0.5 + b.oy) * sz; const r = b.r * sz * 0.62;
+      out += `<g class="blood" transform="translate(${cx} ${cy}) rotate(${b.rot}) scale(1 .78)" fill="url(#bl-${b.color ?? 'red'})">${b.blobs.map(([x, y, k]) => `<circle cx="${(x * r).toFixed(1)}" cy="${(y * r).toFixed(1)}" r="${(k * r).toFixed(1)}"/>`).join('')}</g>`;
     }
     return out;
   }
@@ -201,6 +267,7 @@ export function installAttacks(ctx) {
   /** Roll an attack with sound and motion, apply damage, write the log, float a number. */
   async function doAttack(attacker, target, weapon, { reaction = false } = {}) {
     let opts = attackOptions({ attacker, target, weapon, opaque: ctx.opaque(), occupied: ctx.occupied(), enemiesOf });
+    { const d = dims(attacker.size ?? 1); s.hitFrom = { x: attacker.pos.x + d.w / 2, y: attacker.pos.y + d.h / 2 }; } // blood flies away from the blow
     if (!opts && reaction) opts = { ac: target.ac, mode: 'normal', adv: [], dis: [], cover: 'none', chance: 0 }; // reach was valid a moment ago
     if (!opts) return;
     const ranged = opts.ranged || (weapon.ranged && !weapon.melee);
@@ -272,5 +339,5 @@ export function installAttacks(ctx) {
     await sleep(ctx.PAUSE_MS);
   }
 
-  return { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bleed, drawBlood, flashHit, doAttack };
+  return { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack };
 }

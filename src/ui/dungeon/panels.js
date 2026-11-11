@@ -490,8 +490,11 @@ export function installPanels(ctx) {
     if (t.kind === 'corpse') {
       const m = s.monsters.find((x) => x.id === t.id);
       if (!m) return '';
-      if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(m.name)}'s body</h3>${close}</div><p class="small muted">Move next to the body to search it.</p></div>`;
-      return lootHtml({ title: `${m.name}'s body`, coins: m.loot.coins, items: m.loot.items });
+      const what = ctx.SPIRIT.test(m.statId ?? '') ? `What the ${m.name.toLowerCase()} left behind` : `${m.name}'s body`;
+      if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">Move next to it to search it.</p></div>`;
+      const loot = m.loot ?? { coins: 0, items: [] };
+      if (!loot.coins && !loot.items.length) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">You search ${m.side ? 'your fallen friend' : 'it'} carefully. Nothing of value${m.side ? ' — only a last goodbye' : ''}.</p></div>`;
+      return lootHtml({ title: what, coins: loot.coins, items: loot.items });
     }
     if (t.kind === 'chest') {
       const c = s.features.chests.find((x) => x.id === t.id);
