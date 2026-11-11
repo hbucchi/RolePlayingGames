@@ -129,6 +129,13 @@ export const SPELLS = [
   S({ id: 'meteor-swarm', name: 'Fall of Stars', level: 9, classes: ['loremaster'], range: 60, target: 'point', sound: 'spell-fire', color: '#ff5a1f',
     effect: { type: 'save', save: 'dex', dice: '40d6', damageType: 'fire', half: true, shape: 'radius', size: 8, linger: 'fire', lingerRounds: 2 },
     desc: 'Burning stars crash down in a 40-ft radius. DEX save: 40d6 fire and bludgeoning, half on a success. It leaves the ground burning for 2 rounds.' }),
+  // The 9th circle's storms (7 mana, like Fall of Stars): huge, slow, everything in reach suffers.
+  S({ id: 'blizzard', name: 'Blizzard', level: 9, classes: ['loremaster'], range: 30, target: 'point', sound: 'spell-thunder', color: '#cfefff',
+    effect: { type: 'save', save: 'con', dice: '20d8', damageType: 'cold', half: true, shape: 'radius', size: 6, linger: 'ice', lingerRounds: 10 },
+    desc: 'A howling white storm fills a 30-ft radius. CON save: 20d8 cold, half on a success. Snow and ice lie thick (difficult terrain) for 10 rounds.' }),
+  S({ id: 'firestorm', name: 'Firestorm', level: 9, classes: ['loremaster'], range: 30, target: 'point', sound: 'spell-fire', color: '#ff7a1f',
+    effect: { type: 'save', save: 'dex', dice: '24d8', damageType: 'fire', half: true, shape: 'radius', size: 5, linger: 'fire', lingerRounds: 3 },
+    desc: 'Pillars of roaring flame sweep a 25-ft radius. DEX save: 24d8 fire, half on a success. The ground keeps burning for 3 rounds.' }),
 ];
 
 /**

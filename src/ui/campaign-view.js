@@ -44,7 +44,7 @@ export function buildPlace(campaignId, locId) {
   ];
   return {
     name: loc.name, map, heroes, foes, chests: p.chests.filter((ch) => !run.flags.includes(`opened:${locId}:${ch.id}`)),
-    reveal: loc.reveal !== false, carry: run.wounds ? { members: run.wounds } : null,
+    reveal: loc.reveal !== false, carry: run.wounds ? { members: run.wounds } : null, camp: loc.camp ?? null,
     location: { id: locId, kind: loc.kind, music: loc.music, exits: p.exits },
   };
 }

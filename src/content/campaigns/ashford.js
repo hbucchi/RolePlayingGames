@@ -64,7 +64,7 @@ export const ashford = {
           options: [
             { label: 'Ask about the Steward\'s trouble', if: { notFlag: 'heard-rumour' }, set: ['heard-rumour'], discover: ['palace'],
               say: 'Thieves got into Thane\'s Hall three nights back and took the Steward\'s signet ring, the very seal of Ashford. He\'s beside himself. Go and see him at the Hall, up the road north-west of town.' },
-            { label: 'Rent a room and rest (5 sp)', price: 50, heal: true, say: 'Up the stairs, second door on the left. Clean sheets, I promise. Mostly.' },
+            { label: 'Rent a room for the night (5 sp): sleep, mana and all', price: 50, rest: true, say: 'Up the stairs, second door on the left. Clean sheets, I promise. Mostly.' },
           ],
           shop: ['rations', 'waybread', 'torch', 'bandage', 'pipe-and-leaf'],
         } },
@@ -268,7 +268,9 @@ export const ashford = {
         '##########################',
       ],
       // Tamsin's camp, and an old statue lost among the trees.
-      props: [P('barrel', 7, 12), P('crates', 8, 13), P('brazier', 11, 11), P('statue', 12, 4)],
+      props: [P('barrel', 7, 12), P('crates', 8, 13), P('statue', 12, 4)],
+      // Tamsin's camp: sleep by the fire to recover hit points and mana (once per visit).
+      camp: { x: 11, y: 11 },
       legend: {
         '@': hero('grass'), E: exit('sand'),
         W: { on: 'grass', foe: 'wolf' },

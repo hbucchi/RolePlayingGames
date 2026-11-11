@@ -279,15 +279,13 @@ export function installActions(ctx) {
     hitDie: s.def.hitDie, conMod: s.def.conMod,
   });
 
-  /** After a level-up: new slots and uses appear (already spent ones stay spent), +1 hit die. */
+  /** After a level-up: new mana crystals arrive full (already spent ones stay spent), new abilities too. */
   function growResources() {
     const fresh = freshResources(magicHero());
     const r = s.res;
-    const gained = fresh.maxSlots.map((n, i) => n - (r.maxSlots[i] ?? 0));
-    r.slots = fresh.maxSlots.map((n, i) => Math.min(n, (r.slots[i] ?? 0) + Math.max(0, gained[i])));
-    r.maxSlots = fresh.maxSlots;
+    const gained = Math.max(0, fresh.maxMana - (r.maxMana ?? 0));
+    r.maxMana = fresh.maxMana; r.mana = Math.min(r.maxMana, (r.mana ?? 0) + gained);
     for (const [id, n] of Object.entries(fresh.uses)) if (r.uses[id] === undefined) r.uses[id] = n;
-    r.hitDice = Math.min(s.def.level, r.hitDice + 1);
     if (s.def.cls === 'warden') r.pool += 5;
     r.level = s.def.level;
   }

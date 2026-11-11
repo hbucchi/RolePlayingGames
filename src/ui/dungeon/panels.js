@@ -3,6 +3,8 @@
  * Part of the dungeon screen (see ../dungeon-view.js): `ctx` gives access to the shared state `s`
  * and to the functions of the other parts.
  */
+import { manaHtml } from '../mana-view.js';
+import { manaCost } from '../../engine/magic.js';
 import { tradeHtml } from '../trade-view.js';
 import { morphInto } from '../morph.js';
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
@@ -46,6 +48,7 @@ export function installPanels(ctx) {
       <p class="hc-facing small">Facing <b>${FACINGS[h.facing].name}</b>. Enemies behind you (dark half) attack with advantage.</p>
       <div class="hc-stat"><span>Hit points</span><b>${h.hp} / ${h.maxHp}</b></div>
       <div class="hc-bar"><span class="${h.hp <= h.maxHp / 2 ? 'low' : ''}" style="width:${(h.hp / h.maxHp) * 100}%"></span></div>
+      ${s.res?.maxMana ? `<div class="hc-mana">${manaHtml(s.res.mana, s.res.maxMana)}</div>` : ''}
       <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${s.moveLeft * ft} ft)` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
       <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
@@ -100,11 +103,11 @@ export function installPanels(ctx) {
     const usable = [...m.abilities.filter((a) => !a.passive), ...m.spells].sort((a, b) => (a.kind === b.kind ? (a.level ?? 0) - (b.level ?? 0) : a.kind === 'ability' ? -1 : 1));
     const btn = (it) => {
       const why = ctx.magicBlocked(it);
-      const cost = it.kind === 'spell' ? (it.level === 0 ? 'cantrip' : `${ctx.ordinal(it.level)}`) : Number.isFinite(it.maxUses) ? `${r.uses[it.id] ?? 0}/${it.maxUses}` : it.effect?.type === 'pool' ? `${r.pool} HP` : '';
+      const cost = it.kind === 'spell' ? (it.level === 0 ? 'free (cantrip)' : `${manaCost(it)} mana`) : Number.isFinite(it.maxUses) ? `${r.uses[it.id] ?? 0}/${it.maxUses}` : it.effect?.type === 'pool' ? `${r.pool} HP` : '';
       return `<button class="spell-btn ${it.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${it.id}" title="${esc(`${it.desc}${it.range ? ` Reach ${it.range} squares.` : ''} ${why ? `(${why})` : ''}`)}">
         <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${ctx.timeLabel[it.time] ?? 'action'}${it.range > 1 ? ` · reach ${it.range}` : it.range === 1 ? ' · touch' : ''}${it.concentration ? ' · C' : ''}</span></button>`;
     };
-    const slots = r.maxSlots.length ? `<div class="slots">${r.maxSlots.map((n, i) => `<span class="slot-lvl" title="${ctx.ordinal(i + 1)}-level spell slots">${ctx.ordinal(i + 1)} ${'●'.repeat(r.slots[i])}${'○'.repeat(n - r.slots[i])}</span>`).join('')}</div>` : '';
+    const slots = r.maxMana ? `<div class="mana-row">${manaHtml(r.mana, r.maxMana)}</div>` : '';
     const buffs = [s.res.concentration && `Concentrating: ${ctx.findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 AC', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
       s.buffs.inspiration && `Inspiration ${s.buffs.inspiration}`, s.buffs.deathward && 'Ward against Death', s.hero.tempHp && `${s.hero.tempHp} temp HP`].filter(Boolean);
     return `<h4>Spells &amp; abilities</h4>
@@ -138,8 +141,6 @@ export function installPanels(ctx) {
         ${btn('characters', '👤', 'Characters', { key: 'C', hint: 'Each hero at a glance: summary, abilities, and the body part by part' })}
         ${btn('bandage', '🩹', 'Bandage', { extra: `×${countOf(inv, 'bandage')}`, why: busy || (countOf(inv, 'bandage') ? '' : 'no bandages left'), hint: `Medicine check (DC 10): heal 1d6 + Medicine${combat ? '. Uses your action.' : ''}` })}
         ${btn('sneak', '👣', s.sneak ? `Sneaking (${s.sneak.total})` : 'Sneak', { why: combat ? 'not during a fight' : '', hint: 'Stealth check: foes whose passive Perception is lower will not notice you' })}
-        ${btn('rest-short', '☾', 'Short rest', { extra: `${s.res.hitDice} HD`, why: combat ? 'not during a fight' : '', hint: 'Spend Hit Dice to heal; short-rest abilities return. 1 in 6 chance of wandering monsters.' })}
-        ${btn('rest-long', '☀', 'Long rest', { why: combat ? 'not during a fight' : s.longRested ? 'once per floor' : '', hint: 'Full recovery, once per floor. 1 in 3 chance of wandering monsters.' })}
         ${combat ? btn('end-turn', '⏭', 'End turn', { primary: true, key: 'Space', why: busy, hint: 'Finish your turn: the next creature in the initiative order acts' }) : ''}
       </div>`;
   }
@@ -501,6 +502,7 @@ export function installPanels(ctx) {
     if (ctx.onExit()) list.push(ctx.place ? { kind: 'stairs', id: 'down', label: 'Leave for the world map', glyph: '🗺' } : { kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
     for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && ctx.adjacent(m.pos)) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
     for (const c of s.features.chests) if (ctx.adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
+    for (const f of [s.features.totem, s.features.camp].filter(Boolean)) if (!f.used && ctx.adjacent(f)) list.push({ kind: f === s.features.totem ? 'totem' : 'camp', id: f === s.features.totem ? 'totem' : 'camp', label: f === s.features.totem ? 'Mana totem' : 'Sleep by the fire', glyph: f === s.features.totem ? '💎' : '🔥' });
     for (const [k] of s.features.locks) { const [x, y] = k.split(',').map(Number); if (ctx.adjacent({ x, y }) && s.revealed.has(k)) list.push({ kind: 'door', id: k, label: 'Locked door', glyph: '🔒' }); }
     for (const t of s.features.traps) if (t.found && !t.disarmed && !t.sprung && chebyshev(t, s.hero.pos) <= 1) list.push({ kind: 'trap', id: t.id, label: `${t.name[0].toUpperCase()}${t.name.slice(1)}`, glyph: '⚠' });
     return list;
@@ -527,6 +529,19 @@ export function installPanels(ctx) {
         <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the lock</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${lock.dc} · ${Math.round(checkChance(s.def.toolBonus, lock.dc) * 100)}%</span><span>${tools ? `Thieves' tools (${tools.charges ?? '∞'} picks)${combatNote}` : 'Needs thieves\' tools'}</span></button>
         <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(athl)} vs DC ${fdc} · ${Math.round(checkChance(athl, fdc) * 100)}%${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>${wood ? 'It will give way: succeed to open it quietly, fail and it crashes open (foes within 10 squares hear)' : `Fail and foes within 10 squares hear the clang${kind === 'door' ? '. Iron: almost impossible' : ''}`}${combatNote}</span></button>
       </div>`; };
+    if (t.kind === 'totem' || t.kind === 'camp') {
+      const f = t.kind === 'totem' ? s.features.totem : s.features.camp; if (!f) return '';
+      const casters = s.members.filter((m) => m.res?.maxMana);
+      const missing = casters.reduce((n, m) => n + (m.res.maxMana - m.res.mana), 0);
+      const title = t.kind === 'totem' ? '💎 Mana totem' : '🔥 The camp fire';
+      const text = t.kind === 'totem'
+        ? (f.used ? 'Its crystals are dark and cold: its power is spent for now.' : 'An old stone pillar crowned with blue crystals, humming softly. Touch it, and spent mana and abilities flow back to every hero. It answers once.')
+        : (f.used ? 'You have slept here already. Move on.' : 'A ring of stones, warm embers and two bedrolls. Sleep here, and wake whole: hit points, mana and abilities come back. Once per visit.');
+      return `<div class="loot-card"><div class="foe-head"><h3>${title}</h3>${close}</div><p class="small">${text}</p>
+        ${casters.length ? `<div class="totem-party">${casters.map((m) => `<p class="small"><b>${esc(m.hero.name.split(' ')[0])}</b> ${manaHtml(m.res.mana, m.res.maxMana, { label: false })}</p>`).join('')}</div>` : ''}
+        ${f.used ? '' : !near(f) ? '<p class="small muted">Walk up to it first.</p>' : s.mode === 'combat' ? '<p class="small muted">Not during a fight.</p>'
+          : `<button class="btn primary" data-dg="${t.kind === 'totem' ? 'totem' : 'camp-sleep'}">${t.kind === 'totem' ? `Touch the totem${missing ? ` (+${missing} mana)` : ''}` : 'Sleep by the fire'}</button>`}</div>`;
+    }
     if (t.kind === 'corpse-ask') {
       // Clicked a square with a body (or a pile of them): search, or just step there?
       const bodies = (t.ids ?? []).map((id) => s.monsters.find((x) => x.id === id)).filter(Boolean);

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  slotsFor, unlockLevel, spellDice, cantripDice, addDice, spellCount, freshResources, lowestSlot, shortRest, longRest,
-  arcaneRecovery, wanderingCheck, skillXp, sneakAttackDice, attacksPerAction, concentrationDC, magicFor, casterInfo, inspirationDie,
+  slotsFor, unlockLevel, spellDice, cantripDice, addDice, spellCount, freshResources, manaFor, manaCost, MANA_COST, replenish, migrateResources,
+  arcaneRecovery, skillXp, sneakAttackDice, attacksPerAction, concentrationDC, magicFor, casterInfo, inspirationDie,
 } from '../src/engine/magic.js';
 import { SPELLS, ABILITIES, SPELLS_BY_ID } from '../src/content/westlands/magic.js';
 import { getSetting } from '../src/content/registry.js';
@@ -81,31 +81,42 @@ test('class numbers: sneak attack, extra attack, inspiration, concentration', ()
   assert.equal(skillXp(15, 4), 30);
 });
 
-test('rests: hit dice heal on a short rest, a long rest restores everything', () => {
-  const mods = { str: 0, dex: 0, con: 2, int: 3, wis: 0, cha: 0 };
-  const m = magicFor(cls('loremaster'), 3, mods);
-  const hero = { level: 3, casterType: 'full', abilities: m.abilities, cls: 'loremaster', hitDie: 6, conMod: 2 };
-  const res = freshResources(hero);
-  assert.deepEqual(res.slots, [4, 2]);
-  assert.equal(lowestSlot(res, 1), 1);
-  res.slots = [0, 0];
-  assert.equal(lowestSlot(res, 1), -1);
-  assert.deepEqual(arcaneRecovery(res, 3), [2]); // ceil(3/2) = 2 levels: one 2nd-level slot
-  res.uses['words-of-command'] = 0;
-  const r = shortRest(res, hero, 5, 20, seededRng(4));
-  assert.ok(r.healed > 0 && r.rolls.length >= 1 && res.hitDice === 3 - r.rolls.length);
-  assert.equal(res.uses['words-of-command'], 0); // long-rest ability: still spent
-  longRest(res, hero);
-  assert.deepEqual(res.slots, [4, 2]);
-  assert.equal(res.uses['words-of-command'], 2);
+test('mana: 2 crystals at level 1 up to 10 at level 20 (half casters up to 6)', () => {
+  assert.equal(manaFor('full', 1), 2);
+  assert.equal(manaFor('full', 3), 3);
+  assert.equal(manaFor('full', 10), 6);
+  assert.equal(manaFor('full', 20), 10);
+  for (let l = 2; l <= 20; l++) assert.ok(manaFor('full', l) >= manaFor('full', l - 1), 'never shrinks');
+  assert.equal(manaFor('half', 1), 0);
+  assert.equal(manaFor('half', 2), 2);
+  assert.equal(manaFor('half', 20), 6);
+  assert.equal(manaFor(null, 20), 0);
 });
 
-test('wandering monsters interrupt about 1 in 6 short rests and 1 in 3 long rests', () => {
-  const rng = seededRng(9); const N = 6000;
-  let short = 0; let long = 0;
-  for (let i = 0; i < N; i++) { if (wanderingCheck('short', rng).interrupted) short++; if (wanderingCheck('long', rng).interrupted) long++; }
-  assert.ok(Math.abs(short / N - 1 / 6) < 0.02, `${short / N}`);
-  assert.ok(Math.abs(long / N - 1 / 3) < 0.02, `${long / N}`);
+test('mana costs: cantrips free, most spells 1, potent 2-3, the 9th circle 7', () => {
+  assert.deepEqual(MANA_COST, [0, 1, 1, 2, 2, 3, 3, 4, 5, 7]);
+  for (const sp of SPELLS) {
+    const c = manaCost(sp);
+    if (sp.level === 0) assert.equal(c, 0, sp.id);
+    if (sp.level >= 1 && sp.level <= 2) assert.equal(c, 1, sp.id);
+  }
+  for (const id of ['blizzard', 'firestorm', 'meteor-swarm']) assert.equal(manaCost(SPELLS.find((x) => x.id === id)), 7, id);
+});
+
+test('mana comes back at a totem, an inn or a camp, with every ability use', () => {
+  const mods = { str: 0, dex: 0, con: 2, int: 3, wis: 0, cha: 0 };
+  const m = magicFor(cls('loremaster'), 3, mods);
+  const hero = { level: 3, casterType: 'full', abilities: m.abilities, cls: 'loremaster' };
+  const res = freshResources(hero);
+  assert.deepEqual([res.mana, res.maxMana], [3, 3]);
+  res.mana = 0; res.uses['words-of-command'] = 0;
+  assert.equal(arcaneRecovery(res, 3), 1, 'arcane recovery: a quarter of the level, at least 1');
+  assert.equal(replenish(res, hero), 2);
+  assert.equal(res.mana, 3);
+  assert.equal(res.uses['words-of-command'], 2);
+  // An old save with spell slots becomes mana.
+  const old = migrateResources({ slots: [1, 0], maxSlots: [4, 2], uses: {}, hitDice: 3 }, hero);
+  assert.deepEqual([old.mana, old.maxMana], [3, 3]);
 });
 
 test('terrain: difficult squares cost double, deep water blocks, arenas round-trip', async () => {

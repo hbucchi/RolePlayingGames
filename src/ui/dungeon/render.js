@@ -256,6 +256,15 @@ export function installRender(ctx) {
   function drawFeatures() {
     const sz = S(); let out = '';
     const shown = (x, y) => s.revealAll || s.revealed.has(cellKey(x, y));
+    // The mana totem (lit, or dark once used) and a campaign camp fire.
+    for (const [kind, f] of [['totem', s.features.totem], ['camp', s.features.camp]]) {
+      if (!f || !shown(f.x, f.y)) continue;
+      const img = kind === 'totem' ? (f.used ? 'assets/ui/totem-spent.png' : 'assets/ui/totem.png') : 'assets/ui/camp.png';
+      const sel = s.target?.kind === kind;
+      out += `<g class="rest-site ${kind} ${f.used ? 'used' : ''} ${sel ? 'sel' : ''}">
+        ${kind === 'totem' && !f.used ? `<circle cx="${(f.x + 0.5) * sz}" cy="${(f.y + 0.5) * sz}" r="${sz * 1.1}" class="totem-glow"/>` : ''}
+        <image href="${img}" x="${f.x * sz - sz * 0.1}" y="${f.y * sz - sz * 0.1}" width="${sz * 1.2}" height="${sz * 1.2}" preserveAspectRatio="xMidYMid meet"/></g>`;
+    }
     for (const c of s.features.chests) {
       if (!shown(c.x, c.y)) continue;
       const x = c.x * sz; const y = c.y * sz; const empty = c.opened && !c.loot?.coins && !c.loot?.items.length;

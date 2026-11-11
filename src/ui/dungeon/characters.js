@@ -3,6 +3,7 @@
  * a Summary (who they are, how they stand, what they can do) and a Body view (each part, what is
  * worn over it and its state; the groundwork for local injuries).
  */
+import { manaHtml } from '../mana-view.js';
 import { bodyReport, BODY_PARTS } from '../../engine/body.js';
 import { conditionLabels } from '../../engine/combat.js';
 import { XP_FOR_LEVEL } from '../../engine/progression.js';
@@ -36,6 +37,7 @@ export function installCharacters(ctx) {
         <div><b>${d.passivePerception ?? '—'}</b><span>Passive Perception</span></div>
         <div><b>${d.xp}${next ? `/${next}` : ''}</b><span>Experience</span></div>
       </div>
+      ${m.res?.maxMana ? `<h4>Mana</h4><p>${manaHtml(m.res.mana, m.res.maxMana)}</p>` : ''}
       <h4>Abilities</h4>
       <div class="ch-abilities">${Object.keys(ABILITY_NAMES).map((k) => {
         const sv = d.savingThrows?.find((x) => x.ability === k) ?? { bonus: d.mods?.[k] ?? 0 };

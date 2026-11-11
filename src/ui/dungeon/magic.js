@@ -4,7 +4,7 @@
  * and to the functions of the other parts.
  */
 import { rangedCover } from '../../engine/vision.js';
-import { lowestSlot, spellDice, inspirationDie, arcaneRecovery, spellCount, addDice, wanderingCheck, shortRest, longRest } from '../../engine/magic.js';
+import { spellDice, inspirationDie, arcaneRecovery, spellCount, addDice, manaCost, replenish } from '../../engine/magic.js';
 import { lineOfSight } from '../../engine/vision.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { FACINGS, facingToward, chebyshev, attackOptions, resolveAttack } from '../../engine/combat.js';
@@ -40,11 +40,11 @@ export function installMagic(ctx) {
   function magicBlocked(item) {
     if (s.busy) return 'Wait for the current action to finish.';
     if (item.passive) return 'This works automatically.';
-    if (item.kind === 'spell' && item.level > 0 && lowestSlot(s.res, item.level) < 0) return `No spell slots of level ${item.level} or higher left. Rest to recover them.`;
-    if (item.kind === 'ability' && Number.isFinite(item.maxUses) && !(s.res.uses[item.id] > 0)) return `No uses left (${item.period === 'short' ? 'back after a short rest' : 'back after a long rest'}).`;
+    if (item.kind === 'spell' && manaCost(item) > (s.res.mana ?? 0)) return `Not enough mana: ${item.name} needs ${manaCost(item)}, you have ${s.res.mana ?? 0}. A mana totem, an inn or a camp restores it.`;
+    if (item.kind === 'ability' && Number.isFinite(item.maxUses) && !(s.res.uses[item.id] > 0)) return 'No uses left: they come back at a mana totem, an inn or a camp.';
     if (item.effect?.type === 'pool' && !(s.res.pool > 0)) return 'Your healing pool is empty.';
     if (item.outOfCombat && s.mode === 'combat') return 'Not during a fight.';
-    if (item.effect?.type === 'recover' && !s.res.slots.some((n, i) => n < s.res.maxSlots[i])) return 'You have not spent any spell slots.';
+    if (item.effect?.type === 'recover' && s.res.mana >= s.res.maxMana) return 'Your mana is full.';
     if (['heal', 'pool'].includes(item.effect?.type) && s.hero.hp >= s.hero.maxHp) return 'You are not wounded.';
     if (s.mode === 'combat') {
       if (item.time === 'action' && s.actionUsed) return 'You have used your action this turn.';
@@ -91,11 +91,11 @@ export function installMagic(ctx) {
     await resolveMagic(item, target);
   }
 
-  /** Pay for a spell/ability: slot or use, the action economy, concentration. Returns the slot level. */
+  /** Pay for a spell/ability: mana or a use, the action economy, concentration. Returns the spell's level. */
   function payFor(item) {
     spendTime(item.time);
-    let slot = 0;
-    if (item.kind === 'spell' && item.level > 0) { slot = lowestSlot(s.res, item.level); s.res.slots[slot - 1]--; }
+    const slot = item.kind === 'spell' ? item.level : 0; // spells are cast at their own circle (no upcasting)
+    if (item.kind === 'spell') { s.res.mana -= manaCost(item); s.manaFlash = { at: Date.now(), n: manaCost(item) }; }
     if (item.kind === 'ability' && Number.isFinite(item.maxUses)) s.res.uses[item.id]--;
     if (item.concentration) { endConcentration(); s.res.concentration = item.id; }
     return slot;
@@ -213,7 +213,7 @@ export function installMagic(ctx) {
       case 'disengage': s.disengaged = true; ctx.log(`${s.hero.name} slips out of reach (Cunning Action: Disengage). No opportunity attacks this turn.`, 'info'); break;
       case 'recover': {
         const got = arcaneRecovery(s.res, lvl);
-        ctx.log(`${s.hero.name} studies their notes and recovers spell slots: ${got.map(ordinal).join(', ') || 'none'}.`, 'good');
+        ctx.log(`${s.hero.name} studies their notes and recovers ${got} mana.`, 'good');
         break;
       }
       case 'reveal': {
@@ -388,39 +388,20 @@ export function installMagic(ctx) {
   // ---------------------------------------------------------------------------
 
   /**
-   * Short rest: spend Hit Dice to heal and recover short-rest abilities. Long rest: everything
-   * back, once per floor. Either can be interrupted by wandering monsters.
+   * A mana totem (once per floor), an inn's bed or a camp by the fire: every hero's mana and
+   * ability uses come back (engine/magic.js replenish). `heal` also restores hit points (sleep).
    */
-  function rest(kind) {
-    if (s.mode === 'combat' || s.busy) { ctx.banner('You cannot rest with enemies nearby.'); return; }
-    if (kind === 'long' && s.longRested) { ctx.banner('You have already taken a long rest on this floor. Go deeper first.'); return; }
-    const w = wanderingCheck(kind);
-    const what = kind === 'long' ? 'a long rest' : 'a short rest';
-    if (w.interrupted) {
-      ctx.log(`${s.hero.name} settles down for ${what}... Wandering monster check: d6 = ${w.d6}. Something is coming!`, 'warn');
-      if (!ctx.makeNoise(99, 2)) ctx.log('...whatever it was passes by, but the rest is spoiled.', 'info');
-      if (kind === 'long') s.longRested = true;
-      ctx.redraw(); return;
-    }
-    const back = s.active;
+  function replenishParty(source, { heal = false } = {}) {
+    const back = s.active; const lines = [];
     for (let i = 0; i < s.members.length; i++) {
       ctx.activate(i);
-      if (kind === 'short') {
-        const before = s.res.hitDice;
-        if (s.hero.hp <= 0) s.hero.hp = 1;
-        const r = shortRest(s.res, ctx.magicHero(), s.hero.hp, s.hero.maxHp);
-        s.hero.hp += r.healed;
-        ctx.log(`${s.hero.name} takes a short rest (wandering check d6 = ${w.d6}, all quiet). ${r.rolls.length ? `Spends ${before - s.res.hitDice} Hit Dice: d${s.def.hitDie} rolls ${r.rolls.join(', ')} + CON each = +${r.healed} HP.` : 'No Hit Dice spent.'} Short-rest abilities recovered.`, 'heal');
-      } else {
-        longRest(s.res, ctx.magicHero());
-        s.hero.hp = s.hero.maxHp; s.hero.tempHp = 0;
-        endConcentration(); s.buffs = {}; ctx.refreshAC();
-        ctx.log(`${s.hero.name} sleeps through a long rest (wandering check d6 = ${w.d6}, all quiet). Hit points, spell slots and abilities are restored.`, 'heal');
-      }
+      const got = replenish(s.res, ctx.magicHero());
+      if (heal) { s.hero.hp = s.hero.maxHp; s.hero.tempHp = 0; }
+      if (got || heal) lines.push(`${s.hero.name}${got ? ` +${got} mana` : ''}${heal ? ' (rested)' : ''}`);
     }
     ctx.activate(back);
-    if (kind === 'long') s.longRested = true;
     play('spell-heal', { volume: 0.6 });
+    ctx.log(`${source}${lines.length ? ` ${lines.join(', ')}.` : ''} Mana and abilities are restored.`, 'heal');
     ctx.redraw();
   }
 
@@ -445,5 +426,5 @@ export function installMagic(ctx) {
     ctx.redraw();
   }
 
-  return { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, rest, sneak };
+  return { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, replenishParty, sneak };
 }

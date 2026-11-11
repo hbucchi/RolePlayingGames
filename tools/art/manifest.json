@@ -1110,6 +1110,17 @@
     "pit-nailed"
    ],
    "note": "trap floor tiles: centre 208 px square of each cell, 192 px jpg in assets/traps. Prompts naming blood, spikes, blades or darts were blocked; neutral words (iron pins, pendulum, pegs) passed."
+  },
+  {
+   "kind": "ui",
+   "name": "m1",
+   "keys": [
+    "totem",
+    "totem-spent",
+    "camp",
+    "mana"
+   ],
+   "note": "mana system: one row of 4 on grey; cut with cutout.cut(tol=22) to assets/ui (totem, totem-spent, camp 256 px; mana 96 px)"
   }
  ]
 }

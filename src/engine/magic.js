@@ -1,10 +1,13 @@
 /**
- * Spellcasting and class-ability rules (5e SRD), kept free of the DOM so they can be tested.
+ * Spellcasting and class-ability rules, kept free of the DOM so they can be tested.
  *
- * Spell slots are the "fuel" of magic: casting a spell of level n spends one slot of level n or
- * higher (a higher slot makes many spells stronger: "upcasting"). Slots come back on a long rest.
- * A full caster's slots follow the table below by level; a half caster (ranger, warden) uses the
- * same table at half their level, rounded up, starting at level 2.
+ * MANA is the fuel of magic (this game's own rule, in place of the rulebook's spell slots and
+ * rests). A caster has a few mana crystals; a spell costs some of them by its circle (MANA_COST),
+ * cantrips are free. Spent mana comes back only at a mana totem (one per dungeon floor) or by
+ * sleeping at an inn or a camp; the same recovers class abilities' uses.
+ *   full casters (loremaster, minstrel)  2 mana at level 1, rising to 10 at level 20
+ *   half casters (ranger, warden)        2 mana from level 2 (when their magic starts), up to 6
+ * The spell-slot table below still decides WHEN each circle of spells unlocks.
  *
  * Save DC = 8 + proficiency bonus + spellcasting modifier. Spell attack = proficiency + modifier.
  */
@@ -57,19 +60,51 @@ export function magicFor(cls, level, mods) {
   };
 }
 
-/** Fresh resources for a delve: full slots, full ability uses, all hit dice. */
-export function freshResources(hero) {
-  const slots = slotsFor(hero.casterType, hero.level);
-  const uses = {};
-  for (const a of hero.abilities) if (a.maxUses !== Infinity) uses[a.id] = a.maxUses;
-  return { slots: [...slots], maxSlots: [...slots], uses, hitDice: hero.level, pool: hero.cls === 'warden' ? 5 * hero.level : 0, concentration: null };
+// ---------------------------------------------------------------------------
+// Mana
+// ---------------------------------------------------------------------------
+
+/**
+ * Mana crystals by level. Full casters: 2 + round(8 x (level - 1) / 19), a straight line from
+ * 2 at level 1 to 10 at level 20 (3 at level 3, 4 at 5, 6 at 10, 8 at 15). Half casters follow
+ * the same line at half their level (rounded up) once their magic begins at level 2: 2 to 6.
+ */
+export function manaFor(type, level) {
+  const l = Math.max(1, Math.min(20, level));
+  if (type === 'full') return 2 + Math.round((8 * (l - 1)) / 19);
+  if (type === 'half') return l < 2 ? 0 : 2 + Math.round((8 * (Math.ceil(l / 2) - 1)) / 19);
+  return 0;
 }
 
-/** Lowest available slot level that can cast a spell of level n (0 = none free). */
-export function lowestSlot(res, n) {
-  if (n === 0) return 0;
-  for (let i = n; i <= res.slots.length; i++) if (res.slots[i - 1] > 0) return i;
-  return -1;
+/** Mana per spell circle: cantrips free; most spells 1; potent ones 2-3; the 9th circle 7. */
+export const MANA_COST = [0, 1, 1, 2, 2, 3, 3, 4, 5, 7];
+export const manaCost = (spell) => spell.mana ?? MANA_COST[spell.level] ?? 1;
+
+/** Fresh resources for a delve: full mana and full ability uses. */
+export function freshResources(hero) {
+  const uses = {};
+  for (const a of hero.abilities) if (a.maxUses !== Infinity) uses[a.id] = a.maxUses;
+  const max = manaFor(hero.casterType, hero.level);
+  return { mana: max, maxMana: max, uses, pool: hero.cls === 'warden' ? 5 * hero.level : 0, concentration: null };
+}
+
+/** Older saves kept spell slots: turn them into mana (full, at the hero's level). */
+export function migrateResources(res, hero) {
+  if (!res || res.maxMana !== undefined) return res;
+  const max = manaFor(hero.casterType, hero.level);
+  return { mana: max, maxMana: max, uses: res.uses ?? {}, pool: res.pool ?? 0, concentration: res.concentration ?? null };
+}
+
+/**
+ * Recover at a mana totem, an inn or a camp: all mana, every ability's uses, the warden's pool.
+ * Returns how much mana came back.
+ */
+export function replenish(res, hero) {
+  const got = res.maxMana - res.mana;
+  res.mana = res.maxMana;
+  for (const a of hero.abilities) if (a.maxUses !== Infinity) res.uses[a.id] = a.maxUses;
+  res.pool = hero.cls === 'warden' ? 5 * hero.level : 0;
+  return got;
 }
 
 // ---------------------------------------------------------------------------
@@ -124,51 +159,11 @@ export const concentrationDC = (damage) => Math.max(10, Math.floor(damage / 2));
  */
 export const skillXp = (dc, level) => Math.max(1, Math.round((dc / 2) * level));
 
-// ---------------------------------------------------------------------------
-// Rests
-// ---------------------------------------------------------------------------
-
-/**
- * Short rest (an hour): spend Hit Dice to heal (each: roll the hit die + CON modifier) until
- * healed or out of dice; abilities that recharge on a short rest come back.
- */
-export function shortRest(res, hero, hp, maxHp, rng = cryptoRandomInt) {
-  const rolls = [];
-  let healed = 0;
-  while (hp + healed < maxHp && res.hitDice > 0) {
-    res.hitDice--;
-    const r = roll(`1d${hero.hitDie}`, rng).total;
-    const gain = Math.max(1, r + hero.conMod);
-    rolls.push(r); healed += gain;
-  }
-  for (const a of hero.abilities) if (a.period === 'short' && a.maxUses !== Infinity) res.uses[a.id] = a.maxUses;
-  return { healed: Math.min(healed, maxHp - hp), rolls };
-}
-
-/** Long rest (eight hours): everything back; you regain up to half your Hit Dice (min 1). */
-export function longRest(res, hero) {
-  res.slots = [...res.maxSlots];
-  for (const a of hero.abilities) if (a.maxUses !== Infinity) res.uses[a.id] = a.maxUses;
-  res.hitDice = Math.min(hero.level, res.hitDice + Math.max(1, Math.floor(hero.level / 2)));
-  res.pool = hero.cls === 'warden' ? 5 * hero.level : 0;
-}
-
-/**
- * Resting in a dungeon is risky: roll a d6 for wandering monsters. A short rest is interrupted
- * on a 1 (1 in 6, about 17%); a long rest on a 1 or 2 (1 in 3).
- */
-export function wanderingCheck(kind, rng = cryptoRandomInt) {
-  const d6 = rng(6) + 1;
-  return { d6, interrupted: kind === 'long' ? d6 <= 2 : d6 === 1 };
-}
-
-/** Arcane Recovery: regain slots whose levels add up to ceil(level / 2), highest first (max 5th). */
+/** Arcane Recovery (loremaster): regain a quarter of your level in mana, rounded up (at least 1). */
 export function arcaneRecovery(res, level) {
-  let budget = Math.ceil(level / 2);
-  const got = [];
-  for (let n = Math.min(5, res.maxSlots.length); n >= 1 && budget > 0; n--) {
-    while (budget >= n && res.slots[n - 1] < res.maxSlots[n - 1]) { res.slots[n - 1]++; budget -= n; got.push(n); }
-  }
+  const want = Math.max(1, Math.ceil(level / 4));
+  const got = Math.min(want, res.maxMana - res.mana);
+  res.mana += got;
   return got;
 }
 

@@ -11,7 +11,8 @@
  * Npc:      { id, name, stat, greet: [Line], options?: [Option], shop?: [itemId] }
  * Line:     { if?: Cond, say }   (the first line whose condition holds is said)
  * Option:   { label, if?: Cond, say, set?, discover?, needItem?, takeItem?, price?, give?: Reward,
- *             heal?: true, once?: flag }   (an option with `once` disappears after its flag is set)
+ *             heal?: true, rest?: true, once?: flag }   (an option with `once` disappears after its flag is set)
+ *             rest: a night's sleep (hit points, mana and abilities all come back)
  * Chest:    { id, coins?, items?: [itemId], event?: { set?, discover?, say } }
  * Cond:     { flag?, notFlag?, flags?: [...] }
  * Reward:   { xp?, coins?, items?: [itemId] }   (coins in copper: 100 cp = 1 gp)
@@ -82,7 +83,7 @@ export function npcView(c, run, npcId, wallet = {}) {
 
 /**
  * Choose an option. Returns { run, say, effects } where effects are for the game to apply to the
- * party: { coins: n } (negative = pay), { item }, { takeItem }, { xp }, { heal: true }.
+ * party: { coins: n } (negative = pay), { item }, { takeItem }, { xp }, { heal: true }, { rest: true }.
  */
 export function npcChoose(c, run, npcId, i, wallet = {}) {
   const npc = npcOf(c, npcId); const o = npc?.options?.[i];
@@ -93,6 +94,7 @@ export function npcChoose(c, run, npcId, i, wallet = {}) {
   if (o.price) effects.push({ coins: -o.price });
   if (o.takeItem) effects.push({ takeItem: o.needItem });
   if (o.heal) effects.push({ heal: true });
+  if (o.rest) effects.push({ rest: true });
   if (o.give?.coins) effects.push({ coins: o.give.coins });
   for (const it of o.give?.items ?? []) effects.push({ item: it });
   if (o.give?.xp) effects.push({ xp: o.give.xp });

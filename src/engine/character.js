@@ -12,7 +12,7 @@ import { SKILLS, SKILLS_BY_ID } from './skills.js';
 import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
 import { addItem, makeItem, carriedWeight, carryCapacity } from './items.js';
-import { magicFor, casterInfo, attacksPerAction, slotsFor } from './magic.js';
+import { magicFor, casterInfo, attacksPerAction, manaFor } from './magic.js';
 
 export const DRAFT_VERSION = 1;
 
@@ -393,14 +393,14 @@ export function levelUpSummary(draft, setting, from, to) {
   const b = deriveCharacter({ ...draft, level: to }, setting);
   const names = (c) => new Set([...(c.magic?.spells ?? []), ...(c.magic?.abilities ?? [])].map((x) => x.name));
   const before = names(a);
-  const slots = (c, lv) => (c.magic?.type ? slotsFor(c.magic.type, lv).join(' / ') : '');
+  const slots = (c, lv) => (c.magic?.type && manaFor(c.magic.type, lv) ? `${manaFor(c.magic.type, lv)}` : '');
   return {
     from, to,
     lines: [
       { label: 'Hit points', from: a.maxHp, to: b.maxHp },
       { label: 'Proficiency bonus', from: `+${a.proficiencyBonus}`, to: `+${b.proficiencyBonus}` },
       { label: 'Attacks per action', from: a.attacksPerAction, to: b.attacksPerAction },
-      { label: 'Spell slots (by spell level)', from: slots(a, from) || '—', to: slots(b, to) || '—' },
+      { label: 'Mana crystals', from: slots(a, from) || '—', to: slots(b, to) || '—' },
       ...ABILITY_IDS.map((id) => ({ label: id.toUpperCase(), from: a.scores[id], to: b.scores[id] })),
     ].filter((l) => String(l.from) !== String(l.to)),
     newMagic: [...names(b)].filter((n) => !before.has(n)),

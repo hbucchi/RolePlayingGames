@@ -36,7 +36,7 @@ import { GOODS } from './trade-view.js';
 import { installCharacters } from './dungeon/characters.js';
 import { rollMonsterLoot } from '../engine/loot.js';
 import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
-import { freshResources, skillXp } from '../engine/magic.js';
+import { freshResources, skillXp, migrateResources } from '../engine/magic.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
 import { seededRng } from '../engine/dice.js';
 import { installMonsterTurns } from './dungeon/monster-turns.js';
@@ -291,7 +291,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
   const { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
-  const { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, rest, sneak } = installMagic(ctx);
+  const { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, replenishParty, sneak } = installMagic(ctx);
   const { drawPanel, magicPanel, actionBar, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo } = installPanels(ctx);
 
   // ---------------------------------------------------------------------------
@@ -348,8 +348,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     };
     if (carried) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
-    // Spell slots, ability uses and hit dice last for the whole delve and come back with rests.
-    s.res = carried?.res ?? { ...freshResources(magicHero()), level: h.level };
+    // Mana and ability uses last for the whole delve; they come back at a mana totem, an inn or a camp.
+    s.res = migrateResources(carried?.res, magicHero()) ?? { ...freshResources(magicHero()), level: h.level };
     s.buffs = carried?.buffs ?? {};
     s.ammoSpent = {}; s.pending = null; s.phialUsed = false; s.invSel = null;
     s.actionUsed = false; s.bonusUsed = false; s.attacksLeft = 0; s.moveLeft = s.hero.speed; s.dash = false; s.sneakUsed = false; s.disengaged = false;
@@ -426,7 +426,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       loadParty(arena.carry ?? null, arena.heroes.map((h) => ({ ...h.pos })));
       // A place's chests hold what the campaign put in them.
       s.features = { chests: (arena.chests ?? []).map((ch) => ({ id: ch.id, x: ch.pos.x, y: ch.pos.y, locked: false, opened: false,
-        loot: { coins: ch.coins ?? 0, items: (ch.items ?? []).map((id) => makeItemSafe(id)) } })), traps: [], secretDoors: new Set(), locks: new Map() };
+        loot: { coins: ch.coins ?? 0, items: (ch.items ?? []).map((id) => makeItemSafe(id)) } })), traps: [], secretDoors: new Set(), locks: new Map(),
+        camp: arena.camp ? { ...arena.camp, used: false } : null }; // a camp fire to sleep by (campaign places)
       if (place) s.map.exit = place.exits[0] ?? null;
       s.monsters = arena.foes.map((f, i) => {
         const stat = BESTIARY_BY_ID[f.statId];
@@ -446,7 +447,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       const lv = party().length ? Math.round(s.members.reduce((t, m) => t + m.def.level, 0) / s.members.length) : 1;
       const level = Math.min(20, lv + Math.floor(((s.depth ?? 1) - 1) / 2));
       s.features = placeFeatures(s.map, s.seed, level);
-      const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y), ...party().map((h) => cellKey(h.pos.x, h.pos.y))]);
+      const avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y), ...party().map((h) => cellKey(h.pos.x, h.pos.y)), ...(s.features.totem ? [cellKey(s.features.totem.x, s.features.totem.y)] : [])]);
       s.monsters = populateDungeon(s.map, s.seed, level, FOE_POOL, { avoid, partySize: Math.max(1, s.members.length) });
       placeCaptive(avoid);
       placeTrader(avoid);
@@ -949,7 +950,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           if (inst) { removeItem(d.inventory, inst.uid, 1); break; }
         }
       }
-      if (e.heal) { for (const h of party()) h.hp = h.maxHp; for (const m of s.members) if (m.res) m.res.slots = [...m.res.maxSlots]; s.res && (s.res.slots = [...s.res.maxSlots]); play('spell-heal', { volume: 0.7 }); log('The party is rested and whole again.', 'heal'); }
+      if (e.heal) { for (const h of party()) h.hp = h.maxHp; play('spell-heal', { volume: 0.7 }); log('The party is rested and whole again.', 'heal'); }
+      if (e.rest) { saveActive(); replenishParty(e.rest === true ? 'The party sleeps soundly.' : e.rest, { heal: true }); }
       if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${e.xp} XP.`, 'good'); }
     }
     persist();
@@ -967,6 +969,29 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.draft.coins -= def.value; addItem(s.draft.inventory ??= [], makeItemSafe(id));
     play('coins', { volume: 0.7 }); log(`${s.hero.name} buys ${def.name} from ${m.name} for ${formatCoins(def.value)}.`, 'loot');
     persist(); redraw();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Getting mana back: the floor's mana totem (once), or sleeping at a campaign camp
+  // ---------------------------------------------------------------------------
+
+  function useTotem() {
+    const t = s.features?.totem;
+    if (!t || t.used || s.busy) return;
+    if (s.mode === 'combat') { banner('Not during a fight.'); return; }
+    if (chebyshev(s.hero.pos, t) > 1) { banner('Walk up to the totem first.'); return; }
+    saveActive(); t.used = true; s.target = null;
+    replenishParty('The totem\'s crystals flare blue, and power flows back into the party.');
+    persist();
+  }
+  function sleepAtCamp() {
+    const c = s.features?.camp;
+    if (!c || c.used || s.busy) return;
+    if (s.mode === 'combat') { banner('Not during a fight.'); return; }
+    if (chebyshev(s.hero.pos, c) > 1) { banner('Walk up to the fire first.'); return; }
+    saveActive(); c.used = true; s.target = null;
+    replenishParty('The party sleeps by the fire and wakes refreshed.', { heal: true });
+    persist();
   }
 
   // ---------------------------------------------------------------------------
@@ -1383,6 +1408,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       if (!worth && t && t.cost > 0) { s.target = null; moveHero(t); return; }
       s.target = { kind: 'corpse-ask', id: k, ids: pile.map((m) => m.id) }; redraw(); return;
     }
+    // The mana totem, or a camp fire in a campaign place: walk up and use it.
+    for (const [kind, f] of [['totem', s.features?.totem], ['camp', s.features?.camp]]) {
+      if (f && known && f.x === c.x && f.y === c.y) { approachThen(f, () => { s.target = { kind, id: kind }; }); return; }
+    }
     const chest = known && chestAt(c.x, c.y);
     if (chest) {
       approachThen(chest, () => { if (!chest.locked && !chest.opened) openChest(chest); else s.target = { kind: 'chest', id: chest.id }; });
@@ -1514,8 +1543,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }
       case 'sneak': sneak(); break;
-      case 'rest-short': rest('short'); break;
-      case 'rest-long': rest('long'); break;
+      case 'totem': useTotem(); break;
+      case 'camp-sleep': sleepAtCamp(); break;
       case 'bandage': bandage(); break;
       case 'search': search(); break;
       case 'pick-target': if (el.dataset.kind === 'stairs') { descend(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;

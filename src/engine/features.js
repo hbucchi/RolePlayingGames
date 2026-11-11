@@ -147,7 +147,19 @@ export function placeFeatures(map, seed, level = 1) {
     const kind = TRAP_KINDS[rng(TRAP_KINDS.length)];
     traps.push({ id: `t${traps.length + 1}`, x, y, ...kind, dc: 11 + rng(4) + tier, saveDc: 11 + tier, damage: trapDamage(level), found: false, disarmed: false, sprung: false });
   }
-  return { chests, traps, secretDoors, locks };
+  // A mana totem: one per floor, in a room away from the stairs, usable once (restores mana and
+  // abilities, engine/magic.js replenish). Picked from a hash, so the other dice stay the same.
+  let totem = null;
+  const rooms = map.rooms.filter((r) => !r.entrance).sort((a, b) => a.id - b.id);
+  for (let k = 0; k < rooms.length && !totem; k++) {
+    const r = rooms[(((seed * 2654435761) >>> 0) + k * 7) % rooms.length];
+    const cx = r.x + Math.floor(r.w / 2); const cy = r.y + Math.floor(r.h / 2);
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [-1, 0], [0, -1], [1, 1]]) {
+      const x = cx + dx; const y = cy + dy; const kk = cellKey(x, y);
+      if (isWalkable(map, x, y) && !taken.has(kk) && !nearDoor(x, y)) { totem = { x, y, used: false }; taken.add(kk); break; }
+    }
+  }
+  return { chests, traps, secretDoors, locks, totem };
 }
 
 /**

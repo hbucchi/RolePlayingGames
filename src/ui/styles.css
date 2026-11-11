@@ -1145,3 +1145,18 @@ html { -webkit-tap-highlight-color: transparent; }
 .market-hero h3 { margin: 0; }
 .market-hero p { margin: 2px 0 0; }
 .market-card { border-color: var(--gold); }
+
+/* Mana: small blue crystals, dark grey once spent (mana-view.js). */
+.mana { display: inline-flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.mana-label { font: 700 .78rem var(--font-display); color: #4f8fd6; margin-right: 4px; letter-spacing: .04em; text-transform: uppercase; }
+.mana-gem { width: 20px; height: 20px; object-fit: contain; transition: filter .6s ease, opacity .6s ease, transform .3s ease; filter: drop-shadow(0 0 3px rgb(80 160 255 / .6)); }
+.mana-gem.spent { filter: grayscale(1) brightness(.45); opacity: .75; transform: scale(.9); }
+.mana-count { font-size: .75rem; color: var(--muted); margin-left: 4px; }
+.hc-mana { margin: 4px 0 6px; }
+.mana-row { margin: 4px 0 8px; }
+.totem-party p { display: flex; align-items: center; gap: 8px; margin: 2px 0; }
+/* The totem on the map: a soft breathing blue glow while it still has power. */
+.totem-glow { fill: url(#totem-glow-grad); fill: rgb(90 170 255 / .22); animation: totem-pulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; pointer-events: none; }
+@keyframes totem-pulse { 50% { opacity: .45; transform: scale(.85); } }
+.rest-site.sel image { filter: drop-shadow(0 0 6px #ffe28a); }
+@media (prefers-reduced-motion: reduce) { .totem-glow { animation: none; } .mana-gem { transition: none; } }

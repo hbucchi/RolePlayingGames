@@ -13,7 +13,8 @@ import {
   resolveRace, setAbilityMethod, skillName, syncBaseFromAssignment, validateStep, makeId, ensureGear, gainXp, pendingLevelUps,
 } from '../engine/character.js';
 import { XP_FOR_LEVEL, xpProgress, startingWealth } from '../engine/progression.js';
-import { slotsFor } from '../engine/magic.js';
+import { manaFor, manaCost } from '../engine/magic.js';
+import { manaHtml } from './mana-view.js';
 import { equipItem, unequipSlot, removeItem, isEquipped, itemName, formatCoins } from '../engine/items.js';
 import { ITEMS_BY_ID } from '../content/items/catalogue.js';
 import { inventoryHtml, coinsHtml } from './inventory-view.js';
@@ -805,15 +806,15 @@ function magicSheet(c) {
   const m = c.magic;
   if (!m || (!m.spells.length && !m.abilities.length && !m.locked.length)) return '';
   const ord = (n) => `${n}${n === 1 ? 'st' : n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'}`;
-  const slots = c.caster ? slotsFor(c.caster.type, c.level) : [];
-  const row = (x) => `<li><strong>${esc(x.name)}</strong> <span class="tag">${x.kind === 'spell' ? (x.level ? `${ord(x.level)}-level spell` : 'cantrip') : x.passive ? 'always on' : Number.isFinite(x.maxUses) ? `${x.maxUses} per ${x.period} rest` : 'ability'}</span>${x.concentration ? ' <span class="tag">concentration</span>' : ''}<br>${esc(x.desc)}</li>`;
+  const mana = c.caster ? manaFor(c.caster.type, c.level) : 0;
+  const row = (x) => `<li><strong>${esc(x.name)}</strong> <span class="tag">${x.kind === 'spell' ? (x.level ? `${ord(x.level)}-circle spell · ${manaCost(x)} mana` : 'cantrip · free') : x.passive ? 'always on' : Number.isFinite(x.maxUses) ? `${x.maxUses} uses (back at a totem, inn or camp)` : 'ability'}</span>${x.concentration ? ' <span class="tag">concentration</span>' : ''}<br>${esc(x.desc)}</li>`;
   return `<section class="panel sheet-magic">
     <h3>Spells &amp; abilities</h3>
     ${c.caster ? `<p>Spellcasting ability <b>${c.caster.ability.toUpperCase()}</b> · save DC <b>${c.caster.dc}</b> (8 + proficiency + modifier) · spell attack <b>${fmt(c.caster.attack)}</b></p>
-      ${slots.length ? `<p class="slots">${slots.map((n, i) => `<span class="slot-lvl">${ord(i + 1)}: ${'●'.repeat(n)}</span>`).join('')}</p>` : '<p class="muted small">Spell slots arrive at level 2.</p>'}` : ''}
+      ${mana ? `<p class="mana-row">${manaHtml(mana, mana)}</p><p class="small muted">Spells cost mana (cantrips are free; the mightiest cost 7). It comes back at a mana totem, an inn or a camp.</p>` : '<p class="muted small">Mana arrives at level 2.</p>'}` : ''}
     ${c.attacksPerAction > 1 ? `<p>Attacks per Attack action: <b>${c.attacksPerAction}</b></p>` : ''}
     <ul class="traits">${[...m.abilities, ...m.spells].map(row).join('')}</ul>
-    ${m.locked.length ? `<details><summary>Coming at higher levels (${m.locked.length})</summary><ul class="traits locked">${m.locked.map((x) => `<li><strong>Level ${x.unlock}: ${esc(x.name)}</strong> <span class="tag">${x.kind === 'spell' ? (x.level ? `${ord(x.level)}-level spell` : 'cantrip') : 'ability'}</span><br>${esc(x.desc)}</li>`).join('')}</ul></details>` : ''}
+    ${m.locked.length ? `<details><summary>Coming at higher levels (${m.locked.length})</summary><ul class="traits locked">${m.locked.map((x) => `<li><strong>Level ${x.unlock}: ${esc(x.name)}</strong> <span class="tag">${x.kind === 'spell' ? (x.level ? `${ord(x.level)}-circle spell · ${manaCost(x)} mana` : 'cantrip · free') : 'ability'}</span><br>${esc(x.desc)}</li>`).join('')}</ul></details>` : ''}
   </section>`;
 }
 
