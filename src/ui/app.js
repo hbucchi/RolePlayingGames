@@ -23,6 +23,7 @@ import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
 import { mountStory, resolveBattle, savedRun } from './story-view.js';
 import { levelUpDialog } from './level-up.js';
+import { playRange } from '../engine/range.js';
 import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
@@ -660,7 +661,7 @@ function sheetHtml(c, look) {
           <table class="attacks">
             <thead><tr><th>Weapon</th><th>To hit</th><th>Damage</th></tr></thead>
             <tbody>${c.attacks.map((a) => `
-              <tr><td>${esc(a.name)}${a.properties.length ? `<br><small class="muted">${esc(a.properties.join(', '))}</small>` : ''}</td>
+              <tr><td>${esc(a.name)}${a.properties.length ? `<br><small class="muted">${esc(a.properties.map(playRangeText).join(', '))}</small>` : ''}</td>
               <td>${rollBtn(`${a.name} attack`, a.toHit, fmt(a.toHit))}</td>
               <td><button class="roll-btn" data-action="damage" data-label="${esc(a.name)} damage" data-notation="${esc(a.damage)}">${esc(a.damage)} ${esc(a.damageType)}</button></td></tr>`).join('')}
             </tbody>
@@ -822,6 +823,14 @@ function rollAbilitySlots(indices) {
     touch();
     render();
   }, duration);
+}
+
+/** "range 150/600" as the game plays it (engine/range.js): "range 40/80 ft". */
+function playRangeText(p) {
+  const m = /^(range|thrown) (\d+)\/(\d+)/.exec(p);
+  if (!m) return p;
+  const [n, l] = playRange(Number(m[2]) / 5, Number(m[3]) / 5, { thrown: m[1] === 'thrown' });
+  return `${m[1]} ${n * 5}/${l * 5} ft`;
 }
 
 async function logRoll(label, bonus) {

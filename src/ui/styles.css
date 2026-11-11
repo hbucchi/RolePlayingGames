@@ -66,8 +66,9 @@ code { font-size: .9em; background: var(--bg-2); padding: 0 .3em; border-radius:
 .brand-title { display: block; font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
 .brand-sub { display: block; font-size: .8rem; color: var(--muted); letter-spacing: .15em; text-transform: uppercase; }
 .tabs { display: flex; gap: 4px; margin-left: auto; }
-.tab { font: 600 1rem var(--font-body); background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 6px 10px; cursor: pointer; }
-.tab.active { color: var(--ink); border-color: var(--accent); }
+.tab { font: 600 1rem var(--font-body); background: var(--card); border: 1.5px solid var(--line); border-bottom-width: 3px; border-radius: 9px; color: var(--ink); padding: 6px 14px; cursor: pointer; transition: border-color .15s, transform .08s; }
+.tab:hover { border-color: var(--gold); transform: translateY(-1px); }
+.tab.active { background: var(--accent); color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 70%, #000); }
 
 /* Buttons */
 .btn {
@@ -208,8 +209,11 @@ select { width: auto; min-width: 72px; margin: 0; padding: 4px 8px; }
 @media (max-width: 760px) { .sheet-cols { grid-template-columns: 1fr; } }
 .panel h3 { border-bottom: 1px solid var(--line); padding-bottom: 4px; }
 .checklist { list-style: none; padding: 0; margin: 0; }
-.roll-btn { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 8px; align-items: center; width: 100%; padding: 2px 6px; border-radius: 6px; }
-.roll-btn:hover { background: var(--bg-2); }
+.roll-btn { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 8px; align-items: center; width: 100%; padding: 3px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 1px 0 var(--line); }
+.roll-btn::after { content: '🎲'; font-size: .8em; opacity: .55; margin-left: 2px; }
+.roll-btn:hover { background: var(--bg-2); border-color: var(--gold); }
+.roll-btn:hover::after { opacity: 1; }
+.roll-btn:active { transform: translateY(1px); box-shadow: none; }
 .roll-btn:focus-visible { outline: 2px solid var(--gold); }
 .checklist .roll-btn span:nth-child(2) { flex: 1; }
 .checklist small { color: var(--muted); }
@@ -250,7 +254,9 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-seed { font-weight: 600; }
 .dg-group input[type="number"] { width: 6.5em; font: 1rem var(--font-body); padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
 .dg-zoom { min-width: 3.4em; text-align: center; font-variant-numeric: tabular-nums; color: var(--muted); }
-.dg-check { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.dg-check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; padding: 4px 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--card); font-size: .95rem; }
+.dg-check:hover { border-color: var(--gold); }
+.dg-check:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
 .dg-check input { accent-color: var(--accent); }
 .dg-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
 @media (max-width: 960px) { .dg-layout { grid-template-columns: 1fr; } }
@@ -367,8 +373,8 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .sb-meta { font-style: italic; color: var(--muted); }
 .sb-rule { height: 3px; margin: 8px 0; background: linear-gradient(90deg, var(--accent), transparent); }
 .sb-abilities { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; text-align: center; }
-.sb-ab { all: unset; cursor: pointer; display: grid; padding: 4px 0; border-radius: 6px; }
-.sb-ab:hover, .sb-ab:focus-visible { background: var(--bg-2); }
+.sb-ab { all: unset; cursor: pointer; display: grid; padding: 4px 0; border-radius: 8px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 1px 0 var(--line); }
+.sb-ab:hover, .sb-ab:focus-visible { background: var(--bg-2); border-color: var(--gold); }
 .sb-ab span { font-size: .92rem; }
 @media (max-width: 480px) { .sb-abilities { grid-template-columns: repeat(3, 1fr); } }
 .spell-list { margin: 2px 0 6px; padding-left: 20px; }
@@ -575,6 +581,7 @@ main:has(.dungeon-host) { max-width: 1480px; }
 /* ---- Party ---------------------------------------------------------------- */
 .dg-partypick { flex-wrap: wrap; gap: 6px; }
 .party-chip { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font-size: .82rem; }
+.party-chip:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
 .party-chip input { accent-color: var(--accent); }
 .party-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .party-member { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 4px; border-radius: 99px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; font-size: .8rem; cursor: pointer; }
@@ -670,7 +677,9 @@ main:has(.dungeon-host) { max-width: 1480px; }
 /* Settings: bodies or tokens (start screen and in-game menu) */
 .figures-choice { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 12px 10px; margin: 0; display: grid; gap: 6px; background: var(--card); }
 .figures-choice legend { font-family: var(--font-display); font-size: .85rem; padding: 0 6px; }
-.figure-opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; text-align: left; }
+.figure-opt { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; text-align: left; padding: 8px 10px; border: 1.5px solid var(--line); border-radius: 9px; background: var(--bg); transition: border-color .15s; }
+.figure-opt:hover { border-color: var(--gold); }
+.figure-opt:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
 .figure-opt input { margin-top: 4px; accent-color: var(--gold); }
 .figure-opt span { display: grid; }
 .figure-opt small { color: var(--muted); }
@@ -827,3 +836,11 @@ main:has(.dungeon-host) { max-width: 1480px; }
 
 /* Shift+click on the map attacks; it should not select text around it. */
 .dg-mapwrap, .dg-actionbar { user-select: none; -webkit-user-select: none; }
+
+/* Expandable sections look like buttons too (a chevron shows they open). */
+summary { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border: 1.5px solid var(--line); border-radius: 9px; background: var(--card); list-style: none; font-weight: 600; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: '▸'; transition: transform .15s; }
+details[open] > summary::before { transform: rotate(90deg); }
+summary:hover { border-color: var(--gold); }
+summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
