@@ -74,7 +74,7 @@ export function installMagic(ctx) {
     if (item.target === 'enemy' || item.target === 'point') {
       target = s.selectedId && ctx.alive().find((m) => m.id === s.selectedId && ctx.canSee(m));
       if (!target) { ctx.banner(`Select a target first: click a foe, then cast ${item.name}.`); return; }
-      if (ctx.edist(s.hero, target) > item.range) { ctx.banner(`${target.name} is out of range (${item.range * 5} ft).`); return; }
+      if (ctx.edist(s.hero, target) > item.range) { ctx.banner(`${target.name} is out of reach (reach ${item.range} squares).`); return; }
       if (!lineOfSight(s.hero.pos, target.pos, ctx.opaque()).visible) { ctx.banner('You need a clear line of sight.'); return; }
       if (item.effect.humanoidOnly && BESTIARY_BY_ID[target.statId].type !== 'humanoid') { ctx.banner(`${item.name} only works on humanoids.`); return; }
       if (item.effect.onFail === 'enthrall' && !['humanoid', 'beast'].includes(BESTIARY_BY_ID[target.statId].type)) { ctx.banner(`${item.name} only works on humanoids and beasts.`); return; }
@@ -84,7 +84,7 @@ export function installMagic(ctx) {
       ctx.banner(item.target === 'cone' ? `No foe in the cone in front of you (${item.effect.size * 5} ft). Turn to face them (Q / E).` : 'No foe is close enough.');
       return;
     }
-    if (item.target === 'square') { s.pending = { id: item.id }; ctx.banner(`${item.name}: click a free square you can see, up to ${item.range * 5} ft away. Esc cancels.`); ctx.redraw(); return; }
+    if (item.target === 'square') { s.pending = { id: item.id }; ctx.banner(`${item.name}: click a free square you can see, up to ${item.range} squares away. Esc cancels.`); ctx.redraw(); return; }
     await resolveMagic(item, target);
   }
 

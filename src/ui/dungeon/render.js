@@ -38,7 +38,7 @@ export function installRender(ctx) {
   function remains(m, hero = false) {
     const sz = S(); const d = dims(m.size ?? 1); const h = hashOf(m.id);
     const cx = (m.pos.x + d.w / 2) * sz; const cy = (m.pos.y + d.h / 2) * sz;
-    const sel = s.selectedId === m.id || (s.target?.kind === 'corpse' && s.target.id === m.id);
+    const sel = s.selectedId === m.id || (s.target?.kind === 'corpse' && s.target.id === m.id) || (['corpses', 'corpse-ask'].includes(s.target?.kind) && s.target.ids?.includes(m.id));
     if (!hero && ctx.SPIRIT.test(m.statId ?? '')) {
       const k = Math.min(d.w, d.h) * sz;
       return `<g class="remains garb" transform="translate(${cx} ${cy}) rotate(${h % 360})">

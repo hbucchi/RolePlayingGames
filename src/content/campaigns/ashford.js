@@ -9,6 +9,9 @@
 const hero = (on) => ({ on, hero: true });
 const exit = (on) => ({ on, exit: true });
 
+/** A prop on a place's map: its kind, top-left square and turn (0, 90, 180, 270). */
+const P = (kind, x, y, rot = 0) => ({ kind, x, y, rot });
+
 export const ashford = {
   id: 'ashford',
   title: 'The Steward\'s Signet',
@@ -47,6 +50,8 @@ export const ashford = {
         '#ppppppppEppppppppp#',
         '####################',
       ],
+      // Furniture and fittings over the floor (engine/props.js).
+      props: [P('wall-torch', 3, 0, 180), P('wall-torch', 14, 0, 180), P('chair', 2, 3), P('chair', 5, 3), P('rug', 11, 7), P('barrel', 18, 9), P('barrel', 18, 10), P('crates', 1, 10), P('candelabra', 1, 3)],
       legend: {
         '@': hero('planks'), E: exit('planks'),
         M: { on: 'planks', facing: 4, npc: {
@@ -105,6 +110,8 @@ export const ashford = {
         '#RRRRRooooooooooooRRRRR#',
         '########################',
       ],
+      // Furniture and fittings over the floor (engine/props.js).
+      props: [P('forge', 4, 7), P('anvil', 5, 9), P('water-trough', 6, 10), P('fountain', 12, 7), P('crates', 8, 5), P('barrel', 12, 5)],
       legend: {
         '@': hero('cobbles'), E: exit('cobbles'),
         C: { on: 'cobbles', facing: 4, npc: {
@@ -159,6 +166,8 @@ export const ashford = {
         '#ccccccccEccccccccc#',
         '####################',
       ],
+      // Furniture and fittings over the floor (engine/props.js).
+      props: [P('rug', 8, 4), P('statue', 1, 1), P('statue', 18, 1), P('brazier', 6, 2), P('brazier', 13, 2), P('wall-torch', 4, 0, 180), P('wall-torch', 15, 0, 180), P('weapon-rack', 17, 8, 90), P('armour-stand', 18, 11)],
       legend: {
         '@': hero('castle'), E: exit('castle'),
         S: { on: 'castle', facing: 4, npc: {
@@ -211,6 +220,8 @@ export const ashford = {
         '#......E.......#',
         '################',
       ],
+      // Furniture and fittings over the floor (engine/props.js).
+      props: [P('candelabra', 5, 2), P('candelabra', 9, 2), P('statue', 1, 1), P('statue', 14, 1), P('wall-torch', 3, 0, 180), P('wall-torch', 12, 0, 180)],
       legend: {
         '@': hero('floor'), E: exit('floor'),
         L: { on: 'floor', facing: 4, npc: {
@@ -301,6 +312,8 @@ export const ashford = {
         '####E...################',
         '########################',
       ],
+      // Furniture and fittings over the floor (engine/props.js).
+      props: [P('forge', 10, 9), P('anvil', 9, 11), P('chains', 16, 9), P('barrel', 7, 3), P('crates', 8, 3), P('rubble', 3, 9)],
       legend: {
         '@': hero('floor'), E: exit('floor'),
         G: { on: 'floor', foe: 'goblin' },

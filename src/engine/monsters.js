@@ -35,7 +35,7 @@ export function crValue(cr) {
 export const SIZES = ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'];
 export const SIZE_HIT_DIE = { Tiny: 4, Small: 6, Medium: 8, Large: 10, Huge: 12, Gargantuan: 20 };
 /** Squares a creature occupies on the grid (each side). */
-export const SIZE_SQUARES = { Tiny: 1, Small: 1, Medium: 1, Large: 2, Huge: 3, Gargantuan: 4 };
+export const SIZE_SQUARES = { Tiny: 1, Small: 1, Medium: 1, Large: 2, Huge: 3, Gargantuan: 8 };
 
 export const CREATURE_TYPES = [
   'aberration', 'beast', 'celestial', 'construct', 'dragon', 'elemental', 'fey', 'fiend',

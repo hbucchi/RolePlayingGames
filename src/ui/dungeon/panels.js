@@ -56,7 +56,7 @@ export function installPanels(ctx) {
       <div class="hc-weapons">${h.weapons.map((w, i) => `
         <button class="weapon ${i === s.weaponIdx ? 'sel' : ''}" data-dg="weapon" data-i="${i}" aria-pressed="${i === s.weaponIdx}">
           <b>${esc(w.name)}</b><span>${signed(w.toHit)} to hit · ${esc(w.damage)} ${esc(w.type)}${w.ammo ? ` · ${countOf(s.draft.inventory, w.ammo)} ${esc(w.ammo.replace('-', ' '))}` : ''}</span>
-          <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `range ${w.normal * 5}/${w.long * 5} ft` : ''}</span>
+          <span class="muted">${w.melee ? 'melee 5 ft' : ''}${w.melee && w.ranged ? ' · ' : ''}${w.ranged ? `${w.thrown ? 'thrown, ' : ''}reach ${w.long} squares` : ''}</span>
         </button>`).join('')}</div>
       <div class="row wrap">
         <button class="btn small ghost" data-dg="retry" title="Restart this dungeon">Restart</button>
@@ -99,8 +99,8 @@ export function installPanels(ctx) {
     const btn = (it) => {
       const why = ctx.magicBlocked(it);
       const cost = it.kind === 'spell' ? (it.level === 0 ? 'cantrip' : `${ctx.ordinal(it.level)}`) : Number.isFinite(it.maxUses) ? `${r.uses[it.id] ?? 0}/${it.maxUses}` : it.effect?.type === 'pool' ? `${r.pool} HP` : '';
-      return `<button class="spell-btn ${it.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${it.id}" title="${esc(`${it.desc}${it.range ? ` Range ${it.range * 5} ft.` : ''} ${why ? `(${why})` : ''}`)}">
-        <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${ctx.timeLabel[it.time] ?? 'action'}${it.concentration ? ' · C' : ''}</span></button>`;
+      return `<button class="spell-btn ${it.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${it.id}" title="${esc(`${it.desc}${it.range ? ` Reach ${it.range} squares.` : ''} ${why ? `(${why})` : ''}`)}">
+        <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${ctx.timeLabel[it.time] ?? 'action'}${it.range > 1 ? ` · reach ${it.range}` : it.range === 1 ? ' · touch' : ''}${it.concentration ? ' · C' : ''}</span></button>`;
     };
     const slots = r.maxSlots.length ? `<div class="slots">${r.maxSlots.map((n, i) => `<span class="slot-lvl" title="${ctx.ordinal(i + 1)}-level spell slots">${ctx.ordinal(i + 1)} ${'●'.repeat(r.slots[i])}${'○'.repeat(n - r.slots[i])}</span>`).join('')}</div>` : '';
     const buffs = [s.res.concentration && `Concentrating: ${ctx.findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 AC', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
@@ -436,7 +436,8 @@ export function installPanels(ctx) {
         ${portrait ? `<img class="foe-portrait" src="${esc(portrait)}" alt="Portrait of a ${esc(m.name.toLowerCase())}">` : '<div class="foe-portrait none" aria-hidden="true">?</div>'}
         <div>
           <h3>${esc(m.name)}</h3>
-          <p class="small"><b>${esc(health)}</b> · ${d * 5} ft away · facing ${FACINGS[m.facing].name}</p>
+          <p class="small"><b>${esc(health)}</b> · ${d} squares away · facing ${FACINGS[m.facing].name}</p>
+          ${ctx.styleOf ? `<p class="small muted fight-style" title="How it fights: from its Intelligence, its magic and its nature">⚔ ${esc(ctx.styleOf(m).label)}</p>` : ''}
           ${conds.length || m.calm ? `<p class="small cond-line">${esc([m.calm ? 'calmed: leaves you be' : null, ...conds].filter(Boolean).join(' · '))}</p>` : ''}
           ${isBehindHero(m) ? '<p class="small hint">You are behind it: attacks have advantage.</p>' : ''}
         </div>
@@ -448,7 +449,7 @@ export function installPanels(ctx) {
     const targeted = [...(s.def.magic?.abilities ?? []), ...(s.def.magic?.spells ?? [])].filter((x) => !x.passive && (x.target === 'enemy' || x.target === 'point'));
     if (!targeted.length) return '';
     return `<h4>Cast at it</h4><div class="spell-list">${targeted.map((x) => {
-      const why = ctx.magicBlocked(x) ?? (d > x.range ? `Out of range (${x.range * 5} ft)` : null);
+      const why = ctx.magicBlocked(x) ?? (d > x.range ? `Out of reach (reach ${x.range} squares)` : null);
       return `<button class="spell-btn ${x.kind} ${why ? 'off' : ''}" data-dg="cast" data-id="${x.id}" title="${esc(`${x.desc} ${why ? `(${why})` : ''}`)}"><b>${esc(x.name)}</b><span class="muted">${x.kind === 'spell' ? (x.level ? ctx.ordinal(x.level) : 'cantrip') : `${s.res.uses[x.id] ?? ''}`} · ${x.range * 5} ft</span></button>`;
     }).join('')}</div>`;
   })()}
@@ -508,9 +509,34 @@ export function installPanels(ctx) {
         <button class="study" data-dg="pick-lock" ${tools ? '' : 'disabled'}><b>Pick the lock</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${lock.dc} · ${Math.round(checkChance(s.def.toolBonus, lock.dc) * 100)}%</span><span>${tools ? `Thieves' tools (${tools.charges ?? '∞'} picks)${combatNote}` : 'Needs thieves\' tools'}</span></button>
         <button class="study" data-dg="force-lock"><b>Force it open</b> <span class="muted">Athletics ${signed(s.hero.skills.athletics ?? 0)} vs DC ${lock.dc + 2}${findItem(s.draft.inventory, 'crowbar') ? ' · crowbar: advantage' : ''}</span><span>Loud: nearby foes will hear${combatNote}</span></button>
       </div>`;
+    if (t.kind === 'corpse-ask') {
+      // Clicked a square with a body (or a pile of them): search, or just step there?
+      const bodies = (t.ids ?? []).map((id) => s.monsters.find((x) => x.id === id)).filter(Boolean);
+      if (!bodies.length) return '';
+      const [x, y] = t.id.split(',').map(Number);
+      const canStep = s.mode !== 'combat' || (s.reach.get(t.id)?.cost ?? 0) > 0;
+      const names = bodies.length > 1 ? `${bodies.length} bodies lie here` : ctx.SPIRIT.test(bodies[0].statId ?? '') ? `What the ${bodies[0].name.toLowerCase()} left behind` : `${bodies[0].name}'s body`;
+      return `<div class="loot-card corpse-ask"><div class="foe-head"><h3>☠ ${esc(names)}</h3>${close}</div>
+        ${bodies.length > 1 ? `<p class="small muted">${esc(bodies.map((b) => b.name).join(', '))}, one over the other.</p>` : ''}
+        <div class="ask-row">
+          <button class="btn primary" data-dg="corpse-search">🔍 Search ${bodies.length > 1 ? 'the bodies' : 'the body'}</button>
+          <button class="btn" data-dg="corpse-move" ${canStep ? '' : 'disabled'}>👣 Just move here</button>
+        </div></div>`;
+    }
+    if (t.kind === 'corpses') {
+      // A pile of bodies, searched together: everything they carried in one list.
+      const bodies = (t.ids ?? []).map((id) => s.monsters.find((x) => x.id === id)).filter(Boolean);
+      if (!bodies.length) return '';
+      if (!bodies.some((b) => near(b.pos))) return `<div class="loot-card"><div class="foe-head"><h3>Corpses</h3>${close}</div><p class="small muted">Move next to them to search them.</p></div>`;
+      for (const b of bodies) b.searched = true;
+      const coins = bodies.reduce((n, b) => n + (b.loot?.coins ?? 0), 0);
+      const items = bodies.flatMap((b) => (b.loot?.items ?? []).map((it) => ({ ...it, from: b.name })));
+      return lootHtml({ title: `Corpses (${bodies.length})`, coins, items, note: bodies.map((b) => b.name).join(' · ') });
+    }
     if (t.kind === 'corpse') {
       const m = s.monsters.find((x) => x.id === t.id);
       if (!m) return '';
+      if (near(m.pos)) m.searched = true;
       const what = ctx.SPIRIT.test(m.statId ?? '') ? `What the ${m.name.toLowerCase()} left behind` : `${m.name}'s body`;
       if (!near(m.pos)) return `<div class="loot-card"><div class="foe-head"><h3>${esc(what)}</h3>${close}</div><p class="small muted">Move next to it to search it.</p></div>`;
       const loot = m.loot ?? { coins: 0, items: [] };
@@ -600,18 +626,18 @@ export function installPanels(ctx) {
     const fallen = !foe && s.monsters.find((m) => m.dead && covers(m, hov));
     if (fallen) {
       box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(fallen) ? `<img src="${esc(ctx.portraitOf(fallen))}" alt="" style="filter:grayscale(.6)">` : ''}<div><h3>☠ ${esc(fallen.name)}</h3>
-        <p class="small">${fallen.side === 'ally' ? 'Your fallen friend' : 'Slain'} · ${ctx.edist(s.hero, fallen) * 5} ft away</p><p class="small muted">Click to search the body.</p></div></div>`;
+        <p class="small">${fallen.side === 'ally' ? 'Your fallen friend' : 'Slain'} · ${ctx.edist(s.hero, fallen)} squares away</p><p class="small muted">Click to search the body.</p></div></div>`;
       return;
     }
     if (foe && foe.side) {
       box.innerHTML = `<div class="foe-mini">${ctx.portraitOf(foe) ? `<img src="${esc(ctx.portraitOf(foe))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
-        <p class="small">${foe.side === 'npc' ? 'Click to talk' : foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe) * 5} ft away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;
+        <p class="small">${foe.side === 'npc' ? 'Click to talk' : foe.side === 'ally' ? `Ally · ${foe.hp}/${foe.maxHp} HP` : 'A prisoner, in chains'} · ${ctx.edist(s.hero, foe)} squares away</p><p class="small muted">Click for orders${foe.side === 'captive' ? ' or to free her' : ''}.</p></div></div>`;
       return;
     }
     if (foe) {
       const plan = ctx.heroAttackPlan(foe);
       box.innerHTML = `<div class="foe-mini">${monsterPortrait(foe.statId) ? `<img src="${esc(monsterPortrait(foe.statId))}" alt="">` : ''}<div><h3>${esc(foe.name)}</h3>
-        <p class="small">${woundState(foe.hp, foe.maxHp)} · ${ctx.edist(s.hero, foe) * 5} ft away</p>
+        <p class="small">${woundState(foe.hp, foe.maxHp)} · ${ctx.edist(s.hero, foe)} squares away</p>
         ${plan ? `<p class="hit"><b>${pct(plan.opts.chance)}</b> to hit with ${esc(plan.weapon.name)}</p>` : `<p class="small">${esc(ctx.whyNot(foe))}</p>`}
         <p class="small muted">Click for everything you can do: attack, talk, shove, study, cast.</p></div></div>`;
       return;

@@ -7,13 +7,16 @@ import { SPELLS } from '../src/content/westlands/magic.js';
 import { MONSTER_SPELLS, powerRange } from '../src/engine/monster-magic.js';
 import { createArenaMap } from '../src/engine/terrain.js';
 
-test('ranges fit the map: nothing shoots across the whole dungeon', () => {
-  assert.deepEqual(playRange(30, 120), [8, 16]);            // longbow
-  assert.deepEqual(playRange(6, 24, { thrown: true }), [6, 8]); // javelin
-  assert.deepEqual(playRange(4, 12, { thrown: true }), [4, 8]); // dagger
+test('every weapon has one reach in squares, and nothing shoots across the whole dungeon', () => {
+  assert.deepEqual(playRange(30, 120), [12, 12]);            // longbow 150 ft: reach 12
+  assert.deepEqual(playRange(16, 64), [8, 8]);               // shortbow 80 ft: reach 8
+  assert.deepEqual(playRange(6, 24), [4, 4]);                // sling 30 ft: reach 4
+  assert.deepEqual(playRange(6, 24, { thrown: true }), [6, 6]); // javelin
+  assert.deepEqual(playRange(4, 12, { thrown: true }), [4, 4]); // dagger
   for (const m of BESTIARY) for (const a of m.actions.filter((x) => x.attack?.damage?.length)) {
     const w = weaponFromMonsterAction(a);
-    assert.ok(w.long <= RANGE_CAP.long, `${m.id} ${a.name} reaches ${w.long}`);
+    assert.ok(w.long <= RANGE_CAP.launcher, `${m.id} ${a.name} reaches ${w.long}`);
+    assert.equal(w.normal, w.long, 'one reach, no long-range band');
   }
   for (const sp of SPELLS) assert.ok(sp.range <= RANGE_CAP.spell, `${sp.id} reaches ${sp.range}`);
   for (const p of Object.values(MONSTER_SPELLS)) assert.ok(powerRange(p) <= RANGE_CAP.spell);
@@ -61,4 +64,14 @@ test('cover: shots past corners are harder, blocked lines are impossible', () =>
   for (const [a, b, w, want] of cases) assert.equal(rangedCover([a], [b], walls(w)), want, `${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
   // A creature in the way gives half cover on open ground.
   assert.equal(rangedCover([{ x: 0, y: 0 }], [{ x: 4, y: 0 }], walls([]), new Set(['2,0'])), 'half');
+});
+
+import { attackOptions } from '../src/engine/combat.js';
+test('a bow with reach 8 hits at 8 squares and cannot hit at 10', () => {
+  const bow = { name: 'Shortbow', toHit: 5, damage: '1d6+3', type: 'piercing', melee: false, ranged: true, normal: 8, long: 8, reach: 1 };
+  const archer = { pos: { x: 0, y: 0 }, size: 1, facing: 2, weapons: [bow] };
+  const at = (x) => attackOptions({ attacker: archer, target: { pos: { x, y: 0 }, size: 1, ac: 12, facing: 6 }, weapon: bow, opaque: () => false, occupied: new Set(), enemiesOf: () => [] });
+  assert.ok(at(8), 'in reach');
+  assert.deepEqual(at(8).dis, [], 'no long-range penalty inside the reach');
+  assert.equal(at(10), null, 'beyond the reach');
 });

@@ -13,6 +13,7 @@ import { reachableSquares, cellKey } from './movement.js';
 import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
 import { lineOfSight, coverBetween, rangedCover, COVER_AC } from './vision.js';
 import { footprintOf, cellsOf, blockDistance, centerOf, dims, orientFor } from './size.js';
+import { fightingStyle, COVER_RANK } from './tactics.js';
 
 /** Distance between two creatures, measured between their nearest squares (big creatures fill blocks). */
 export const entityDistance = (a, b) => blockDistance(a.pos, a.size ?? 1, b.pos, b.size ?? 1);
@@ -83,7 +84,7 @@ export function weaponFromHeroAttack(a) {
   const spec = (range ?? thrown)?.split(' ')[1];
   const [n0, l0] = spec ? spec.split('/').map((n) => Number(n) / 5) : [0, 0];
   const [normal, long] = playRange(n0, l0, { thrown: !range && !!thrown });
-  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: 1 };
+  return { name: a.name, toHit: a.toHit, damage: a.damage, type: a.damageType, melee: !range, ranged: !!(range || thrown), normal, long, reach: 1, thrown: !range && !!thrown };
 }
 
 export function weaponFromMonsterAction(action) {
@@ -163,7 +164,6 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
     cover = rangedCover(cellsOf(attacker.pos, attacker.size ?? 1), cellsOf(target.pos, target.size ?? 1), opaque, others);
     if (cover === 'total') return null; // no clear shot
     ac += COVER_AC[cover];
-    if (dist > weapon.normal) dis.push('long range');
     if (enemiesOf(attacker).some((e) => entityDistance(e, attacker) <= 1)) dis.push('enemy adjacent');
   } else {
     return null;
@@ -239,7 +239,7 @@ export function createMonster(stat, id, pos, facing = 4) {
     flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
     size: orientFor(footprintOf(stat), facing),
     cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
-    ...(() => { const powers = monsterPowers(stat); return { powers, uses: freshMonsterUses(stat, powers), aura: parseAura(stat.traits) }; })(),
+    ...(() => { const powers = monsterPowers(stat); return { powers, uses: freshMonsterUses(stat, powers), aura: parseAura(stat.traits), style: fightingStyle(stat, powers) }; })(),
   };
 }
 
@@ -283,7 +283,10 @@ export function rollInitiative(dexMod, rng = cryptoRandomInt) {
  * hack with the scimitar or (if wounded, or sometimes anyway) use Nimble Escape to slip away
  * and shoot; otherwise close the distance.
  */
-export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt }) {
+export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRandomInt, threats = null }) {
+  const style0 = m.style ?? fightingStyle(null);
+  // Something as big as a house cannot hide behind a pillar.
+  const style = Math.max(dims(m.size ?? 1).w, dims(m.size ?? 1).h) > 3 ? { ...style0, seeksCover: false } : style0;
   const melee = m.weapons.find((w) => w.melee);
   // Javelins and daggers run out (a creature carries a couple); bows and rocks do not.
   const ranged = m.weapons.find((w) => w.ranged && !w.melee && (w.throws ?? Infinity) > 0)
@@ -299,9 +302,13 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
   // A clear enough shot from there: seen, and not behind total cover (corners, see rangedCover).
   const canShoot = (pos) => sees(pos) && rangedCover(cellsOf(pos, n), cellsOf(hero.pos, hero.size ?? 1), opaque) !== 'total';
   const move = (budget) => reachableSquares(map, m.pos, budget, { blocked, size: n });
+  // How well a square hides it from everyone who could shoot at it (the worst case counts).
+  const foes = threats?.length ? threats : [hero];
+  const coverAt = (pos) => Math.min(...foes.map((f) => COVER_RANK[rangedCover(cellsOf(f.pos, f.size ?? 1), cellsOf(pos, n), opaque)] ?? 0));
 
   // Cowards run when badly hurt: to the reachable square farthest from the hero, then shoot if they can.
-  if ((m.cowardly && m.hp <= m.maxHp / 2) || m.cond?.flee > 0) {
+  // Beasts bolt and the cunning slip away when the fight is going badly (see tactics.js).
+  if ((m.cowardly && m.hp <= m.maxHp / 2) || m.cond?.flee > 0 || (style.fleeAt && m.hp <= m.maxHp * style.fleeAt)) {
     const reach = move(m.speed);
     const far = [...reach.values()].sort((a, b) => dAt(b) - dAt(a) || a.cost - b.cost)[0];
     if (far && dAt(far) > dist) {
@@ -320,7 +327,17 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
     return [{ type: 'attack', weapon: melee }];
   }
 
-  if (ranged && prefersRanged && canShoot(m.pos) && dist <= ranged.long) return [{ type: 'attack', weapon: ranged }];
+  if (ranged && prefersRanged && canShoot(m.pos) && dist <= ranged.long) {
+    // A thinking archer in the open first steps behind something (a corner, a pillar, a friend)
+    // from where it can still shoot. Never while a foe stands next to it (that would provoke).
+    if (style.seeksCover && dist > 1 && coverAt(m.pos) === 0) {
+      const spots = [...move(m.speed).values()].filter((c) => c.cost > 0 && dAt(c) > 1 && dAt(c) <= ranged.long && canShoot(c))
+        .map((c) => ({ c, cover: Math.min(2, coverAt(c)) })).filter((x) => x.cover > 0)
+        .sort((a, b) => b.cover - a.cover || a.c.cost - b.c.cost);
+      if (spots.length) return [{ type: 'move', path: spots[0].c.path, cover: true }, { type: 'attack', weapon: ranged }];
+    }
+    return [{ type: 'attack', weapon: ranged }];
+  }
 
   // Close in: find the cheapest square within reach of the hero, then walk part of the way.
   const all = move(200);
@@ -330,9 +347,21 @@ export function planMonsterTurn({ m, hero, map, opaque, blocked, rng = cryptoRan
     if (!best || c.cost < best.cost) best = c;
   }
   if (!best) return ranged && canShoot(m.pos) && dist <= ranged.long ? [{ type: 'attack', weapon: ranged }] : [{ type: 'wait' }];
-  const path = best.path.slice(0, m.speed + 1);
-  const end = path[path.length - 1];
-  const steps = [{ type: 'move', path }];
+  let path = best.path.slice(0, m.speed + 1);
+  let end = path[path.length - 1];
+  // It cannot reach anyone this turn and has nothing to shoot with from there: a thinking creature
+  // does not stop in the open. It moves up to the reachable square with the best cover that still
+  // brings it closer (or at least no farther), ready to close in next turn.
+  const shootsFrom = (c) => ranged && canShoot(c) && dAt(c) <= ranged.long;
+  let tookCover = false;
+  if (style.seeksCover && dAt(end) > reachSq && !shootsFrom(end) && coverAt(end) < 2) {
+    const here = coverAt(end);
+    const spots = [...move(m.speed).values()].filter((c) => dAt(c) <= dist && dAt(c) > reachSq)
+      .map((c) => ({ c, cover: Math.min(2, coverAt(c)) })).filter((x) => x.cover > here)
+      .sort((a, b) => b.cover - a.cover || dAt(a.c) - dAt(b.c) || a.c.cost - b.c.cost);
+    if (spots.length) { path = spots[0].c.path; end = path[path.length - 1]; tookCover = true; }
+  }
+  const steps = [{ type: 'move', path, cover: tookCover }];
   if (dAt(end) <= reachSq && melee) steps.push({ type: 'attack', weapon: melee });
   else if (ranged && canShoot(end) && dAt(end) <= ranged.long) steps.push({ type: 'attack', weapon: ranged });
   return steps;

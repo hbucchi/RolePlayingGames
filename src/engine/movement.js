@@ -42,7 +42,7 @@ export function canStep(map, x, y, dx, dy, blocked, size = 1) {
   }
   const nx = x + dx; const ny = y + dy;
   if (!isWalkable(map, nx, ny) || blocked?.has(cellKey(nx, ny))) return false;
-  if (map.terrain && terrainCost(map, nx, ny) === Infinity) return false; // deep water
+  if ((map.terrain || map.props) && terrainCost(map, nx, ny) === Infinity) return false; // deep water
   if (dx !== 0 && dy !== 0) {
     return isWalkable(map, x + dx, y) && isWalkable(map, x, y + dy);
   }
@@ -84,7 +84,7 @@ export function reachableSquares(map, start, budget, { diagonalRule = 'standard'
       if (!canStep(map, cur.x, cur.y, dx, dy, blocked, size)) continue;
       const diagonal = dx !== 0 && dy !== 0;
       // Difficult terrain doubles the cost of entering a square.
-      const stepCost = (diagonal && alternating && cur.parity === 1 ? 2 : 1) * (map.terrain ? terrainCost(map, cur.x + dx, cur.y + dy) : 1);
+      const stepCost = (diagonal && alternating && cur.parity === 1 ? 2 : 1) * (map.terrain || map.props || map.temp ? terrainCost(map, cur.x + dx, cur.y + dy) : 1);
       const parity = diagonal && alternating ? 1 - cur.parity : cur.parity;
       const cost = cur.cost + stepCost;
       if (cost > budget) continue;

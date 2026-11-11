@@ -867,12 +867,12 @@ function rollAbilitySlots(indices) {
   }, duration);
 }
 
-/** "range 150/600" as the game plays it (engine/range.js): "range 40/80 ft". */
+/** "range 150/600" as the game plays it (engine/range.js): "reach 12 squares". */
 function playRangeText(p) {
   const m = /^(range|thrown) (\d+)\/(\d+)/.exec(p);
   if (!m) return p;
-  const [n, l] = playRange(Number(m[2]) / 5, Number(m[3]) / 5, { thrown: m[1] === 'thrown' });
-  return `${m[1]} ${n * 5}/${l * 5} ft`;
+  const [r] = playRange(Number(m[2]) / 5, Number(m[3]) / 5, { thrown: m[1] === 'thrown' });
+  return `${m[1] === 'thrown' ? 'thrown, ' : ''}reach ${r} squares`;
 }
 
 async function logRoll(label, bonus) {

@@ -4,6 +4,7 @@
  */
 import { createStore, FORMATS } from '../engine/saves.js';
 import { TERRAINS, createArenaMap, paintTerrain, encodeTerrain, decodeArena, standable } from '../engine/terrain.js';
+import { PROPS, propCells, propDims, propImage, clearPropIndex } from '../engine/props.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { BESTIARY, BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { DUNGEON_FOES } from '../content/westlands/dungeon-foes.js';
@@ -43,7 +44,7 @@ export function defaultArena(w = 20, h = 16) {
 export function mountArenaBuilder(host, ctx) {
   const st = {
     setup: ctx.setup ?? defaultArena(), tool: 'paint', terrain: 'grass', heroPick: ctx.heroes[0]?.id ?? null,
-    foePick: 'goblin', foeFilter: '', side: 'enemy', lie: 'ew', painting: false, facing: 4,
+    foePick: 'goblin', foeFilter: '', side: 'enemy', lie: 'ew', painting: false, facing: 4, propPick: 'barrel', propRot: 0,
   };
   const S = () => st.setup.map.cellSize;
   const save = () => ctx.onChange?.(st.setup);
@@ -92,6 +93,16 @@ export function mountArenaBuilder(host, ctx) {
       </button>`).join('');
   }
 
+  /** Furniture and fittings to place (engine/props.js); crafting stations are marked ⚒. */
+  function propPalette() {
+    return Object.entries(PROPS).map(([id, p]) => `
+      <button class="ab-swatch ab-prop ${st.tool === 'prop' && st.propPick === id ? 'sel' : ''}" data-ab="prop" data-id="${id}" title="${esc(p.name)} · ${p.w}×${p.h} · ${p.block === 'move' ? 'blocks movement' : p.block === 'slow' ? 'difficult terrain' : 'walk over it'}${p.station ? ' · crafting station' : ''}">
+        <span class="sw" style="background-image:url('${esc(propImage(id))}')"></span>
+        <span>${esc(p.name)}${p.station ? ' <small>⚒</small>' : ''}</span>
+      </button>`).join('');
+  }
+  const propAtCell = (x, y) => (st.setup.map.props ?? []).find((p) => propCells(p).some((q) => q.x === x && q.y === y));
+
   function foeOptions() {
     const q = st.foeFilter.trim().toLowerCase();
     const list = q ? FIGHTERS.filter((m) => m.name.toLowerCase().includes(q)) : FIGHTERS.filter((m) => DUNGEON_FOES.includes(m.id));
@@ -116,6 +127,12 @@ export function mountArenaBuilder(host, ctx) {
         <h3>1 · Paint terrain</h3>
         <p class="small muted">Pick a terrain, then click or drag across squares. Mud, snow and shallow water are difficult terrain (moving into them costs double). Deep water cannot be walked through; walls block movement and sight.</p>
         <div class="ab-palette">${palette()}</div>
+      </section>
+      <section class="panel">
+        <h3>Furniture</h3>
+        <p class="small muted">Pick a piece, then click where its top-left corner goes. Tables, statues and forges block movement; chairs and rubble slow it. ⚒ marks crafting stations. The ✕ remove tool also takes furniture away.</p>
+        <div class="row wrap"><button class="btn small" data-ab="prop-rot">↻ Turn (${st.propRot}°)</button></div>
+        <div class="ab-palette">${propPalette()}</div>
       </section>
       <section class="panel">
         <h3>2 · Place your party <span class="muted small">(${st.setup.heroes.length}/4)</span></h3>
@@ -147,7 +164,7 @@ export function mountArenaBuilder(host, ctx) {
   host.innerHTML = `<div class="ab-layout"><div class="ab-mapwrap"><div class="ab-map" aria-label="Arena map: click or drag to paint"></div>
     <p class="small muted">Tool: <b class="ab-tool"></b></p></div><aside class="ab-panel"></aside></div>`;
 
-  const toolLabel = () => ({ paint: `Paint ${TERRAINS[st.terrain].name}`, hero: `Place ${ctx.heroes.find((h) => h.id === st.heroPick)?.label.split(',')[0] ?? 'hero'}`, foe: `Place ${BESTIARY_BY_ID[st.foePick]?.name}`, erase: 'Remove a token' }[st.tool]);
+  const toolLabel = () => ({ prop: `Place ${PROPS[st.propPick]?.name}`, paint: `Paint ${TERRAINS[st.terrain].name}`, hero: `Place ${ctx.heroes.find((h) => h.id === st.heroPick)?.label.split(',')[0] ?? 'hero'}`, foe: `Place ${BESTIARY_BY_ID[st.foePick]?.name}`, erase: 'Remove a token' }[st.tool]);
 
   function cellAt(e) {
     const svg = host.querySelector('.ab-map svg'); if (!svg) return null;
@@ -163,6 +180,16 @@ export function mountArenaBuilder(host, ctx) {
     if (st.tool === 'paint') {
       if (TERRAINS[st.terrain].wall && here) return ctx.notify?.('Clear the token from that square first.', 'bad');
       paintTerrain(map, c.x, c.y, st.terrain); drawMap(); save(); return;
+    }
+    if (st.tool === 'prop') {
+      const pr = { kind: st.propPick, x: c.x, y: c.y, rot: PROPS[st.propPick].w === PROPS[st.propPick].h ? 0 : st.propRot };
+      const def = PROPS[pr.kind];
+      const ok = propCells(pr).every((q) => (def.wall ? map.tiles[q.y]?.[q.x] !== undefined : standable(map, q.x, q.y) && !occupiedBy(q.x, q.y)) && (def.under || !(propAtCell(q.x, q.y) && !PROPS[propAtCell(q.x, q.y).kind].under)));
+      if (!ok) { const d = propDims(pr); return ctx.notify?.(`${def.name} needs ${d.w}×${d.h} clear squares here (its top-left corner goes where you click).`, 'bad'); }
+      (map.props ??= []).push(pr); clearPropIndex(map); drawMap(); save(); return;
+    }
+    if (st.tool === 'erase' && !here && propAtCell(c.x, c.y)) {
+      const pr = propAtCell(c.x, c.y); map.props = map.props.filter((p) => p !== pr); clearPropIndex(map); drawMap(); save(); return;
     }
     if (st.tool === 'erase') {
       if (here?.kind === 'hero') st.setup.heroes = st.setup.heroes.filter((h) => h !== here.ref);
@@ -206,6 +233,8 @@ export function mountArenaBuilder(host, ctx) {
     const a = el.dataset.ab;
     if (a === 'terrain') { st.tool = 'paint'; st.terrain = el.dataset.id; }
     if (a === 'hero') { st.tool = 'hero'; st.heroPick = el.dataset.id; }
+    if (a === 'prop') { st.tool = 'prop'; st.propPick = el.dataset.id; }
+    if (a === 'prop-rot') { st.tool = 'prop'; st.propRot = (st.propRot + 90) % 360; }
     if (a === 'foe-tool') st.tool = 'foe';
     if (a === 'erase-tool') st.tool = 'erase';
     if (a === 'remove-foe') st.setup.foes = st.setup.foes.filter((f) => String(f.uid) !== el.dataset.uid);
@@ -213,7 +242,7 @@ export function mountArenaBuilder(host, ctx) {
     if (a === 'new') st.setup = defaultArena(st.setup.map.width, st.setup.map.height);
     if (a === 'save') {
       const list = loadArenas();
-      const rec = { id: st.setup.id ?? `a${Date.now().toString(36)}`, name: st.setup.name.trim() || 'Arena', rows: encodeTerrain(st.setup.map), heroes: st.setup.heroes, foes: st.setup.foes, updated: new Date().toISOString() };
+      const rec = { id: st.setup.id ?? `a${Date.now().toString(36)}`, name: st.setup.name.trim() || 'Arena', rows: encodeTerrain(st.setup.map), props: st.setup.map.props ?? [], heroes: st.setup.heroes, foes: st.setup.foes, updated: new Date().toISOString() };
       st.setup.id = rec.id;
       const i = list.findIndex((x) => x.id === rec.id); if (i >= 0) list[i] = rec; else list.push(rec);
       const ok = storeArenas(list);
@@ -221,7 +250,7 @@ export function mountArenaBuilder(host, ctx) {
     }
     if (a === 'load') {
       const rec = loadArenas().find((x) => x.id === el.dataset.id);
-      if (rec) st.setup = { id: rec.id, name: rec.name, map: decodeArena(rec.rows), heroes: rec.heroes.filter((h) => ctx.heroes.some((x) => x.id === h.id)), foes: rec.foes.filter((f) => BESTIARY_BY_ID[f.statId]) };
+      if (rec) st.setup = { id: rec.id, name: rec.name, map: Object.assign(decodeArena(rec.rows), { props: (rec.props ?? []).filter((p) => PROPS[p.kind]) }), heroes: rec.heroes.filter((h) => ctx.heroes.some((x) => x.id === h.id)), foes: rec.foes.filter((f) => BESTIARY_BY_ID[f.statId]) };
     }
     if (a === 'delete') {
       const armed = st.armedDelete === el.dataset.id;

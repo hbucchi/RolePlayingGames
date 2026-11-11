@@ -976,3 +976,14 @@ summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   .hero-tile .ht-concept { display: none; }
   .ht-actions { grid-column: 2; }
 }
+
+/* Clicked a body: search it or just step onto the square. */
+.corpse-ask .ask-row { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .6rem; }
+.corpse-ask .ask-row .btn { flex: 1 1 10rem; }
+
+/* Furniture in the arena builder: the painted piece, whole, on a dark tile. */
+.ab-prop .sw { background-size: contain; background-repeat: no-repeat; background-position: center; background-color: #2a221a; }
+/* Torches, braziers, forges and candles throw a soft warm light that breathes. */
+.prop-glow { mix-blend-mode: screen; animation: prop-flicker 2.6s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
+@keyframes prop-flicker { 0% { opacity: .75; transform: scale(.96); } 45% { opacity: 1; transform: scale(1.03); } 70% { opacity: .85; } 100% { opacity: .95; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .prop-glow { animation: none; } }

@@ -1,6 +1,8 @@
 /**
  * How many squares a creature fills. 5e: Tiny/Small/Medium take one 5-ft square, Large a 2x2
- * block (10 x 10 ft), Huge 3x3, Gargantuan 4x4 or more. A creature's position is the top-left
+ * block (10 x 10 ft), Huge 3x3, Gargantuan "20 ft or more". Ours are drawn to awe: a Gargantuan
+ * creature fills 8x8 squares, and the greatest of them (ancient dragons, the Tarrasque, the Roc)
+ * up to 10x8, next to a hero's single square. A creature's position is the top-left
  * square of its block.
  *
  * Long-bodied creatures (dragons, drakes, wyrms) fill a RECTANGLE instead: a young dragon is
@@ -11,19 +13,25 @@
  * Distance between two creatures is measured between their nearest squares: for blocks, the gap
  * along x and along y (0 if they overlap on that axis), and the larger of the two gaps.
  */
-export const SIZE_SQUARES = { Tiny: 1, Small: 1, Medium: 1, Large: 2, Huge: 3, Gargantuan: 4 };
+export const SIZE_SQUARES = { Tiny: 1, Small: 1, Medium: 1, Large: 2, Huge: 3, Gargantuan: 8 };
 
 /** Per-creature exceptions (the Westlands' great fire-demon fills a 2x2 block, by request). */
 export const FOOTPRINT_OVERRIDE = {
   'shadowflame-tyrant': 3, // thick body, wings to the sides
   'grey-ice-drake': { w: 4, h: 2 }, // a long, wingless serpent
   'long-worm-of-the-burning-fens': { w: 5, h: 2 },
-  'dragon-turtle': { w: 4, h: 3 },
+  // The Gargantuan: up to 10 x 8 squares (50 x 40 ft).
+  'dragon-turtle': { w: 10, h: 8 },
+  tarrasque: { w: 10, h: 8 },
+  roc: { w: 10, h: 8, across: true }, // wings spread across the way it faces
+  'purple-worm': { w: 10, h: 5 },
+  kraken: 8,
+  'war-mammoth-of-the-southern-host': { w: 8, h: 6 },
   // Wings spread: wider than long, so the long side lies ACROSS the way it faces.
   'test-dragon': { w: 5, h: 4, across: true },
 };
 /** Dragons are long: their body by size category (Medium wyrmlings still fit one square). */
-const DRAGON_BODY = { Large: { w: 3, h: 2 }, Huge: { w: 4, h: 3 }, Gargantuan: { w: 5, h: 4 } };
+const DRAGON_BODY = { Large: { w: 3, h: 2 }, Huge: { w: 4, h: 3 }, Gargantuan: { w: 10, h: 8 } };
 const LONG_BODY = /dragon|drake|wyrm/;
 
 /** Width and height of a size (a number means a square). */

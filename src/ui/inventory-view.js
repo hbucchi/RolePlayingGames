@@ -123,14 +123,15 @@ export function fmtValue(cp) {
 }
 
 /** A compact list of loot (a body or chest) with take buttons. */
-export function lootHtml({ title, coins, items, closeAttr = 'data-dg="close-loot"' }) {
+export function lootHtml({ title, coins, items, note = '', closeAttr = 'data-dg="close-loot"' }) {
   const empty = !coins && !items.length;
   return `<div class="loot-card">
     <div class="foe-head"><h3>${esc(title)}</h3><button class="btn icon small" ${closeAttr} aria-label="Close">✕</button></div>
+    ${note ? `<p class="small muted">${esc(note)}</p>` : ''}
     ${empty ? '<p class="muted small">Nothing left to take.</p>' : `
     <ul class="loot-list">
       ${coins ? `<li><span class="item-icon sm"><img src="assets/items/gold.jpg" alt=""></span><span>${esc(fmtValue(coins))}</span><button class="btn small" data-dg="take" data-uid="coins">Take</button></li>` : ''}
-      ${items.map((x) => `<li>${itemIcon(x, 'sm')}<span class="r-text-${itemRarity(x)}">${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` ×${x.qty}` : ''}</span><button class="btn small" data-dg="take" data-uid="${esc(x.uid)}">Take</button></li>`).join('')}
+      ${items.map((x) => `<li>${itemIcon(x, 'sm')}<span class="r-text-${itemRarity(x)}">${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` ×${x.qty}` : ''}${x.from ? ` <small class="muted">· ${esc(x.from)}</small>` : ''}</span><button class="btn small" data-dg="take" data-uid="${esc(x.uid)}">Take</button></li>`).join('')}
     </ul>
     <button class="btn small primary" data-dg="take-all">Take everything</button>`}
   </div>`;

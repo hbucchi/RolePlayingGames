@@ -35,6 +35,7 @@ export function buildPlace(campaignId, locId) {
   const p = parseLocation(loc, (t) => CODE[t] ?? '.');
   const map = decodeArena(p.terrainRows);
   map.exit = p.exits[0] ?? null; map.exits = p.exits; // drawn on the map, and where the party leaves
+  map.props = (loc.props ?? []).map((q) => ({ ...q })); // furniture, forges, statues (engine/props.js)
   const heroes = run.party.map((id, i) => ({ id, pos: p.heroes[i] ?? nearSpot(map, p.heroes[0], i) }));
   const foes = [
     ...p.npcs.map((n) => ({ statId: n.stat, pos: n.pos, facing: n.facing, side: 'npc', npcId: n.id, name: n.name })),

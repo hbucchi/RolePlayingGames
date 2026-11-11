@@ -1,7 +1,8 @@
 {
  "templates": {
   "portrait": "A {cols} by {rows} grid of {n} separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders.",
-  "body": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a {cols} by {rows} grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours."
+  "body": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a {cols} by {rows} grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours.",
+  "prop": "Top-down game sprites of dungeon and medieval furniture and objects for a realistic 2D role-playing game, every object seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPG maps), arranged in a {cols} by {rows} grid, each object alone and centered in its own equal cell with empty space around it, on a plain flat uniform light grey background, no floor, no cast shadows, no text, no borders. Realistic painted detail, warm natural colours, weathered wood, iron and stone."
  },
  "families": {
   "soldier": {
@@ -406,7 +407,8 @@
   },
   "rug": {
    "portrait": "a rug of smothering: a patterned carpet rising to attack",
-   "body": "a patterned rug"
+   "body": "a patterned rug",
+   "prop": "a worn red and gold woven rug, rectangular"
   },
   "treant": {
    "portrait": "a treant: an ancient oak tree with a face in the bark",
@@ -510,6 +512,75 @@
   "wyvern": {
    "portrait": "a wyvern with leathery wings, two legs and a stinger tail",
    "body": "a wyvern with wings spread"
+  },
+  "bookshelf": {
+   "prop": "a tall wooden bookshelf packed with old leather books and scrolls, long and narrow"
+  },
+  "round-table": {
+   "prop": "a round wooden tavern table with a candle, two tankards and a plate"
+  },
+  "long-table": {
+   "prop": "a long rectangular wooden feast table with plates, goblets and bread"
+  },
+  "chair": {
+   "prop": "a simple wooden chair"
+  },
+  "bed": {
+   "prop": "a wooden bed with a rumpled wool blanket and a straw pillow"
+  },
+  "barrel": {
+   "prop": "an oak barrel with iron hoops"
+  },
+  "crates": {
+   "prop": "a stack of three wooden supply crates"
+  },
+  "wall-torch": {
+   "prop": "a burning torch in an iron wall bracket, bright orange flame"
+  },
+  "chains": {
+   "prop": "heavy iron chains and open shackles lying in a coil"
+  },
+  "candelabra": {
+   "prop": "a tall iron candelabra with five lit candles"
+  },
+  "statue": {
+   "prop": "a stone statue of an armoured knight holding a sword, on a square plinth"
+  },
+  "forge": {
+   "prop": "a blacksmith forge: a stone hearth with glowing hot coals and a chimney hood, bellows at its side"
+  },
+  "anvil": {
+   "prop": "a black iron blacksmith anvil on a wooden stump"
+  },
+  "grindstone": {
+   "prop": "a round sharpening grindstone wheel on a wooden frame"
+  },
+  "weapon-rack": {
+   "prop": "a wooden weapon rack holding swords, spears and axes, long and narrow"
+  },
+  "armour-stand": {
+   "prop": "a wooden mannequin stand wearing a steel breastplate and helmet"
+  },
+  "workbench": {
+   "prop": "a heavy wooden workbench with hammers, tongs, files and metal pieces"
+  },
+  "water-trough": {
+   "prop": "a wooden quenching trough filled with dark water"
+  },
+  "brazier": {
+   "prop": "an iron brazier full of burning coals and flames"
+  },
+  "altar": {
+   "prop": "a carved stone altar with a white cloth, a golden chalice and two candles"
+  },
+  "sarcophagus": {
+   "prop": "a stone sarcophagus with a carved lid showing a sleeping knight"
+  },
+  "rubble": {
+   "prop": "a broken stone pillar lying in rubble and fallen blocks"
+  },
+  "fountain": {
+   "prop": "a round stone fountain basin with clear water"
   }
  },
  "sheets": [
@@ -950,6 +1021,48 @@
     "wyvern"
    ],
    "prompt": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours. Row 1, left to right: a dryad with leafy hair seen from above; a satyr with goat legs and panpipes seen from above; a tiny winged sprite seen from above; a small horned imp with bat wings seen from above. Row 2, left to right: a winged fiend with small horns seen from above; a gaunt grey ghoul crouching seen from above; a pale translucent ghost seen from above; a bandaged mummy seen from above. Row 3, left to right: a shambling zombie seen from above; a glowing ball of light seen from above; a dragon turtle with a craggy shell seen from above; a wyvern with wings spread seen from above."
+  },
+  {
+   "kind": "prop",
+   "name": "f1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "bookshelf",
+    "round-table",
+    "long-table",
+    "chair",
+    "bed",
+    "barrel",
+    "crates",
+    "wall-torch",
+    "chains",
+    "candelabra",
+    "rug",
+    "statue"
+   ],
+   "prompt": "Top-down game sprites of dungeon and medieval furniture and objects for a realistic 2D role-playing game, every object seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPG maps), arranged in a 4 by 3 grid, each object alone and centered in its own equal cell with empty space around it, on a plain flat uniform light grey background, no floor, no cast shadows, no text, no borders. Realistic painted detail, warm natural colours, weathered wood, iron and stone. Row 1, left to right: a tall wooden bookshelf packed with old leather books and scrolls, long and narrow seen from above; a round wooden tavern table with a candle, two tankards and a plate seen from above; a long rectangular wooden feast table with plates, goblets and bread seen from above; a simple wooden chair seen from above. Row 2, left to right: a wooden bed with a rumpled wool blanket and a straw pillow seen from above; an oak barrel with iron hoops seen from above; a stack of three wooden supply crates seen from above; a burning torch in an iron wall bracket, bright orange flame seen from above. Row 3, left to right: heavy iron chains and open shackles lying in a coil seen from above; a tall iron candelabra with five lit candles seen from above; a worn red and gold woven rug, rectangular seen from above; a stone statue of an armoured knight holding a sword, on a square plinth seen from above."
+  },
+  {
+   "kind": "prop",
+   "name": "f2",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "forge",
+    "anvil",
+    "grindstone",
+    "weapon-rack",
+    "armour-stand",
+    "workbench",
+    "water-trough",
+    "brazier",
+    "altar",
+    "sarcophagus",
+    "rubble",
+    "fountain"
+   ],
+   "prompt": "Top-down game sprites of dungeon and medieval furniture and objects for a realistic 2D role-playing game, every object seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPG maps), arranged in a 4 by 3 grid, each object alone and centered in its own equal cell with empty space around it, on a plain flat uniform light grey background, no floor, no cast shadows, no text, no borders. Realistic painted detail, warm natural colours, weathered wood, iron and stone. Row 1, left to right: a blacksmith forge: a stone hearth with glowing hot coals and a chimney hood, bellows at its side seen from above; a black iron blacksmith anvil on a wooden stump seen from above; a round sharpening grindstone wheel on a wooden frame seen from above; a wooden weapon rack holding swords, spears and axes, long and narrow seen from above. Row 2, left to right: a wooden mannequin stand wearing a steel breastplate and helmet seen from above; a heavy wooden workbench with hammers, tongs, files and metal pieces seen from above; a wooden quenching trough filled with dark water seen from above; an iron brazier full of burning coals and flames seen from above. Row 3, left to right: a carved stone altar with a white cloth, a golden chalice and two candles seen from above; a stone sarcophagus with a carved lid showing a sleeping knight seen from above; a broken stone pillar lying in rubble and fallen blocks seen from above; a round stone fountain basin with clear water seen from above."
   }
  ]
 }

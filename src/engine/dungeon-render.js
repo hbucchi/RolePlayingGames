@@ -12,6 +12,7 @@
  * Every shape comes from the grid data, so art and grid can never disagree.
  */
 import { TILE } from './dungeon.js';
+import { propsSvg, PROP_DEFS } from './props.js';
 
 export const DEFAULT_TEXTURES = {
   floor: 'assets/textures/floor-flagstone.jpg',
@@ -134,6 +135,7 @@ export function renderDungeonSVG(map, o = {}) {
       <pattern id="${id('floor')}" patternUnits="userSpaceOnUse" width="384" height="384">
         <image href="${textures.floor}" width="384" height="384"/>
       </pattern>` : ''}
+      ${PROP_DEFS}
       <clipPath id="${id('clip')}"><path d="${floorD}"/></clipPath>
       <filter id="${id('blur')}" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="9"/></filter>
       <radialGradient id="${id('vignette')}" cx="50%" cy="50%" r="72%">
@@ -166,6 +168,7 @@ export function renderDungeonSVG(map, o = {}) {
     <path d="${gridLines(map, S)}" stroke="#fff" stroke-opacity=".07" stroke-width="1.5" fill="none" transform="translate(1.5 1.5)"/>` : ''}
   </g>
   <path d="${wallD}" stroke="#0d0a07" stroke-width="8" stroke-linecap="square" fill="none"/>
+  ${propsSvg(map, S)}
   ${doors ? map.doors.map((d) => doorSvg(d, S, textures?.door)).join('') : ''}
   ${labels && map.entrance ? stairsSvg(map.entrance, S) : ''}
   ${labels && map.exit ? stairsDownSvg(map.exit, S) : ''}

@@ -6,6 +6,7 @@
  * can see and shoot across it. Walls block both movement and sight.
  */
 import { TILE } from './dungeon.js';
+import { propCost } from './props.js';
 
 export const TERRAINS = {
   floor: { name: 'Stone floor', cost: 1, texture: 'assets/textures/floor-flagstone.jpg', color: '#8d826e' },
@@ -33,7 +34,8 @@ export function terrainCost(map, x, y) {
   const base = id ? TERRAINS[id]?.cost ?? 1 : 1;
   // Ground changed for a while by magic (ice, rubble): map.temp holds "x,y" -> cost.
   const temp = map.temp?.get(`${x},${y}`) ?? 1;
-  return Math.max(base, temp);
+  // Furniture standing there (props.js): tables block, chairs and rubble slow.
+  return Math.max(base, temp, propCost(map, x, y));
 }
 
 /**

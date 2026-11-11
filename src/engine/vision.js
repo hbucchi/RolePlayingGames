@@ -214,3 +214,22 @@ export function rangedCover(aCells, bCells, opaque, occupied = new Set()) {
   if (best === 'none' && pair && coverBetween(pair[0], pair[1], () => false, occupied) === 'half') best = 'half';
   return best;
 }
+
+/**
+ * Field of view: a creature sees what lies in front of it and to its sides, not behind it.
+ * Facing f (0 = north, clockwise in 45-degree steps) points along the unit vector u. A square at
+ * offset v is in view when the angle between u and v is at most FOV_HALF, i.e. when
+ * cos(angle) = (u . v) / |v| >= cos(FOV_HALF). With FOV_HALF = 112.5 degrees the blind wedge is the
+ * 135 degrees straight behind: the same three rear directions that give attackers advantage.
+ * Squares right next to you are always sensed (you hear and feel them).
+ */
+export const FOV_HALF = 112.5;
+const FACE_VEC = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+const COS_HALF = Math.cos((FOV_HALF * Math.PI) / 180);
+export function inFieldOfView(from, facing, cell) {
+  const vx = cell.x - from.x; const vy = cell.y - from.y;
+  if (Math.max(Math.abs(vx), Math.abs(vy)) <= 1) return true;
+  const [fx, fy] = FACE_VEC[((facing ?? 4) % 8 + 8) % 8];
+  const dot = (fx * vx + fy * vy) / Math.hypot(fx, fy);
+  return dot / Math.hypot(vx, vy) >= COS_HALF - 1e-9;
+}

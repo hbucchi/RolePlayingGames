@@ -50,7 +50,7 @@ export function installAttacks(ctx) {
     const maxRange = Math.max(0, ...s.hero.weapons.filter((w) => w.ranged).map((w) => w.long));
     if (!s.visible.has(cellKey(target.pos.x, target.pos.y))) return 'You can\'t see it.';
     if (d > 1 && !maxRange) return 'Too far for a melee weapon. Move next to it first.';
-    if (d > maxRange) return `Out of range (${d * 5} ft).`;
+    if (d > maxRange) return `Out of reach: it is ${d} squares away; your reach is ${maxRange}.`;
     return 'No clear line of sight.';
   }
 

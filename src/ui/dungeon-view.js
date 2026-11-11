@@ -18,9 +18,9 @@
 import { generateDungeon, TILE } from '../engine/dungeon.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
-import { cellsOf, blockDistance, dims, spanOf } from '../engine/size.js';
+import { cellsOf, blockDistance, dims, spanOf, centerOf } from '../engine/size.js';
 import { reachableSquares, speedToSquares, cellKey } from '../engine/movement.js';
-import { makeOpacity, visibleSquares, revealFrom } from '../engine/vision.js';
+import { makeOpacity, visibleSquares, revealFrom, inFieldOfView, lineOfSight } from '../engine/vision.js';
 import { facingToward, rotateFacing, chebyshev, weaponFromHeroAttack, rollInitiative, createMonster, entityDistance, covers, reachOf, immobile } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
@@ -29,6 +29,7 @@ import { setMood } from './music.js';
 import { getFigures, getSetting, setSetting, PACE_FACTOR } from './settings.js';
 import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
+import { furnishDungeon } from '../engine/props.js';
 import { rollMonsterLoot } from '../engine/loot.js';
 import { makeItem as makeItemSafe, addItem, removeItem, itemName, itemDef, equipItem, unequipSlot, isEquipped, formatCoins } from '../engine/items.js';
 import { freshResources, skillXp } from '../engine/magic.js';
@@ -189,6 +190,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     endAlliance: { get: () => endAlliance },
     endConcentration: { get: () => endConcentration },
     enemiesOf: { get: () => enemiesOf },
+    styleOf: { get: () => styleOf },
     enterCombat: { get: () => enterCombat },
     esc: { get: () => esc },
     fighting: { get: () => fighting },
@@ -265,7 +267,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     viewport: { get: () => viewport },
     whyNot: { get: () => whyNot },
   });
-  const { runMonsterTurns, monsterTurn, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves } = installMonsterTurns(ctx);
+  const { runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves } = installMonsterTurns(ctx);
   const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
@@ -435,6 +437,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         const m = { ...createMonster(stat, `ally${i + 1}`, { ...spots[i] }, 0), name: a.name, portrait: a.portrait, hp: a.hp, side: 'ally', permanent: true, aware: true };
         s.monsters.push(m);
       });
+      // Furniture for each room (props.js), kept clear of chests, stairs, traps and creatures.
+      const busy = new Set([...avoid, ...(s.features.traps ?? []).map((t) => cellKey(t.x, t.y)), ...s.monsters.flatMap((m) => cellsOf(m.pos, m.size ?? 1).map((c) => cellKey(c.x, c.y)))]);
+      furnishDungeon(s.map, s.seed, busy);
+      base.innerHTML = renderDungeonSVG(s.map, { grid: s.grid, labels: true, doors: false });
     }
     s.sneak = null; s.longRested = false; s.effects = []; s.vfx = []; s.blood = []; s.map.temp = new Map(); s.areaFx = null;
     s.doors = new Map(); s.revealed = new Set(); s.log = []; s.floats = [];
@@ -519,6 +525,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   /** Can the party actually see it? (Not the narrator's Reveal map view.) */
   const inSight = (m) => cellsOf(m.pos, m.size ?? 1).some((c) => s.visible.has(cellKey(c.x, c.y)));
   const canSee = (m) => s.revealAll || inSight(m);
+  /** Does a creature see one of the party: a clear line, and the hero in front of it (or right beside it)? */
+  function noticesParty(m) {
+    const op = opaque(); const c = centerOf(m.pos, m.size ?? 1); const at = { x: Math.round(c.x), y: Math.round(c.y) };
+    return partyAlive().some((h) => (edist(h, m) <= 1 || inFieldOfView(at, m.facing, h.pos)) && cellsOf(m.pos, m.size ?? 1).some((q) => lineOfSight(q, h.pos, op).visible));
+  }
 
   // Squares nobody can walk through: undiscovered secret doors, locked doors, chests.
   const isSecret = (k) => s.features?.secretDoors.has(k);
@@ -535,6 +546,18 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const trapAt = (x, y) => s.features?.traps.find((t) => t.x === x && t.y === y) ?? null;
   // Every fallen creature leaves something to search (a body, or a spirit's empty garb).
   const corpseAt = (x, y) => s.monsters.find((m) => m.dead && covers(m, { x, y })) ?? null;
+  /** Every body lying on a square, plus any body that overlaps one of them: a pile searched together. */
+  function corpsesAt(x, y) {
+    const pile = s.monsters.filter((m) => m.dead && covers(m, { x, y }));
+    for (const a of [...pile]) for (const m of s.monsters) if (m.dead && !pile.includes(m) && cellsOf(m.pos, m.size ?? 1).some((q) => covers(a, q))) pile.push(m);
+    return pile;
+  }
+  /** Walk next to a body (or a pile) and open it. */
+  function searchBodies(ids) {
+    const bodies = ids.map((id) => s.monsters.find((m) => m.id === id)).filter(Boolean);
+    if (!bodies.length) return;
+    approachThen(bodies[0].pos, () => { s.target = bodies.length > 1 ? { kind: 'corpses', id: bodies[0].id, ids: bodies.map((m) => m.id) } : { kind: 'corpse', id: bodies[0].id }; });
+  }
   const doorAt = (x, y) => s.map.doors.find((d) => d.x === x && d.y === y) ?? null;
   const adjacent = (p) => chebyshev(s.hero.pos, p) <= 1;
 
@@ -569,7 +592,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     // The party sees what any of its members sees.
     if (arena && arena.reveal !== false) { s.visible = new Set(); for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) s.visible.add(cellKey(x, y)); } else {
       const op = opaque(); s.visible = new Set();
-      for (const h of (partyAlive().length ? partyAlive() : [s.hero])) for (const k of visibleSquares(s.map, h.pos, op)) s.visible.add(k);
+      // Each hero sees only what is in front and to the sides (vision.js: inFieldOfView); turn with Q / E.
+      for (const h of (partyAlive().length ? partyAlive() : [s.hero])) for (const k of visibleSquares(s.map, h.pos, op)) {
+        const [x, y] = k.split(',').map(Number);
+        if (inFieldOfView(h.pos, h.facing, { x, y })) s.visible.add(k);
+      }
     }
     if (s.features) passiveNotice();
     if (s.map.exit && !s.exitSeen && s.visible.has(cellKey(s.map.exit.x, s.map.exit.y))) {
@@ -579,7 +606,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     revealFrom(s.map, s.visible, s.revealed);
     const spotted = [];
     for (const m of foes()) {
-      if (m.aware || m.calm || !inSight(m) || m.cond?.asleep || m.cond?.petrified) continue;
+      // A creature notices you when IT can see you: in its line of sight and in front of it.
+      // One facing away does not notice you, and you get advantage on your first strike.
+      if (m.aware || m.calm || !noticesParty(m) || m.cond?.asleep || m.cond?.petrified) continue;
       if (s.sneak) {
         // Stealth vs passive Perception: if your roll beats it, the creature does not notice you.
         if (m.unnoticed) continue;
@@ -1225,8 +1254,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const k = cellKey(c.x, c.y);
     const known = s.revealAll || s.revealed.has(k);
     if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { descend(); return; }
-    const body = corpseAt(c.x, c.y);
-    if (body) { approachThen(body.pos, () => { s.target = { kind: 'corpse', id: body.id }; }); return; }
+    // A body on the floor: ask whether to search it or just step onto the square
+    // (bodies that were already emptied are simply walked over).
+    const pile = corpsesAt(c.x, c.y);
+    if (pile.length) {
+      const t = s.reach.get(k);
+      const worth = pile.some((m) => !m.searched || m.loot?.coins || m.loot?.items?.length);
+      if (!worth && t && t.cost > 0) { s.target = null; moveHero(t); return; }
+      s.target = { kind: 'corpse-ask', id: k, ids: pile.map((m) => m.id) }; redraw(); return;
+    }
     const chest = known && chestAt(c.x, c.y);
     if (chest) {
       approachThen(chest, () => { if (!chest.locked && !chest.opened) openChest(chest); else s.target = { kind: 'chest', id: chest.id }; });
@@ -1307,8 +1343,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'zoom-out': setZoom(s.zoom / 1.25); break;
       case 'fit': fit(); break;
       case 'center': centerOn(s.hero.pos); break;
-      case 'turn-left': if (!s.busy) { s.hero.facing = rotateFacing(s.hero.facing, -1); redraw(); } break;
-      case 'turn-right': if (!s.busy) { s.hero.facing = rotateFacing(s.hero.facing, 1); redraw(); } break;
+      case 'turn-left': case 'turn-right': if (!s.busy) {
+        // Turning is free, and changes what you see (the blind half behind you, vision.js).
+        s.hero.facing = rotateFacing(s.hero.facing, el.dataset.dg === 'turn-left' ? -1 : 1);
+        const spotted = updateVision();
+        if (spotted.length) enterCombat(spotted);
+        redraw();
+      } break;
       case 'weapon': s.weaponIdx = Number(el.dataset.i); redraw(); break;
       case 'dash':
         if (s.mode === 'combat' && !s.actionUsed && !s.busy) { s.dash = true; s.actionUsed = true; s.moveLeft += s.hero.speed; log(`${s.hero.name} dashes, gaining ${s.hero.speed} extra squares of movement.`, 'info'); redraw(); }
@@ -1356,7 +1397,22 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'pick-lock': if (s.target) pickLock(s.target); break;
       case 'force-lock': if (s.target) forceLock(s.target); break;
       case 'disarm': { const t = s.features.traps.find((x) => x.id === s.target?.id); if (t) disarm(t); break; }
+      case 'corpse-search': { const ids = s.target?.ids ?? []; s.target = null; searchBodies(ids); break; }
+      case 'corpse-move': {
+        const [x, y] = (s.target?.id ?? '').split(',').map(Number); s.target = null;
+        if (s.mode !== 'combat') { const saved = s.moveLeft; s.moveLeft = 999; s.reach = heroReach(); s.moveLeft = saved; }
+        const t = s.reach.get(cellKey(x, y));
+        if (t && t.cost > 0) moveHero(t);
+        redraw(); break;
+      }
       case 'take': case 'take-all': {
+        if (s.target?.kind === 'corpses') {
+          // A pile: coins come from every body; an item from the body that holds it.
+          const bodies = s.target.ids.map((id) => s.monsters.find((m) => m.id === id)).filter((m) => m?.loot);
+          const uid = el.dataset.dg === 'take-all' ? null : el.dataset.uid;
+          for (const b of bodies) if (uid === null || uid === 'coins' ? true : b.loot.items.some((it) => it.uid === uid)) takeLoot(b, uid);
+          break;
+        }
         const src = s.target?.kind === 'corpse' ? s.monsters.find((m) => m.id === s.target.id) : s.target?.kind === 'chest' ? s.features.chests.find((c) => c.id === s.target.id) : null;
         if (src?.loot) takeLoot(src, el.dataset.dg === 'take-all' ? null : el.dataset.uid);
         break;

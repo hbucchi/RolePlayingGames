@@ -4,6 +4,7 @@
  * show an obvious repeating tile, and the choice never flickers between redraws.
  */
 import { TERRAINS } from './terrain.js';
+import { propsSvg, PROP_DEFS, propImage } from './props.js';
 
 const VARIANTS = 4;
 const variantOf = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % VARIANTS + 1;
@@ -30,7 +31,7 @@ export const fillFor = (map, x, y, prefix = 'ar') => {
 
 export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
   const S = map.cellSize; const W = map.width * S; const H = map.height * S;
-  let cells = ''; let walls = ''; let props = '';
+  let cells = ''; let walls = ''; let props = ''; const done = new Set();
   const at = (x, y) => map.terrain[y]?.[x];
   for (let y = 0; y < map.height; y++) {
     for (let x = 0; x < map.width; x++) {
@@ -38,8 +39,17 @@ export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
       const fill = id === 'planks' || id === 'table' ? `url(#ar-planks${y % 2 ? '-b' : ''})` : fillFor(map, x, y, prefix);
       cells += `<rect x="${x * S}" y="${y * S}" width="${S + 0.5}" height="${S + 0.5}" fill="${fill}"/>`;
       if (id === 'wall') walls += `M${x * S} ${y * S}h${S}v${S}h${-S}z`;
-      // Furniture: a darker plank top with a rim, so tables and counters read as solid.
-      if (id === 'table') props += `<rect x="${x * S + 4}" y="${y * S + 4}" width="${S - 8}" height="${S - 8}" rx="6" class="ar-table"/>`;
+      // Tables and counters: a painted table (props.js art). A run of table squares becomes one
+      // long table along the run; a lone square, a round one.
+      if (id === 'table' && !done.has(`${x},${y}`)) {
+        let n = 1; while (at(x + n, y) === 'table' && !done.has(`${x + n},${y}`)) n++;
+        let v = 1; if (n === 1) while (at(x, y + v) === 'table' && !done.has(`${x},${y + v}`)) v++;
+        for (let i = 0; i < Math.max(n, v); i++) done.add(n > 1 ? `${x + i},${y}` : `${x},${y + i}`);
+        const len = Math.max(n, v);
+        const img = len > 1 ? propImage('long-table') : propImage('round-table');
+        const cx = n > 1 ? (x + n / 2) * S : (x + 0.5) * S; const cy = v > 1 ? (y + v / 2) * S : (y + 0.5) * S;
+        props += `<g transform="translate(${cx} ${cy}) rotate(${v > 1 ? 90 : 0})"><image href="${img}" x="${-len * S * 0.49}" y="${-S * 0.46}" width="${len * S * 0.98}" height="${S * 0.92}" preserveAspectRatio="none"/></g>`;
+      }
       // A house: a pitched roof of tiles; neighbouring roof squares join into one building.
       if (id === 'roof') {
         const e = at(x + 1, y) === 'roof'; const w = at(x - 1, y) === 'roof'; const n = at(x, y - 1) === 'roof'; const sth = at(x, y + 1) === 'roof';
@@ -64,7 +74,7 @@ export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
     for (let y = 1; y < map.height; y++) lines += `M${S} ${y * S}H${W - S}`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Arena map">
-  <defs>${terrainPatterns(prefix)}<pattern id="dg-rock" patternUnits="userSpaceOnUse" width="512" height="512"><image href="${TERRAINS.wall.texture}" width="512" height="512"/></pattern>
+  <defs>${terrainPatterns(prefix)}${PROP_DEFS}<pattern id="dg-rock" patternUnits="userSpaceOnUse" width="512" height="512"><image href="${TERRAINS.wall.texture}" width="512" height="512"/></pattern>
   <radialGradient id="ar-canopy" cx=".4" cy=".35"><stop offset="0" stop-color="#6f9a3e"/><stop offset=".6" stop-color="#3f6826"/><stop offset="1" stop-color="#22391a"/></radialGradient>
   <pattern id="ar-planks" patternUnits="userSpaceOnUse" width="${S * 2}" height="${S / 4}"><rect width="${S * 2}" height="${S / 4}" fill="#8a5d32"/><rect y="1" width="${S * 2}" height="${S / 4 - 2}" fill="url(#ar-wood)"/><path d="M0 .5H${S * 2}M${S * 0.7} 0V${S / 4}" stroke="#3f2810" stroke-width="2"/></pattern>
   <pattern id="ar-planks-b" patternUnits="userSpaceOnUse" width="${S * 2}" height="${S / 4}" patternTransform="translate(${S * 0.9} 0)"><rect width="${S * 2}" height="${S / 4}" fill="#835830"/><rect y="1" width="${S * 2}" height="${S / 4 - 2}" fill="url(#ar-wood)"/><path d="M0 .5H${S * 2}M${S * 1.3} 0V${S / 4}" stroke="#3f2810" stroke-width="2"/></pattern>
@@ -72,6 +82,7 @@ export function renderArenaSVG(map, { grid = true, prefix = 'ar' } = {}) {
   <pattern id="ar-rooftiles" patternUnits="userSpaceOnUse" width="16" height="12"><rect width="16" height="12" fill="#8a4630"/><path d="M0 11.5H16M8 0V6M0 6H16M4 6V12M12 6V12" stroke="#5e2c1d" stroke-width="1.4"/></pattern></defs>
   ${cells}
   ${props}
+  ${propsSvg(map, S)}
   ${(map.exits ?? (map.exit ? [map.exit] : [])).map((e) => `<g transform="translate(${(e.x + 0.5) * S} ${(e.y + 0.5) * S})" class="ar-exit"><circle r="${S * 0.42}"/><text y="${S * 0.12}" style="font-size:${S * 0.42}px">⇦</text><text y="${S * 0.72}" class="ar-exit-label" style="font-size:${S * 0.22}px">Exit</text></g>`).join('')}
   <path d="${walls}" fill="#000" opacity=".35"/>
   <path d="${walls}" fill="none" stroke="#0d0a07" stroke-width="3"/>

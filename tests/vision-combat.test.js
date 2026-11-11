@@ -98,10 +98,10 @@ test('resolveAttack respects natural 1 and 20', () => {
 
 test('hero weapon ranges come from properties', () => {
   const bow = weaponFromHeroAttack({ name: 'Longbow', toHit: 5, damage: '1d8+3', damageType: 'piercing', properties: ['range 150/600'] });
-  // Play-scale reach (engine/range.js): a longbow's 150/600 ft becomes 8/16 squares (40/80 ft).
-  assert.deepEqual([bow.melee, bow.ranged, bow.normal, bow.long], [false, true, 8, 16]);
+  // Reach (engine/range.js): a longbow's 150 ft normal range becomes a reach of 12 squares.
+  assert.deepEqual([bow.melee, bow.ranged, bow.normal, bow.long], [false, true, 12, 12]);
   const spear = weaponFromHeroAttack({ name: 'Spear', toHit: 5, damage: '1d6+3', damageType: 'piercing', properties: ['thrown 20/60'] });
-  assert.deepEqual([spear.melee, spear.ranged, spear.normal, spear.long], [true, true, 4, 8]);
+  assert.deepEqual([spear.melee, spear.ranged, spear.normal, spear.long], [true, true, 4, 4]);
 });
 
 test('at most two goblins per room, never in the entrance room', () => {

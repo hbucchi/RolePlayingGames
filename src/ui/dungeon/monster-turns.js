@@ -11,6 +11,10 @@ import { TILE } from '../../engine/dungeon.js';
 import { cellsOf, centerOf, spanOf, dims, rotated, blockDistance } from '../../engine/size.js';
 import { play } from '../audio.js';
 import { roll, rollDie } from '../../engine/dice.js';
+import { fightingStyle, pickTarget } from '../../engine/tactics.js';
+import { monsterPowers } from '../../engine/monster-magic.js';
+import { reachableSquares } from '../../engine/movement.js';
+import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 
 export function installMonsterTurns(ctx) {
   const { reduceMotion, s, sleep } = ctx;
@@ -51,12 +55,14 @@ export function installMonsterTurns(ctx) {
       if (m.side === 'ally') { await allyTurn(m); endOfTurnSaves(m); continue; }
       // Each monster goes for the nearest hero or ally it can see (or the nearest at all);
       // a taunted one goes for whoever taunted it.
+      // How it fights depends on its mind (engine/tactics.js): the cunning go for the weakest.
       const targets = [...ctx.partyAlive(), ...ctx.allies()];
       if (!ctx.partyAlive().length) break;
+      const st = styleOf(m);
       const sees = (h) => lineOfSight(m.pos, h.pos, ctx.opaque()).visible;
-      targets.sort((a, b) => (sees(b) - sees(a)) || ctx.edist(a, m) - ctx.edist(b, m));
       const taunter = m.cond?.taunt && ctx.partyAlive().find((h) => h.id === m.cond.taunt.id);
-      const target = taunter ?? targets[0];
+      const target = taunter ?? pickTarget(st, targets, { dist: (t) => ctx.edist(t, m), sees, reachable: (t) => ctx.edist(t, m) <= m.speed + 1 || m.weapons.some((w) => w.ranged && ctx.edist(t, m) <= w.long) });
+      if (st.focusWeak && target !== targets.sort((a, b) => ctx.edist(a, m) - ctx.edist(b, m))[0] && ctx.canSee(m) && !m.saidFocus) { m.saidFocus = true; ctx.log(`The ${m.name.toLowerCase()} singles out ${target.name}, the most wounded.`, 'warn'); }
       ctx.activate(ctx.memberIndex(target.isHero ? target : [...ctx.partyAlive()].sort((a, b) => ctx.edist(a, m) - ctx.edist(b, m))[0]));
       const acted = await monsterTurn(m, target);
       if (m.cond?.taunt && --m.cond.taunt.rounds <= 0) delete m.cond.taunt;
@@ -81,12 +87,59 @@ export function installMonsterTurns(ctx) {
     ctx.redraw();
   }
 
+  /** A creature's fighting style (worked out once; older saves did not store it). */
+  function styleOf(m) {
+    if (!m.style) { const stat = BESTIARY_BY_ID[m.statId]; m.style = fightingStyle(stat, stat ? monsterPowers(stat) : []); }
+    return m.style;
+  }
+
+  /** Walk a creature along a path square by square: doors open, burning ground burns, a hero gets their swing. */
+  async function walk(m, path, disengaged) {
+    for (const p of path.slice(1)) {
+      const wasAdjacent = ctx.edist(m, s.hero) <= 1;
+      m.facing = facingToward(m.pos, p);
+      m.pos = { x: p.x, y: p.y };
+      ctx.openDoorAt(p);
+      for (const fx of s.effects) if (fx.dice && ctx.inEffect(m, fx) && !m.burnedThisTurn) { m.burnedThisTurn = true; const t = ctx.burnIn(m, fx); if (t) ctx.log(t, 'good'); }
+      if (m.dead) return false;
+      if (!m.side && wasAdjacent && ctx.edist(m, s.hero) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await ctx.heroOpportunityAttack(m);
+      if (m.dead) return false;
+      ctx.updateVision(); ctx.redraw(); await sleep(ctx.STEP_MS);
+    }
+    return true;
+  }
+
+  /**
+   * A thinking spellcaster caught in sword reach backs off before casting: to a square at least
+   * 3 away from every foe, still in sight of its target, preferring the shortest walk. Returns the
+   * squares of movement it used.
+   */
+  async function backAway(m, target) {
+    const foes = ctx.enemiesOf(m);
+    const near = foes.some((f) => ctx.edist(f, m) <= 1);
+    if (!near || immobile(m) || m.cond?.prone) return 0;
+    const n = m.size ?? 1;
+    const blocked = new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]);
+    const spots = [...reachableSquares(s.map, m.pos, m.speed, { blocked, size: n }).values()]
+      .filter((c) => c.cost > 0 && foes.every((f) => blockDistance(c, n, f.pos, f.size ?? 1) >= 3) && lineOfSight(c, target.pos, ctx.opaque()).visible)
+      .sort((a, b) => a.cost - b.cost);
+    if (!spots.length) return 0;
+    if (ctx.canSee(m)) ctx.log(`${m.name} backs away to cast.`, 'info');
+    await walk(m, spots[0].path, false);
+    return spots[0].path.length - 1;
+  }
+
   async function monsterTurn(m, target = s.hero, { moveOnly = false } = {}) {
     m.reaction = true; m.burnedThisTurn = false;
     ctx.banner(`${m.name}'s turn`);
     await startOfMonsterTurn(m);
     if (m.dead) return true;
     if (target && !immobile(m)) turnBody(m, target.pos);
+    let used = 0;
+    if (!moveOnly && target && target.hp > 0 && styleOf(m).keepsDistance && m.powers?.some((p) => canUse(p, m.uses))) {
+      used = await backAway(m, target);
+      if (m.dead) return true;
+    }
     if (!moveOnly && target && target.hp > 0) {
       const power = choosePower(m, target);
       if (power) { await castPower(m, power, target); await sleep(ctx.PAUSE_MS / 2); return true; }
@@ -95,7 +148,9 @@ export function installMonsterTurns(ctx) {
     let speed = m.speed;
     if (m.cond?.prone) { delete m.cond.prone; speed = Math.floor(speed / 2); if (ctx.canSee(m)) ctx.log(`${m.name} gets back to its feet.`, 'info'); }
     if (immobile(m)) speed = 0;
-    let plan = planMonsterTurn({ m: { ...m, speed }, hero: target, map: s.map, opaque: ctx.opaque(), blocked: new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]) });
+    speed = Math.max(0, speed - used);
+    const threats = m.side === 'ally' ? ctx.fighting().filter((f) => !f.dead) : [...ctx.partyAlive(), ...ctx.allies()];
+    let plan = planMonsterTurn({ m: { ...m, speed, style: styleOf(m) }, hero: target, map: s.map, opaque: ctx.opaque(), blocked: new Set([...ctx.occupied(m), ...ctx.terrainBlocked()]), threats });
     if (moveOnly) plan = plan.filter((p) => p.type === 'move');
     let disengaged = false;
     if (!plan.length || (plan.length === 1 && plan[0].type === 'wait')) return false;
@@ -104,17 +159,8 @@ export function installMonsterTurns(ctx) {
       if (step.type === 'disengage') { disengaged = true; if (ctx.canSee(m)) ctx.log(`${m.name} slips away nimbly (Nimble Escape: Disengage).`, 'info'); }
       if (step.type === 'move' && immobile(m)) { if (ctx.canSee(m) && step.path.length > 1) ctx.log(`${m.name} strains against its bonds but cannot move.`, 'info'); continue; }
       if (step.type === 'move') {
-        for (const p of step.path.slice(1)) {
-          const wasAdjacent = ctx.edist(m, s.hero) <= 1;
-          m.facing = facingToward(m.pos, p);
-          m.pos = { x: p.x, y: p.y };
-          ctx.openDoorAt(p);
-          for (const fx of s.effects) if (fx.dice && ctx.inEffect(m, fx) && !m.burnedThisTurn) { m.burnedThisTurn = true; const t = ctx.burnIn(m, fx); if (t) ctx.log(t, 'good'); }
-          if (m.dead) return true;
-          if (!m.side && wasAdjacent && ctx.edist(m, s.hero) > 1 && !disengaged && !m.flyby && !m.cond?.flee && s.hero.reaction) await ctx.heroOpportunityAttack(m);
-          if (m.dead) return;
-          ctx.updateVision(); ctx.redraw(); await sleep(ctx.STEP_MS);
-        }
+        if (!(await walk(m, step.path, disengaged))) return true;
+        if (step.cover && step.path.length > 1 && ctx.canSee(m)) ctx.log(`The ${m.name.toLowerCase()} ducks into cover.`, 'info');
       }
       if (step.type === 'attack') {
         m.facing = facingToward(m.pos, target.pos);
@@ -237,8 +283,9 @@ export function installMonsterTurns(ctx) {
     if (!best) return null;
     if (best.p.recharge) return best.p;
     const melee = m.weapons.some((w) => w.melee) && d <= 1;
-    // Up close a caster still prefers its weapon now and then; from afar it casts most of the time.
-    const want = melee ? 0.45 : 0.85;
+    // Mages and dragons prefer magic; a brute with a trick or two still likes its club (tactics.js).
+    const st = styleOf(m);
+    const want = melee ? st.magicUpClose : st.magicFromAfar;
     return Math.random() < want ? best.p : null;
   }
 
@@ -409,5 +456,5 @@ export function installMonsterTurns(ctx) {
     }
   }
 
-  return { runMonsterTurns, monsterTurn, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves };
+  return { runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves };
 }
