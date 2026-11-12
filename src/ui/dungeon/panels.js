@@ -26,6 +26,7 @@ import { settingsControls } from '../settings.js';
 import { monsterPortrait } from '../../content/media.js';
 import { m as mtr, metricText } from '../../engine/units.js';
 import { armourSummary } from '../../engine/defence.js';
+import { injuryLines } from '../../engine/injury.js';
 
 export function installPanels(ctx) {
   const { $, esc, host, pct, s, signed } = ctx;
@@ -53,7 +54,7 @@ export function installPanels(ctx) {
       ${s.res?.maxMana ? `<div class="hc-mana">${manaHtml(s.res.mana, s.res.maxMana)}</div>` : ''}
       <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${mtr(s.moveLeft * ft)})` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
-      <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">Evasion ${h.ac}${h.defence?.block ? ` · block ${h.defence.block}%` : ''}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
+      <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">Evasion ${h.ac}${h.defence?.block ? ` · block ${h.defence.block}%` : ''}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}${injuryLines(h).length ? `<br><span class="hurt small" title="Body parts hurt (Characters window, Body tab)">🩸 ${esc(injuryLines(h).slice(0, 3).join(' · '))}</span>` : ''}</span></div>
       ${xpBar()}
       <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
 
@@ -470,6 +471,7 @@ export function installPanels(ctx) {
         <div>
           <h3>${esc(m.name)}</h3>
           <p class="small"><b>${esc(health)}</b> · ${d} squares away · facing ${FACINGS[m.facing].name}</p>
+          ${injuryLines(m).length ? `<p class="small hurt">🩸 ${esc(injuryLines(m).join(' · '))}</p>` : ''}
           ${ctx.styleOf ? `<p class="small muted fight-style" title="How it fights: from its Intelligence, its magic and its nature">⚔ ${esc(ctx.styleOf(m).label)}</p>` : ''}
           ${conds.length || m.calm ? `<p class="small cond-line">${esc([m.calm ? 'calmed: leaves you be' : null, ...conds].filter(Boolean).join(' · '))}</p>` : ''}
           ${isBehindHero(m) ? '<p class="small hint">You are behind it: attacks have advantage.</p>' : ''}

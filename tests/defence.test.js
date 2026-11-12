@@ -88,3 +88,20 @@ test('hit location: each part owns a stretch of the d100', () => {
   assert.equal(hitLocation(91), 'head'); assert.equal(hitLocation(100), 'head');
   assert.deepEqual(BODY_PARTS.map((p) => [p.from, p.to]).at(-1), [91, 100]);
 });
+
+test('local injuries: part health, multipliers to total HP, crippled parts', async () => {
+  const { applyHit, partMax, injuryPenalties, healParts, isCrippled } = await import('../src/engine/injury.js');
+  const e = { maxHp: 30, hp: 30 };
+  assert.equal(partMax(30, 'neck'), 6); assert.equal(partMax(30, 'chest'), 18); assert.equal(partMax(30, 'left-leg'), 14);
+  // 4 damage to the neck: the neck takes 4, total HP takes 8 (x2).
+  let r = applyHit(e, 'neck', 4); assert.equal(r.total, 8); assert.equal(r.partLeft, 2);
+  r = applyHit(e, 'head', 4); assert.equal(r.total, 6, 'head x1.5');
+  r = applyHit(e, 'left-hand', 4); assert.equal(r.total, 2, 'hand x0.5');
+  // Cripple the neck: bleeding.
+  r = applyHit(e, 'neck', 3); assert.equal(r.crippledNow, true); assert.equal(injuryPenalties(e).bleeding, true);
+  // A lame leg costs 2 squares; a crippled weapon arm gives disadvantage.
+  applyHit(e, 'right-leg', 99); applyHit(e, 'right-arm', 99);
+  const p = injuryPenalties(e);
+  assert.equal(p.moveLost, 2); assert.ok(p.attackDis.length); assert.equal(p.noParry, true);
+  healParts(e, 100); assert.equal(isCrippled(e, 'neck'), false, 'healing mends parts');
+});

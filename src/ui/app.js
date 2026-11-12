@@ -41,6 +41,7 @@ import * as music from './music.js';
 import { m as mtr } from '../engine/units.js';
 import { coverage } from '../engine/defence.js';
 import { repair } from '../engine/smith.js';
+import { healParts } from '../engine/injury.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -1267,6 +1268,7 @@ root.addEventListener('click', (e) => {
       if (!d.wounds) { notify('You are not wounded.'); return; }
       const r = roll(use.dice); const got = Math.min(d.wounds, r.total);
       d.wounds -= got; removeItem(d.inventory, uid, 1);
+      if (d.injuries) { const e = { parts: d.injuries }; healParts(e, r.total); d.injuries = e.parts; }
       notify(`${itemName(inst)}: ${use.dice} = ${r.total}. Regained ${got} HP${d.wounds ? ` (still ${d.wounds} down)` : ' (whole again)'}.`, 'ok');
       break;
     }

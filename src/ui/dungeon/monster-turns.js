@@ -15,6 +15,7 @@ import { fightingStyle, pickTarget } from '../../engine/tactics.js';
 import { monsterPowers } from '../../engine/monster-magic.js';
 import { reachableSquares } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
+import { injuryPenalties } from '../../engine/injury.js';
 
 export function installMonsterTurns(ctx) {
   const { reduceMotion, s, sleep } = ctx;
@@ -50,6 +51,11 @@ export function installMonsterTurns(ctx) {
       if (!m || m.dead || (!m.aware && m.side !== 'ally') || m.calm) continue;
       for (const fx of s.effects) if (ctx.inEffect(m, fx)) { const t = ctx.burnIn(m, fx); if (t) { ctx.log(t, 'good'); await sleep(ctx.PAUSE_MS / 2); } }
       if (m.dead) continue;
+      if (injuryPenalties(m).bleeding) {
+        if (ctx.canSee(m)) ctx.log(`${m.name} bleeds (−1 HP).`, 'good');
+        ctx.damageMonster(m, 1); ctx.finishIfDead(m);
+        if (m.dead) continue;
+      }
       tickAllyTime(m);
       if (await ctx.conditionSkip(m)) { endOfTurnSaves(m); continue; }
       if (m.side === 'ally') { await allyTurn(m); endOfTurnSaves(m); continue; }
@@ -147,7 +153,7 @@ export function installMonsterTurns(ctx) {
       if (power) { await castPower(m, power, target); await sleep(ctx.PAUSE_MS / 2); return true; }
     }
     // Prone: standing up costs half its movement. Bound, grappled or restrained: it cannot move at all.
-    let speed = m.speed;
+    let speed = Math.max(1, m.speed - injuryPenalties(m).moveLost); // lame legs (injury.js)
     if (m.cond?.prone) { delete m.cond.prone; speed = Math.floor(speed / 2); if (ctx.canSee(m)) ctx.log(`${m.name} gets back to its feet.`, 'info'); }
     if (immobile(m)) speed = 0;
     speed = Math.max(0, speed - used);

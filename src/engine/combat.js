@@ -74,6 +74,7 @@ export function isBehind(attackerPos, target) {
 // ---------------------------------------------------------------------------
 
 import { playRange, spellRange, THROWN_NAMES, ENDLESS_THROWN, THROWS_CARRIED } from './range.js';
+import { injuryPenalties } from './injury.js';
 
 export const chebyshev = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
@@ -177,6 +178,8 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   // Prone: easy to hit up close, hard to hit from afar.
   if (c.prone) { if (usingRanged) dis.push('target prone (far)'); else adv.push('target prone'); }
   const a = attacker.cond ?? {};
+  // Local injuries (injury.js): a crippled weapon arm or a head wound.
+  dis.push(...injuryPenalties(attacker).attackDis);
   if (a.mock) dis.push('shaken by mockery');
   if (a.prone) dis.push('attacking from the ground');
   if (a.restrained || a.bound) dis.push('cannot move freely');
@@ -185,7 +188,10 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   const chance = hitChance(weapon.toHit, ac, mode);
   // Can the defender block it? Not from behind, unaware or helpless; only shields stop missiles; nothing stops a spell.
   const unseen = adv.some((a) => /behind|unaware|helpless|stone|bound|restrained/.test(a));
-  const block = blockChanceVs(target.defence, { ranged: usingRanged, spell: !!weapon.spell, unseen });
+  const hurt = injuryPenalties(target);
+  ac += hurt.evasion; // dazed: easier to hit
+  const armless = (target.defence?.blockWith === 'shield' && hurt.noShield) || (target.defence?.blockWith === 'parry' && hurt.noParry);
+  const block = armless ? 0 : blockChanceVs(target.defence, { ranged: usingRanged, spell: !!weapon.spell, unseen });
   return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance, block, unseen, land: landChance(chance, block, mode) };
 }
 

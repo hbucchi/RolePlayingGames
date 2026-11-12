@@ -8,6 +8,7 @@ import { partCover } from '../../engine/defence.js';
 import { bodyReport, BODY_PARTS, BODY_BY_ID } from '../../engine/body.js';
 import { conditionLabels } from '../../engine/combat.js';
 import { XP_FOR_LEVEL } from '../../engine/progression.js';
+import { partLeft, partMax, PART_RULES, CRIPPLED_TEXT } from '../../engine/injury.js';
 
 const ABILITY_NAMES = { str: 'Strength', dex: 'Dexterity', con: 'Constitution', int: 'Intelligence', wis: 'Wisdom', cha: 'Charisma' };
 const signed = (n) => (n >= 0 ? `+${n}` : `−${Math.abs(n)}`);
@@ -59,7 +60,15 @@ export function installCharacters(ctx) {
     const def = m.hero?.defence ?? null;
     const coverAt = (part) => partCover(def, part);
     const onPart = (part) => (def?.pieces ?? []).filter((p) => (p.cover[part] ?? 0) > 0);
-    const rep = bodyReport(m.draft ?? { inventory: [], equipped: {} }, m.hero?.injuries ?? {});
+    const rep = bodyReport(m.draft ?? { inventory: [], equipped: {} }, {});
+    // Each part's own health (injury.js): what is left of it, and whether it is crippled.
+    const h = m.hero;
+    if (h) for (const p of BODY_PARTS) {
+      const left = partLeft(h, p.id); const max = partMax(h.maxHp, p.id);
+      rep[p.id].state = left <= 0 ? `Crippled: ${CRIPPLED_TEXT[PART_RULES[p.id].crippled]}` : left < max ? `Hurt: ${left}/${max}` : `${max}/${max}`;
+      rep[p.id].injuries = left < max ? [rep[p.id].state] : [];
+      rep[p.id].mult = PART_RULES[p.id].mult;
+    }
     const sel = rep[s.charPart] ?? rep.chest;
     const dots = BODY_PARTS.map((p) => {
       const r = rep[p.id];
@@ -71,7 +80,7 @@ export function installCharacters(ctx) {
       <div class="bp-detail">
         <h4>${esc(sel.name)}</h4>
         <p class="small"><b>${esc(sel.state)}</b></p>
-        <p class="small muted">A blow that lands strikes here ${sel.weight}% of the time.</p>
+        <p class="small muted">A blow that lands strikes here ${sel.weight}% of the time. Damage here counts ×${sel.mult ?? 1} against total HP.</p>
         <p class="small">On the d100 this part is <b>${BODY_BY_ID[sel.id].from}–${BODY_BY_ID[sel.id].to}</b>.</p>
         ${coverAt(sel.id) ? `<ul class="plain small">${onPart(sel.id).map((p) => { const b = BODY_BY_ID[sel.id]; return `<li><b>${esc(p.name)}</b> covers <b>${b.from}–${b.from + p.cover[sel.id] - 1}</b> (${p.cover[sel.id]} of ${sel.weight} points), absorbs <b>${p.pct}%</b>${p.condition < 100 ? ` (condition ${p.condition}%)` : ''}</li>`; }).join('')}</ul>
         <p class="small muted">Where pieces overlap, both absorb (40% and 40% let 36% through).${coverAt(sel.id) < sel.weight ? ` Rolls ${BODY_BY_ID[sel.id].from + coverAt(sel.id)}–${BODY_BY_ID[sel.id].to} find a gap.` : ''}</p>`

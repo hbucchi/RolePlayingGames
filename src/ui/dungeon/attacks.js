@@ -16,6 +16,7 @@ import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
 import { rollDice, diceWanted, diceOf } from '../dice.js';
+import { applyHit, PART_RULES, CRIPPLED_TEXT } from '../../engine/injury.js';
 
 export function installAttacks(ctx) {
   const { S, host, overlay, reduceMotion, s, signed, sleep, viewport } = ctx;
@@ -322,6 +323,7 @@ export function installAttacks(ctx) {
     const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));
     let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs Evasion ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
     // Past Evasion: the defender may still block it (shield, or a parry with a trained weapon).
+    let crippled = null;
     const blocked = r.hit && !r.crit && (opts.block ?? 0) > 0 && Math.random() < opts.block;
     if (blocked) {
       const def = target.defence;
@@ -349,6 +351,12 @@ export function installAttacks(ctx) {
       if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
         dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
       }
+      // The part takes what got through; total HP takes it times the part's multiplier (injury.js).
+      const inj = applyHit(target, at.part, dmg);
+      const partDmg = dmg; dmg = inj.total;
+      if (inj.mult !== 1) bits.push(`${BODY_BY_ID[at.part].name.toLowerCase()} ×${inj.mult}: ${partDmg} → ${dmg} HP`);
+      bits.push(`${BODY_BY_ID[at.part].name.toLowerCase()} ${inj.partLeft}/${inj.partMax}`);
+      if (inj.crippledNow) crippled = at.part;
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
       line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'} ${where}! ${dmg} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
       ctx.float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);
@@ -363,6 +371,11 @@ export function installAttacks(ctx) {
     }
     const landed = r.hit && !blocked;
     ctx.log(line, target === s.hero ? (landed ? 'bad' : 'info') : (landed ? 'good' : 'info'));
+    if (crippled && target.hp > 0) {
+      const kind = PART_RULES[crippled].crippled;
+      ctx.log(`${whom}'s ${BODY_BY_ID[crippled].name.toLowerCase()} is crippled: ${CRIPPLED_TEXT[kind]}.`, target === s.hero ? 'bad' : 'good');
+      ctx.float(target.pos, kind === 'bleeding' ? 'bleeding!' : 'crippled!', target === s.hero ? 'bad' : 'good');
+    }
     if (target !== s.hero && target.hp <= 0) {
       target.dead = true;
       play(cry(target, 'death'), { delay: 150 });

@@ -15,6 +15,7 @@ import { rollChestLoot } from '../../engine/loot.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { skillCheck, forceDc, NOISE } from '../../engine/features.js';
 import { lineOfSight } from '../../engine/vision.js';
+import { healParts } from '../../engine/injury.js';
 
 export function installActions(ctx) {
   const { s, signed } = ctx;
@@ -40,6 +41,7 @@ export function installActions(ctx) {
   function heal(amount, source) {
     const before = s.hero.hp;
     s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + Math.max(0, amount));
+    healParts(s.hero, Math.max(0, amount)); // and every hurt body part by as much (injury.js)
     ctx.float(s.hero.pos, `+${s.hero.hp - before}`, 'heal');
     return s.hero.hp - before;
   }

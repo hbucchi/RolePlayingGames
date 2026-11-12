@@ -51,6 +51,7 @@ import { installRender } from './dungeon/render.js';
 import { installActions } from './dungeon/actions.js';
 import { installMagic } from './dungeon/magic.js';
 import { installPanels } from './dungeon/panels.js';
+import { injuryPenalties } from '../engine/injury.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -357,6 +358,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     // story battles are fought fresh; real adventures start with the hero's saved wounds.
     if (carried && (practice || !place)) s.hero.hp = Math.min(s.hero.maxHp, carried.hp);
     else if (!practice) s.hero.hp = Math.max(1, s.hero.maxHp - (s.draft.wounds ?? 0));
+    // Hurt body parts (injury.js) last too, until healed.
+    s.hero.parts = practice ? {} : { ...(s.draft.injuries ?? {}) };
     s.weaponIdx = Math.max(0, weapons.findIndex((w) => w.melee));
     // Mana and ability uses last for the whole delve; they come back at a mana totem, an inn or a camp.
     s.res = migrateResources(carried?.res, magicHero()) ?? { ...freshResources(magicHero()), level: h.level };
@@ -386,7 +389,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function persist() {
     if (!s.draft || practice) return; // arena bouts are practice: nothing is saved
     // Damage taken, kept on the hero until a potion or spell mends it (a fallen hero keeps 1 HP).
-    if (s.hero && s.hero.isHero) s.draft.wounds = Math.max(0, s.hero.maxHp - Math.max(1, s.hero.hp));
+    if (s.hero && s.hero.isHero) { s.draft.wounds = Math.max(0, s.hero.maxHp - Math.max(1, s.hero.hp)); s.draft.injuries = { ...(s.hero.parts ?? {}) }; }
     const saved = api.save(s.draft);
     if (saved && saved.id !== s.draft.id) {
       const box = host.querySelector(`[data-dg="party"][value="${CSS.escape(s.draft.id)}"]`);
@@ -697,6 +700,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.hero) {
       s.hero.reaction = true;
       if (s.hero.cond?.prone && s.mode === 'combat') { delete s.hero.cond.prone; s.moveLeft = Math.floor(s.moveLeft / 2); log(`${s.hero.name} gets back up (half movement).`, 'info'); }
+      // Local injuries: lame legs slow you; a crippled neck, chest or belly bleeds each turn.
+      const inj = injuryPenalties(s.hero);
+      if (inj.moveLost) s.moveLeft = Math.max(1, s.moveLeft - inj.moveLost);
+      if (inj.bleeding && s.mode === 'combat' && s.hero.hp > 0) { damageHero(1); log(`${s.hero.name} bleeds (−1 HP).`, 'bad'); }
       if (s.mode === 'combat') for (const fx of s.effects) if (fx.dice && inEffect(s.hero, fx)) log(burnIn(s.hero, fx), 'bad');
       if (s.buffs.shield) { delete s.buffs.shield; }
       // Song of Heroes: temporary hit points equal to your spellcasting modifier each turn.
