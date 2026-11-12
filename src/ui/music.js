@@ -4,8 +4,8 @@
  *
  * The game sets a *mood* (menu, dungeon, combat); each mood is a small playlist. Changing mood
  * cross-fades: the old track's volume ramps down while the new one ramps up, so the switch
- * into battle feels like a film cut rather than a hard stop. Short "stingers" (victory, defeat)
- * duck the music, play once, then let the mood resume.
+ * into battle feels like a film cut rather than a hard stop. A short "stinger" (victory) ducks
+ * the music, plays once, then lets the mood resume; the defeat theme is held (see stinger).
  *
  * Browsers refuse to play sound until the player has clicked or pressed a key, so the first
  * mood request waits for that gesture.
@@ -79,8 +79,12 @@ function next() {
   start(list[index]);
 }
 
-/** Switch to a mood's playlist (no-op if it's already playing). */
+/**
+ * Switch to a mood's playlist (no-op if it's already playing). A held theme (the defeat
+ * lament) ends here: whatever the player does next sets a mood.
+ */
 export function setMood(m) {
+  if (stingerAudio?._hold) stopStinger();
   if (m === mood && current) return;
   mood = m;
   if (!enabled || !unlocked) { notify(); return; }
@@ -90,14 +94,18 @@ export function setMood(m) {
   start(list[index]);
 }
 
-/** Play a one-off theme over a ducked mood (victory, defeat). */
-export function stinger(key) {
+/**
+ * Play a one-off theme over a ducked mood (victory). With `hold` (defeat) the theme loops alone,
+ * the mood silenced under it, until the next setMood: the player can study the battlefield
+ * while it plays, and it stops when they try again or leave.
+ */
+export function stinger(key, { hold = false } = {}) {
   if (!enabled || !unlocked) return;
   stopStinger();
-  duck = 0.15;
+  duck = hold ? 0 : 0.15;
   if (current) fade(current.audio, target(), 600);
   const a = new Audio(`assets/music/${key}.mp3`);
-  a.volume = stingerGain();
+  a.volume = stingerGain(); a.loop = hold; a._hold = hold;
   stingerAudio = a;
   a.play().catch(() => {});
   a.addEventListener('ended', () => { if (stingerAudio === a) stingerAudio = null; duck = 1; if (current) fade(current.audio, target(), 1500); });
@@ -106,8 +114,9 @@ export function stinger(key) {
 const stingerGain = () => Math.min(1, levelToGain(volume) * 1.6);
 function stopStinger() {
   if (!stingerAudio) return;
-  const a = stingerAudio; stingerAudio = null; fade(a, 0, 400, () => a.pause());
+  const a = stingerAudio; stingerAudio = null; fade(a, 0, a._hold ? 1200 : 400, () => a.pause());
   duck = 1;
+  if (current) fade(current.audio, target(), 1500);
 }
 
 export function setEnabled(on) {

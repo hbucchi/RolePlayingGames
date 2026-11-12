@@ -17,7 +17,9 @@ export function installEndings(ctx) {
     s.lost = kind === 'defeat' ? ctx.loseDelve() : [];
     if (kind === 'victory') ctx.finishAdventure();
     setMood('dungeon');
-    stinger(kind === 'victory' ? 'victory' : 'defeat');
+    // Defeat: the lament plays on (looping) while the player looks over the battlefield, until they
+    // try again or leave (music.js).
+    stinger(kind === 'victory' ? 'victory' : 'defeat', { hold: kind === 'defeat' });
     const el = $('.dg-endscreen');
     el.hidden = false;
     if (ctx.onOutcome) { // a battle inside a story: the story goes on either way
