@@ -1242,3 +1242,5 @@ html { -webkit-tap-highlight-color: transparent; }
 .tk-body.tk-aimed .body-shadow { filter: drop-shadow(0 0 8px #ffcf6b) drop-shadow(0 0 3px #fff3c4) drop-shadow(5px 8px 5px rgba(0, 0, 0, .6)); }
 @keyframes selglow { from { opacity: 1; } to { opacity: .82; } }
 @media (prefers-reduced-motion: reduce) { .tk-body.tk-selected .body-shadow { animation: none; } }
+/* A spoken line floating over a creature ("Argh, this hurts!"). */
+.dg-float.say { font: italic 700 19px Georgia, serif; fill: #fff3d6; stroke: #1a1208; stroke-width: 5px; }

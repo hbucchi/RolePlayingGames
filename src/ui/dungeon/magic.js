@@ -242,7 +242,7 @@ export function installMagic(ctx) {
             ctx.damageMonster(target, r.damage); ctx.flashHit(target); ctx.float(target.pos, `−${r.damage}`, 'good', r.crit);
             showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), spanOf(target.size ?? 1) / 2);
             ctx.log(`${head} ${r.crit ? 'CRITICAL! ' : 'Hit! '}${r.damage} ${e.damageType} damage.`, 'good');
-            if (target.hp > 0) play(ctx.cry(target, 'hurt'), { delay: 120 });
+            if (target.hp > 0) ctx.hurtCry(target, { delay: 120 });
           } else { ctx.float(target.pos, 'miss', 'muted'); ctx.log(`${head} Miss.`, 'info'); }
           ctx.finishIfDead(target);
           await sleep(ctx.PAUSE_MS / 2);

@@ -228,7 +228,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     checkCombatOver: { get: () => checkCombatOver },
     checkText: { get: () => checkText },
     conditionSkip: { get: () => conditionSkip },
-    cry: { get: () => cry },
+    cry: { get: () => cry }, hurtCry: { get: () => hurtCry },
     damageHero: { get: () => damageHero },
     damageMonster: { get: () => damageMonster },
     doAttack: { get: () => doAttack },
@@ -324,7 +324,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   });
   const { legendaryActions, runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves } = installMonsterTurns(ctx);
   const { drawCharacters } = installCharacters(ctx);
-  const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
+  const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, hurtCry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
   const { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);

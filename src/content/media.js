@@ -34,8 +34,11 @@ export const HERO_BODIES = { 'men-west': 'body-man', 'men-plains': 'body-man', d
 const artOf = (statId) => BESTIARY_BY_ID[statId]?.art ?? {};
 const bodyKey = (key) => HERO_BODIES[key] ?? artOf(key).body;
 
-/** Bodies whose picture includes a long weapon (spear, bow) are drawn larger, so the figure itself fills its square. */
-export const BODY_SCALE = { 'body-amazon-spear': 1.55, 'body-amazon-queen': 1.5, 'body-amazon-archer': 1.35, 'body-amazon-huntress': 1.2, 'body-sorcerer': 1.15, 'body-necromancer': 1.15 };
+/**
+ * A few bodies are drawn a little larger so the figure fills its square. The Amazons are not:
+ * their spears and bows made them spill over two squares; they stand in one like any human.
+ */
+export const BODY_SCALE = { 'body-sorcerer': 1.15, 'body-necromancer': 1.15 };
 export const bodyScale = (key) => BODY_SCALE[bodyKey(key)] ?? 1;
 /** Body for a hero's kindred or a creature id (null when there is none: a round token is drawn). */
 export const bodyUrl = (key) => (bodyKey(key) ? packed(`assets/bodies/${bodyKey(key)}.png`) : null);

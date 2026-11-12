@@ -13,7 +13,7 @@ import { partOf, shortName } from '../../engine/body.js';
 import { getSetting } from '../settings.js';
 import { rollDie, roll } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
-import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
+import { monsterVoice, voiceSound, heroSound, play, isAmazon, amazonHurtLine } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
@@ -113,6 +113,15 @@ export function installAttacks(ctx) {
 
   // Heroes mostly grunt and scream; now and then they speak a line instead (see heroSound).
   const cry = (e, what) => { const v = voiceOf(e); return v.startsWith('hero-') ? heroSound(v.slice(5), what) : voiceSound(v, what); };
+
+  /** A wounded creature's cry. Amazons often shout a line (audio.js), and it floats over them. */
+  function hurtCry(e, opts = {}) {
+    const said = !e.isHero && isAmazon(e.statId) ? amazonHurtLine() : null;
+    if (!said) { play(cry(e, 'hurt'), opts); return; }
+    play('amazon-say-hurt', { ...opts, n: said.n });
+    setTimeout(() => ctx.float(e.pos, `“${said.line}”`, 'say'), opts.delay ?? 0);
+    ctx.log(`${e.name}: “${said.line}”`, 'info');
+  }
 
   /** Animate an arrow flying from one square to another. */
   /**
@@ -394,7 +403,7 @@ export function installAttacks(ctx) {
       ctx.float(target.pos, { top, main: `−${dmg}`, bottom }, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
-      if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120, volume: 0.85 });
+      if (target.hp > 0) hurtCry(target, { delay: 120, volume: 0.85 });
       flashHit(target);
     } else {
       line += r.d20 === 1 ? ' Natural 1: a clumsy miss.' : ` ${whom} dodges it.`;
@@ -419,5 +428,5 @@ export function installAttacks(ctx) {
     await sleep(ctx.PAUSE_MS);
   }
 
-  return { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack };
+  return { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, hurtCry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack };
 }

@@ -20,15 +20,34 @@ export function setMuted(v) {
 }
 
 /** Spoken hero lines have more takes than effects: 6 lines, each performed twice. */
-export const variantsOf = (key) => (/-say-/.test(key) ? SAY_TAKES : VARIANTS);
+export const variantsOf = (key) => TAKES[key] ?? (/-say-/.test(key) ? SAY_TAKES : VARIANTS);
 const SAY_TAKES = 12;
+const TAKES = { 'amazon-say-hurt': 8 };
 
-/** Play one variation of a sound, never the same variation twice in a row. */
-export function play(key, { volume = 0.9, delay = 0 } = {}) {
-  if (muted || !key) return;
+/**
+ * What an Amazon cries when wounded. Each line was recorded twice: line k is takes 2k-1 and 2k of
+ * 'amazon-say-hurt'. She speaks on about half of the hits that don't drop her (a grunt otherwise),
+ * and the words float over her head as well, for players who play without sound.
+ */
+export const AMAZON_HURT_LINES = ['Argh, this hurts!', "I can't let you do this to me!", "Ouch... you're hurting me!", "I'm gonna make you pay for this!"];
+export const AMAZON_LINE_CHANCE = 0.5;
+export const isAmazon = (statId) => /^amazon-/.test(statId ?? '');
+/** A line and the take to play for it, or null for a plain grunt this time. `random` is for tests. */
+export function amazonHurtLine(random = Math.random) {
+  if (random() >= AMAZON_LINE_CHANCE) return null;
+  const k = Math.floor(random() * AMAZON_HURT_LINES.length);
+  return { line: AMAZON_HURT_LINES[k], n: 2 * k + 1 + (random() < 0.5 ? 0 : 1) };
+}
+
+/**
+ * Play one variation of a sound, never the same variation twice in a row (or take `n` when given).
+ * Returns the take played.
+ */
+export function play(key, { volume = 0.9, delay = 0, n: take = 0 } = {}) {
+  if (muted || !key) return 0;
   const count = variantsOf(key);
-  let n = 1 + Math.floor(Math.random() * count);
-  if (n === last.get(key)) n = (n % count) + 1;
+  let n = take || 1 + Math.floor(Math.random() * count);
+  if (!take && n === last.get(key)) n = (n % count) + 1;
   last.set(key, n);
   const start = () => {
     const a = new Audio(packed(`assets/sounds/${key}-${n}.mp3`));
@@ -36,6 +55,7 @@ export function play(key, { volume = 0.9, delay = 0 } = {}) {
     a.play().catch(() => { /* blocked or missing: stay silent */ });
   };
   if (delay) setTimeout(start, delay); else start();
+  return n;
 }
 
 /** Warm the browser cache so the first hit isn't late. */
@@ -86,7 +106,7 @@ export const SOUND_KEYS = [
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
   'whip-crack', 'goblin-laugh',
-  'hero-low-say-attack', 'hero-low-say-hurt', 'hero-high-say-attack', 'hero-high-say-hurt',
+  'hero-low-say-attack', 'hero-low-say-hurt', 'hero-high-say-attack', 'hero-high-say-hurt', 'amazon-say-hurt',
   'beast-attack', 'beast-hurt', 'bird-attack', 'bird-hurt', 'undead-attack', 'undead-hurt', 'elemental-attack', 'elemental-hurt',
   'construct-attack', 'construct-hurt', 'ooze-attack', 'ooze-hurt',
   'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',
