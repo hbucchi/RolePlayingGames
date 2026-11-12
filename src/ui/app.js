@@ -458,7 +458,9 @@ root.addEventListener('click', async (e) => {
       const sheet = deriveCharacter(d, settingFor(d));
       const r = craft({ recipeId, material: sel?.value ?? null, sheet, draft: d, safe });
       if (!r.ok) { notify(r.message, 'bad'); return; }
-      if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 20, value: r.d20 }], caption: `${r.bonus >= 0 ? '+' : '−'} ${Math.abs(r.bonus)} = ${r.total} vs DC ${r.dc}` }], label: 'Crafting', verdict: { superior: 'Superior!', success: 'Success', fail: 'Failed', botch: 'Ruined' }[r.outcome], verdictKind: r.ok && r.outcome !== 'fail' && r.outcome !== 'botch' ? 'good' : 'bad' });
+      // Percentile dice: a tens d10 and a units d10 (00 and 0 make 100).
+      const tens = Math.floor((r.d100 % 100) / 10) * 10; const units = r.d100 % 10;
+      if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 10, value: tens === 0 ? '00' : tens }, { sides: 10, value: units }], caption: `${r.d100} vs ${Math.round(r.chance * 100)}% (${Math.round(r.superiorChance * 100)}% superior)` }], label: 'Crafting (d100)', verdict: { superior: 'Superior!', success: 'Success', fail: 'Failed' }[r.outcome], verdictKind: r.outcome === 'fail' ? 'bad' : 'good' });
       play(r.outcome === 'superior' || r.outcome === 'success' ? 'coins' : 'swing-miss', { volume: 0.6 });
       w.last = r; keepWorkshopHero(d);
       break;

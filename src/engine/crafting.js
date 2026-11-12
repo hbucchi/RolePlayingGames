@@ -1,24 +1,29 @@
 /**
- * Crafting: resources + skill + a roll.
+ * Crafting: resources + skill, the way Ultima Online does it.
  *
- * Three trades, each a skill from 0 to 100 that grows with practice (like Ultima Online's):
- *   smithing     STR   the forge: smelting ore into ingots; every weapon and every armour
- *   woodcraft    DEX   the bowyer's bench: bows, crossbows, arrows, bolts, bowstrings
- *   leatherwork  DEX   the tannery: tanning hides into leather, sinew, bandages, rope
+ * Three trades, each a skill from 0.0 to 100.0, kept apart from everything else a hero is: they
+ * do not use the hero's level, abilities or XP, and crafting never gives XP. A trade grows only by
+ * practising it.
+ *   smithing     the forge: smelting ore into ingots; every weapon and every armour
+ *   woodcraft    the bowyer's bench: bows, crossbows, arrows, bolts, bowstrings
+ *   leatherwork  the tannery: tanning hides into leather, sinew, bandages, rope
  *
- * The roll:  d20 + ability modifier + rank/10 (0 to +10) + proficiency bonus with the trade's
- *            tools (dwarves of the Deep Halls are born to smith's tools), against the recipe's
- *            DC + its material's difficulty (mithral is harder to work than iron).
- *   P(success) = (21 - (DC - bonus)) / 20, clamped to 5%..95% (a natural 1 always fails,
- *                a natural 20 always succeeds).
- *   Superior  (a natural 20, or beating the DC by 10 or more): a superior piece, +1 to hit and
- *             damage, or +5% absorption, and worth twice as much (items.js QUALITY).
- *   Failure   by less than 5: half of each resource is lost (rounded up); the rest comes back.
- *   Botch     (a natural 1, or failing by 5 or more): every resource is lost.
+ * Every recipe has a target skill (its difficulty, and its material's: mithral is harder than
+ * iron). Your chance to make it:
+ *   success  = 50% + 1% for each point your skill is above the target   (0% to 100%)
+ *              so at the target it is a coin toss, 50 points above it is certain, and 50
+ *              below it is impossible (the recipe is shown, but you cannot try it yet)
+ *   superior = 1% for every 2 points above the target, up to 25%  (+1 to hit and damage, or +5%
+ *              absorption; worth twice as much; ingots and arrows come out double)
+ *   failure  = the rest: half of each material is lost (rounded up)
+ * Knowing the trade's tools (dwarves of the Deep Halls with smith's tools) counts as 5 more points.
  *
- * Getting better: a trivial recipe (success 95% or more) teaches nothing. Otherwise a success
- * adds a point to the skill (two if it was a long shot), a failure half a point; above 50 every
- * gain is halved. So 0 to 50 takes about fifty worthwhile crafts, 50 to 100 about a hundred.
+ * Getting better, on every attempt (a success or a failure):
+ *   chance to gain = ((100 - skill) / 100 + (1 - success chance)) / 2
+ * so you learn most from hard work and while you are still green; a recipe you cannot fail
+ * teaches nothing. Each gain is worth 1.0 point up to 30, 0.5 up to 60, 0.3 up to 90 and 0.1
+ * after that. Working at recipes near your skill: about 45 attempts to reach 30, 170 to 60,
+ * 450 to 90 and 800 to 1,300 to master a trade (100): the last ten points are a master's slow work.
  */
 import { RECIPES_BY_ID } from '../content/crafting/recipes.js';
 import { ITEMS_BY_ID } from '../content/items/catalogue.js';
@@ -27,9 +32,9 @@ import { METALS } from './materials.js';
 import { cryptoRandomInt } from './dice.js';
 
 export const CRAFT_SKILLS = {
-  smithing: { name: 'Smithing', ability: 'str', station: 'The forge', tool: /smith's tools/i },
-  woodcraft: { name: 'Woodcraft', ability: 'dex', station: 'The bowyer\'s bench', tool: /woodcarver's tools|carpenter's tools/i },
-  leatherwork: { name: 'Leatherwork', ability: 'dex', station: 'The tannery', tool: /leatherworker's tools/i },
+  smithing: { name: 'Smithing', station: 'The forge', tool: /smith's tools/i },
+  woodcraft: { name: 'Woodcraft', station: 'The bowyer\'s bench', tool: /woodcarver's tools|carpenter's tools|bowyer/i },
+  leatherwork: { name: 'Leatherwork', station: 'The tannery', tool: /leatherworker's tools/i },
 };
 export const CRAFT_IDS = Object.keys(CRAFT_SKILLS);
 
@@ -54,22 +59,29 @@ export function toolProficient(sheet, skill) {
   return !!re && (sheet?.features ?? []).some((f) => re.test(`${f.name} ${f.text ?? ''}`));
 }
 
-/** The bonus on a crafting roll: ability + rank/10 + proficiency with the tools. */
-export function craftBonus(sheet, draft, skill) {
-  const ab = CRAFT_SKILLS[skill].ability;
-  return (sheet?.mods?.[ab] ?? 0) + Math.floor(rankOf(draft, skill) / 10) + (toolProficient(sheet, skill) ? sheet?.proficiencyBonus ?? 2 : 0);
+/** Your working skill in a trade: its rank, plus 5 if you know the trade's tools. */
+export const effectiveSkill = (sheet, draft, skill) => rankOf(draft, skill) + (toolProficient(sheet, skill) ? 5 : 0);
+/** Kept for the old name: the working skill. */
+export const craftBonus = effectiveSkill;
+
+/** A recipe's difficulty in its material, as a DC (shown to the player) and a target skill. */
+export const recipeDc = (recipe, material = null) => recipe.dc + (material ? MATERIAL_DC[material] ?? 0 : 0);
+/** DC 8 (smelting iron) is a target of 0; each DC point is 5 skill points (plate of mithral: 95). */
+export const targetSkill = (recipe, material = null) => Math.min(100, Math.max(0, (recipeDc(recipe, material) - 8) * 5));
+
+/** Chances with a working skill against a target (0..1): success, superior, failure. */
+export function chances(skill, target) {
+  const success = Math.min(1, Math.max(0, 0.5 + (skill - target) / 100));
+  const superior = success > 0 ? Math.min(0.25, Math.max(0, (skill - target) / 200)) : 0;
+  return { success, superior: Math.min(superior, success), failure: 1 - success };
 }
 
-/** The DC of a recipe made of a material. */
-export const recipeDc = (recipe, material = null) => recipe.dc + (material ? MATERIAL_DC[material] ?? 0 : 0);
-
-/** Chances for a bonus against a DC: success, superior, botch (all 0..1). */
-export function chances(bonus, dc) {
-  const p = (need) => Math.min(20, Math.max(0, 21 - need)) / 20; // P(d20 >= need)
-  const success = Math.min(0.95, Math.max(0.05, p(dc - bonus)));
-  const superior = Math.max(0.05, p(dc + 10 - bonus)); // a natural 20 always shines
-  const botch = Math.max(0.05, 1 - p(dc - 4 - bonus)); // a natural 1, or missing by 5+
-  return { success, superior: Math.min(superior, success), botch: Math.min(botch, 1 - success) };
+/** Points gained per step at a rank: quick while green, slow near mastery. */
+export const gainStep = (rank) => (rank < 30 ? 1 : rank < 60 ? 0.5 : rank < 90 ? 0.3 : 0.1);
+/** The chance an attempt teaches something (see the header). Trivial or impossible work: none. */
+export function gainChance(rank, success) {
+  if (success >= 1 || success <= 0 || rank >= 100) return 0;
+  return ((100 - rank) / 100 + (1 - success)) / 2;
 }
 
 // ---- Resources: the hero's bag first, then the company's safe -------------------------------------
@@ -104,19 +116,10 @@ export function materialChoices(recipe, draft, safe) {
 }
 export const canAfford = (recipe, material, draft, safe) => (!recipe.slot || material) && needs(recipe, material, draft, safe).every((i) => i.have >= i.qty);
 
-/** Skill gained from one attempt (see the header). */
-export function skillGain(rank, bonus, dc, ok) {
-  const c = chances(bonus, dc);
-  if (c.success >= 0.95) return 0; // trivial: nothing to learn
-  let g = ok ? (c.success < 0.5 ? 2 : 1) : 0.5;
-  if (rank >= 50) g /= 2;
-  return Math.min(100 - rank, g);
-}
-
 /**
  * Make something. `sheet`: the hero's derived character (abilities, features); `draft`: their
  * saved record (bag, crafts); `safe`: the company's safe (engine/safe.js) or null.
- * @returns {{ ok, outcome: 'superior'|'success'|'fail'|'botch', d20, bonus, total, dc, lost, made, gain, message }}
+ * @returns {{ ok, outcome: 'superior'|'success'|'fail', d100, skillValue, target, chance, superiorChance, gainChance, lost, made, gain, message }}
  */
 export function craft({ recipeId, material = null, sheet, draft, safe = null, rng = cryptoRandomInt }) {
   const recipe = RECIPES_BY_ID[recipeId];
@@ -124,15 +127,17 @@ export function craft({ recipeId, material = null, sheet, draft, safe = null, rn
   if (recipe.slot && !MATERIALS_OF[recipe.slot.kind].includes(material)) return { ok: false, message: 'Choose what to make it of.' };
   if (!canAfford(recipe, material, draft, safe)) return { ok: false, message: 'You do not have everything it needs.' };
   const skill = recipe.skill;
-  const bonus = craftBonus(sheet, draft, skill);
-  const dc = recipeDc(recipe, material);
-  const d20 = rng(20) + 1; const total = d20 + bonus;
-  const outcome = d20 === 20 || (d20 !== 1 && total >= dc + 10) ? 'superior' : d20 !== 1 && total >= dc ? 'success' : d20 === 1 || total <= dc - 5 ? 'botch' : 'fail';
-  const ok = outcome === 'superior' || outcome === 'success';
-  // Resources: all used on a success; half lost on a near miss; all lost on a botch.
+  const eff = effectiveSkill(sheet, draft, skill);
+  const target = targetSkill(recipe, material);
+  const c = chances(eff, target);
+  if (c.success <= 0) return { ok: false, message: `Too difficult yet: it needs about ${target - 50} ${CRAFT_SKILLS[skill].name.toLowerCase()} to try.` };
+  const d100 = rng(100) + 1; // 1..100: at or under the chance succeeds
+  const outcome = d100 <= Math.round(c.superior * 100) ? 'superior' : d100 <= Math.round(c.success * 100) ? 'success' : 'fail';
+  const ok = outcome !== 'fail';
+  // Resources: all used on a success; half lost on a failure.
   const lost = [];
   for (const i of needs(recipe, material, draft, safe)) {
-    const n = ok || outcome === 'botch' ? i.qty : Math.ceil(i.qty / 2);
+    const n = ok ? i.qty : Math.ceil(i.qty / 2);
     takeOf(i.id, n, draft, safe);
     if (!ok) lost.push({ id: i.id, qty: n });
   }
@@ -146,12 +151,14 @@ export function craft({ recipeId, material = null, sheet, draft, safe = null, rn
     if (whyNoRoom(draft, made, null) && safe?.add(made).ok) made.inSafe = true;
     else addItem(draft.inventory ??= [], made);
   }
+  // Practice: a chance to get better, success or not (see the header).
   const rank = rankOf(draft, skill);
-  const gain = skillGain(rank, bonus, dc, ok);
+  const gc = gainChance(rank, c.success);
+  const gain = rng(1000) < gc * 1000 ? Math.min(100 - rank, gainStep(rank)) : 0;
   if (gain) { draft.crafts ??= {}; draft.crafts[skill] = Math.round((rank + gain) * 10) / 10; }
   const name = made ? `${made.qty > 1 ? `${made.qty} × ` : ''}${itemName(made)}` : itemName({ id: recipe.output.id });
   const where = made?.inSafe ? ' (the bag is full: it went into the safe)' : '';
   const message = outcome === 'superior' ? `A masterwork! ${name}${where}.` : outcome === 'success' ? `Made: ${name}${where}.`
-    : outcome === 'fail' ? `It goes wrong, but half the materials are saved.` : `Ruined: every material is lost.`;
-  return { ok: true, outcome, d20, bonus, total, dc, lost, made, gain, skill, message };
+    : `It goes wrong: half the materials are lost.`;
+  return { ok: true, outcome, d100, skillValue: eff, target, chance: c.success, superiorChance: c.superior, gainChance: gc, lost, made, gain, skill, message };
 }

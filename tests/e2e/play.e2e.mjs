@@ -116,16 +116,21 @@ test('the trading post: the inn and the healer mend wounds for coin', async () =
   await p.close();
 });
 
-test('the workshop: buy supplies, smelt an ingot, the trade grows', async () => {
+test('the workshop: buy supplies, smelt ingots, the trade grows by practice (never hero XP)', async () => {
   const p = await fresh();
   await p.evaluate(() => localStorage.setItem('rpg.settings', JSON.stringify({ dice: 'none' }))); await p.reload();
   await p.click('[data-tab="adventures"]'); await p.click('[data-action="open-workshop"]');
-  await p.click('[data-ws="buy"][data-id="iron-ore"]'); await p.click('[data-ws="buy"][data-id="coal"]');
-  await p.click('[data-ws="craft"][data-recipe="smelt-iron"]'); await p.waitForSelector('.ws-result');
+  for (let i = 0; i < 3; i++) await p.click('[data-ws="buy"][data-id="iron-ore"]');
+  await p.click('[data-ws="buy"][data-id="coal"]');
+  // Each attempt has a 75% chance to teach a beginner something: five attempts, nearly sure.
+  for (let i = 0; i < 5; i++) {
+    const b = await p.$('[data-ws="craft"][data-recipe="smelt-iron"]:not([disabled])'); if (!b) break;
+    await b.click(); await p.waitForSelector('.ws-result');
+  }
   const hero = (await roster(p))[0];
-  const outcome = await p.getAttribute('.ws-result', 'class');
-  if (/success|superior/.test(outcome)) assert.ok(hero.inventory.some((x) => x.id === 'iron-ingot'), 'the ingot is in the bag');
   assert.ok((hero.crafts?.smithing ?? 0) > 0, 'smithing grew');
+  assert.equal(hero.xp ?? 0, 0, 'crafting gives no hero XP');
+  assert.match(await p.textContent('.ws-result'), /d100/);
   assert.deepEqual(p.errors, []);
   await p.close();
 });
