@@ -115,3 +115,17 @@ test('the trading post: the inn and the healer mend wounds for coin', async () =
   assert.deepEqual(p.errors, []);
   await p.close();
 });
+
+test('the workshop: buy supplies, smelt an ingot, the trade grows', async () => {
+  const p = await fresh();
+  await p.evaluate(() => localStorage.setItem('rpg.settings', JSON.stringify({ dice: 'none' }))); await p.reload();
+  await p.click('[data-tab="adventures"]'); await p.click('[data-action="open-workshop"]');
+  await p.click('[data-ws="buy"][data-id="iron-ore"]'); await p.click('[data-ws="buy"][data-id="coal"]');
+  await p.click('[data-ws="craft"][data-recipe="smelt-iron"]'); await p.waitForSelector('.ws-result');
+  const hero = (await roster(p))[0];
+  const outcome = await p.getAttribute('.ws-result', 'class');
+  if (/success|superior/.test(outcome)) assert.ok(hero.inventory.some((x) => x.id === 'iron-ingot'), 'the ingot is in the bag');
+  assert.ok((hero.crafts?.smithing ?? 0) > 0, 'smithing grew');
+  assert.deepEqual(p.errors, []);
+  await p.close();
+});

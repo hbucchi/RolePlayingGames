@@ -51,7 +51,9 @@ export function itemName(inst) {
   if (inst.label) return `${def.name} (${inst.label})`;
   // Made of a metal other than its usual one: "Bronze coat of mail" (materials.js).
   const metal = metalOf(inst, def); const usual = metalOf({}, def);
-  const base = metal && metal !== usual ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
+  let base = metal && metal !== usual ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
+  // A masterwork from the forge or workbench (crafting.js): "Superior steel longsword".
+  if (inst.quality === 'superior') base = `Superior ${base[0].toLowerCase()}${base.slice(1)}`;
   return suffix ? `${base} ${suffix}` : base;
 }
 
@@ -62,13 +64,21 @@ export function itemRarity(inst) {
   return RARITY_ORDER[Math.max(RARITY_ORDER.indexOf(base), RARITY_ORDER.indexOf(ench))];
 }
 
+/**
+ * Craftsmanship (crafting.js): a superior piece hits a little truer and harder (+1 to hit and
+ * damage), or turns blows a little better (+5% absorption against everything), and is worth
+ * twice as much. It is not magic: creatures that shrug off plain weapons still do.
+ */
+export const QUALITY = { superior: { toHit: 1, damage: 1, absorb: 5, value: 2 } };
+export const qualityOf = (inst) => QUALITY[inst?.quality] ?? null;
+
 export const isMagic = (inst) => !!(itemDef(inst)?.magic || inst.bonus);
 
 /** Value in copper: magic bonuses multiply the price, as rarer items do in the DMG price bands. */
 export function itemValue(inst) {
   const def = itemDef(inst);
   if (!def) return 0;
-  const mult = inst.bonus ? [1, 20, 80, 300][inst.bonus] : 1;
+  const mult = (inst.bonus ? [1, 20, 80, 300][inst.bonus] : 1) * (inst.quality === 'superior' ? QUALITY.superior.value : 1);
   const metal = METALS[metalOf(inst, def)]?.value ?? 1;
   return Math.round(def.value * mult * metal) * (inst.qty ?? 1);
 }
@@ -299,12 +309,13 @@ export function gearStats(gear, { mods, scores, pb, weaponProfs, armorProfs }) {
     const twoHands = slot === 'mainHand' && w.versatile && !offInst;
     const die = twoHands ? w.versatile : w.damage;
     // An off-hand attack (two-weapon fighting) adds no ability modifier to damage, unless it is negative.
-    const dmgMod = (slot === 'offHand' ? Math.min(0, mods[ability]) : mods[ability]) + bonus + metal.damage;
+    const q = qualityOf(inst) ?? { toHit: 0, damage: 0 };
+    const dmgMod = (slot === 'offHand' ? Math.min(0, mods[ability]) : mods[ability]) + bonus + metal.damage + q.damage;
     const props = [...(w.props ?? [])];
     if (w.thrown && slot !== 'ranged') props.push(`thrown ${w.thrown}`);
     attacks.push({
       uid: inst.uid, slot, name: itemName(inst), ability, proficient: prof,
-      toHit: mods[ability] + (prof ? pb : 0) + bonus + metal.toHit,
+      toHit: mods[ability] + (prof ? pb : 0) + bonus + metal.toHit + q.toHit,
       bane: metal.bane ?? null, metal: metalOf(inst, def),
       damage: `${die}${fmtMod(dmgMod)}`,
       damageType: w.type,

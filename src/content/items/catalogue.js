@@ -81,10 +81,10 @@ weapon('shortsword', 'Short sword', 'martial', '1d6', 'piercing', 10 * GP, 2, ['
 // Silvered blades (materials.js 'silver', worth 4x): they bite creatures that shrug off plain steel
 // (werewolves, many devils and spirits) and burn the undead and fiends for an extra 1d6 radiant.
 // Sold by every trader, so a party can prepare before such foes turn up (levels 3-5).
-weapon('silvered-dagger', 'Silvered dagger', 'simple', '1d4', 'piercing', 2 * GP, 1, ['finesse', 'light', 'thrown 20/60'], { desc: 'A dagger with a silvered edge. Werewolves and restless dead fear it.', icon: icon('dagger') });
-weapon('silvered-shortsword', 'Silvered short sword', 'martial', '1d6', 'piercing', 10 * GP, 2, ['finesse', 'light'], { desc: 'A short blade washed in silver: it bites what plain steel cannot.', icon: icon('shortsword') });
-weapon('silvered-longsword', 'Silvered longsword', 'martial', '1d8', 'slashing', 15 * GP, 3, ['versatile 1d10'], { desc: 'A longsword with a silvered edge, for hunters of werewolves and wights.', icon: icon('longsword') });
-weapon('silvered-rapier', 'Silvered rapier', 'martial', '1d8', 'piercing', 25 * GP, 2, ['finesse'], { desc: 'A duellist\'s blade, silvered: elegant, and deadly to the cursed.', icon: icon('rapier') });
+weapon('silvered-dagger', 'Silvered dagger', 'simple', '1d4', 'piercing', 2 * GP, 1, ['finesse', 'light', 'thrown 20/60'], { desc: 'A dagger with a silvered edge. Werewolves and restless dead fear it.', icon: icon('dagger'), material: 'silver' });
+weapon('silvered-shortsword', 'Silvered short sword', 'martial', '1d6', 'piercing', 10 * GP, 2, ['finesse', 'light'], { desc: 'A short blade washed in silver: it bites what plain steel cannot.', icon: icon('shortsword'), material: 'silver' });
+weapon('silvered-longsword', 'Silvered longsword', 'martial', '1d8', 'slashing', 15 * GP, 3, ['versatile 1d10'], { desc: 'A longsword with a silvered edge, for hunters of werewolves and wights.', icon: icon('longsword'), material: 'silver' });
+weapon('silvered-rapier', 'Silvered rapier', 'martial', '1d8', 'piercing', 25 * GP, 2, ['finesse'], { desc: 'A duellist\'s blade, silvered: elegant, and deadly to the cursed.', icon: icon('rapier'), material: 'silver' });
 weapon('long-knife', 'Long knife', 'martial', '1d6', 'piercing', 8 * GP, 2, ['finesse', 'light'], { desc: 'A long hunting knife of the northern rangers, worn at the hip.' });
 weapon('war-pick', 'War pick', 'martial', '1d8', 'piercing', 5 * GP, 2);
 weapon('warhammer', 'Warhammer', 'martial', '1d8', 'bludgeoning', 15 * GP, 2, ['versatile 1d10']);
@@ -219,8 +219,20 @@ res('iron-ore', 'Iron ore', 4, 1, 'Rust-red rock, the backbone of every smithy.'
 res('silver-ore', 'Silver ore', 20, 1, 'Glittering ore that yields bright silver.', { glyph: '🪨', rarity: 'uncommon' });
 res('gold-ore', 'Gold ore', 60, 1, 'Heavy rock threaded with gold.', { glyph: '🪨', rarity: 'rare' });
 res('mithral-ore', 'Mithral ore', 500, 1, 'A few grains of true-silver: light as down, harder than steel. Worth more than its weight in gold.', { glyph: '🪨', rarity: 'very-rare' });
-res('iron-ingot', 'Iron ingot', 10, 1, 'A bar of smelted iron, ready for the anvil.', { glyph: '▬' });
-res('bronze-ingot', 'Bronze ingot', 8, 1, 'A bar of bronze.', { glyph: '▬' });
+// Ingots: made at the forge (crafting.js), and what metal gear is forged from. Each is of its
+// metal (materials.js): its value is the base x the metal's worth, and its icon takes the metal's tint.
+const ingot = (metal, name, base, desc, rarity = 'common') => res(`${metal}-ingot`, name, base, 1, desc, { glyph: '▬', material: metal, rarity, icon: icon(metal === 'bronze' ? 'bronze-ingot' : 'iron-ingot') });
+ingot('iron', 'Iron ingot', 14, 'A bar of smelted iron, ready for the anvil.');
+ingot('steel', 'Steel ingot', 14, 'Iron folded with charcoal into steel: the smith\'s standard.');
+ingot('copper', 'Copper ingot', 10, 'A soft red bar of copper.');
+ingot('bronze', 'Bronze ingot', 10, 'A bar of bronze: copper with a little tin.');
+ingot('black-iron', 'Black iron ingot', 12, 'Iron quenched in bloodmoss: black, cold and stubborn.', 'uncommon');
+ingot('silver', 'Silver ingot', 12, 'A bright bar of silver. The cursed fear its edge.', 'uncommon');
+ingot('gold', 'Gold ingot', 12, 'A heavy, soft bar of gold.', 'rare');
+ingot('dwarf-steel', 'Dwarf-steel ingot', 12, 'Steel worked with silver by the old dwarven secret: blue-grey and keen.', 'rare');
+ingot('mithral', 'Mithral ingot', 60, 'True-silver, smelted: light as a feather, harder than steel.', 'very-rare');
+res('tanned-leather', 'Tanned leather', 6, 1, 'Hide tanned into supple leather, ready to cut and stitch.', { glyph: '🟫', icon: icon('hide') });
+res('bowstring', 'Bowstring', 4, 0.05, 'A waxed string of twisted silk or sinew.', { glyph: '〰', icon: icon('spider-silk') });
 // Animal and monster parts
 res('hide', 'Raw hide', 3, 2, 'An untanned animal hide, for leatherwork.', { glyph: '🟫' });
 res('wolf-pelt', 'Wolf pelt', 15, 3, 'A thick grey pelt. Warm, and prized by furriers.', { glyph: '🟫', rarity: 'uncommon' });

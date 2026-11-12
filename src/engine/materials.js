@@ -51,6 +51,27 @@ export const METALS = {
 };
 export const DEFAULT_METAL = 'steel';
 
+/**
+ * Woods: what bows, crossbows, staves and clubs are made of (crafting.js: the log you carve them
+ * from). Kept in the same table as the metals, so names ("Yew longbow"), value, weight and the
+ * weapon's accuracy and damage follow the same rules. Ash is the plain default.
+ */
+const WOOD = (name, weapon, value, weight, tint, rarity = 'common') => ({ name, kind: 'wood', absorb: 1, resist: {}, weight, value, hinder: 1, weapon, tint, rarity });
+Object.assign(METALS, {
+  ash: WOOD('Ash', { toHit: 0, damage: 0 }, 1, 1, 'none'),
+  oak: WOOD('Oak', { toHit: 0, damage: 0 }, 0.9, 1.2, 'sepia(.35) brightness(.92)'),
+  beech: WOOD('Beech', { toHit: 0, damage: 0 }, 0.9, 1, 'brightness(1.1) sepia(.2)'),
+  yew: WOOD('Yew', { toHit: 0, damage: 1 }, 3, 1, 'sepia(.6) saturate(1.6) hue-rotate(-20deg) brightness(.85)', 'uncommon'),
+  holly: WOOD('Holly', { toHit: 1, damage: 0 }, 4, 1, 'grayscale(.5) brightness(1.25)', 'uncommon'),
+  blackwood: WOOD('Blackwood', { toHit: 1, damage: 1 }, 10, 1.3, 'grayscale(1) brightness(.4) contrast(1.3)', 'rare'),
+  goldenwood: WOOD('Goldenwood', { toHit: 2, damage: 1 }, 40, 0.6, 'sepia(1) saturate(3) hue-rotate(5deg) brightness(1.15)', 'very-rare'),
+});
+export const DEFAULT_WOOD = 'ash';
+export const isWood = (id) => METALS[id]?.kind === 'wood';
+/** Weapons carved from wood (their material is a wood, not a metal). */
+const WOODEN = new Set(['club', 'greatclub', 'quarterstaff', 'shortbow', 'longbow', 'light-crossbow', 'hand-crossbow', 'heavy-crossbow', 'javelin']);
+export const isWooden = (def) => !!def && def.cat === 'weapon' && WOODEN.has(def.id) && !def.magic;
+
 /** The form of each armour (defence.js ARMOURS has absorption and coverage). */
 export const ARMOUR_FORM = {
   padded: 'cloth', leather: 'leather', 'studded-leather': 'leather', 'hide-armour': 'leather',
@@ -72,10 +93,14 @@ export function isMetal(def) {
 }
 /** The metal an item is made of (its own default when nothing is recorded). */
 export function metalOf(inst, def) {
+  if (!def) return null;
+  // Ingots and planks are of a material by definition ("Silver ingot").
+  if (def.cat === 'resource') return def.material ?? null;
+  if (isWooden(def)) return isWood(inst?.material) ? inst.material : (def.material ?? DEFAULT_WOOD);
   if (!isMetal(def)) return null;
-  if (inst?.material && METALS[inst.material]) return inst.material;
+  if (inst?.material && METALS[inst.material] && !isWood(inst.material)) return inst.material;
+  if (def.material) return def.material;
   if (/mithral/.test(def.id)) return 'mithral';
-  if (/^silvered-/.test(def.id)) return 'silver';
   if (/iron/.test(def.id)) return 'iron';
   return DEFAULT_METAL;
 }

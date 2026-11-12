@@ -41,11 +41,12 @@ export function coinsHtml(cp) {
 function statLine(inst) {
   const def = ITEMS_BY_ID[inst.id];
   const b = inst.bonus ?? def.bonus ?? 0;
+  const sup = inst.quality === 'superior';
   if (def.weapon) {
     const w = def.weapon;
     const metal = metalOf(inst, def); const mw = METALS[metal]?.weapon;
     const forgedText = metal ? ` · ${METALS[metal].name.toLowerCase()}${mw?.toHit ? ` (${mw.toHit > 0 ? '+' : ''}${mw.toHit} to hit)` : ''}${mw?.damage ? ` (${mw.damage > 0 ? '+' : ''}${mw.damage} damage)` : ''}${mw?.bane ? ` (+${mw.bane.dice} ${mw.bane.type} against ${mw.bane.types.join(' and ')})` : ''}` : '';
-    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${forgedText}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
+    return `${w.damage}${b + (sup ? 1 : 0) ? `+${b + (sup ? 1 : 0)}` : ''} ${w.type}${forgedText}${b + (sup ? 1 : 0) ? ` · +${b + (sup ? 1 : 0)} to hit` : ''}${sup ? ' · superior make' : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
   }
   if (def.armor) {
     const a = ARMOURS[def.id];
@@ -53,13 +54,13 @@ function statLine(inst) {
     const cond = inst.condition ?? 100;
     const metal = metalOf(inst, def);
     const h = Math.round((a?.hinder ?? 0) * (METALS[metal]?.hinder ?? 1)); const sq = h >= 4 ? 2 : h >= 2 ? 1 : 0;
-    const abs = a ? Object.fromEntries(Object.entries(a.abs).map(([k, v]) => [k, v + 5 * b])) : null;
+    const abs = a ? Object.fromEntries(Object.entries(a.abs).map(([k, v]) => [k, v + 5 * (b + (sup ? 1 : 0))])) : null;
     const by = (type) => (abs ? absorbFor({ abs, metal, condition: cond }, type) : 0);
     const bonus = Object.entries(METALS[metal]?.resist ?? {}).map(([x, v]) => `${x} +${v}`);
     const elems = [[`elements ${by('force')}%`], ...(bonus.length ? [[`(${bonus.join(', ')})`]] : [])];
     return `${FORMS[ARMOUR_FORM[def.id]]?.label ?? 'armour'}${metal ? ` of ${METALS[metal].name.toLowerCase()}` : ''} · edge ${by('slashing')}% · point ${by('piercing')}% · blunt ${by('bludgeoning')}%${` · ${elems.map(([x]) => x).join(' ')}`} · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}`;
   }
-  if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b ? ` + ${5 * b}%` : ''}`;
+  if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b + (sup ? 1 : 0) ? ` + ${5 * (b + (sup ? 1 : 0))}%` : ''}${sup ? ' (superior make)' : ''}`;
   if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;
   if (def.charges) return `${inst.charges ?? def.charges} picks left`;
   return '';

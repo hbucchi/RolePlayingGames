@@ -25,6 +25,9 @@ import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter, defaultBackend } from '../engine/storage.js';
 import { createDelveStore } from '../engine/delve.js';
 import { healInTown, healCost, isHurt, woundsOf } from '../engine/healing.js';
+import { workshopHtml, supplyPrice, SUPPLY_BUNDLE } from './workshop-view.js';
+import { craft, CRAFT_IDS, CRAFT_SKILLS, rankOf } from '../engine/crafting.js';
+import { makeItem as makeItemInst, addItem, whyNoRoom } from '../engine/items.js';
 import { createSafe, SAFE_SLOTS } from '../engine/safe.js';
 const safe = createSafe(defaultBackend());
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
@@ -159,6 +162,7 @@ function render() {
     sheet: sheetView,
     dungeon: () => '<div id="dungeon-host" class="dungeon-host"></div>',
     market: marketView,
+    workshop: workshopView,
     arena: () => `<div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">Arena</h1>
       <p class="muted small">Practice bouts: no risk, no XP, no loot.</p></div>
       <div id="arena-host"></div>`,
@@ -415,6 +419,61 @@ function marketDraft(id) {
   return state.market.draft;
 }
 
+/** The workshop (workshop-view.js): one hero at the bench, loaded once per visit. */
+function workshopView() {
+  const w = state.workshop;
+  const heroes = explorerHeroes();
+  const id = w.heroId ?? heroes[0]?.id;
+  if (id && w.draft?.id !== id && w.draft?.premadeOf !== id) w.draft = heroApi.load(id);
+  const d = id ? w.draft : null;
+  return workshopHtml({ heroes, heroId: id, draft: d, sheet: d ? deriveCharacter(d, settingFor(d)) : null, safe, skill: w.skill, picks: w.picks, last: w.last, onlyMakeable: w.only });
+}
+/** Save the hero at the bench; a ready-made hero is adopted on their first piece. */
+function keepWorkshopHero(d) {
+  const saved = heroApi.save(d);
+  if (saved?.id && saved.id !== state.workshop.heroId) state.workshop.heroId = saved.id;
+  state.workshop.draft = saved ?? d;
+}
+root.addEventListener('click', async (e) => {
+  const el = e.target.closest('[data-ws]');
+  if (!el || el.disabled || state.view !== 'workshop' || el.tagName === 'SELECT' || el.tagName === 'INPUT') return;
+  const w = state.workshop; const d = w.draft;
+  switch (el.dataset.ws) {
+    case 'hero': Object.assign(w, { heroId: el.dataset.id, draft: null, last: null }); break;
+    case 'station': w.skill = el.dataset.skill; w.last = null; break;
+    case 'buy': {
+      const id = el.dataset.id; const cost = supplyPrice(id);
+      if (!d || (d.coins ?? 0) < cost) { notify('Not enough coin.', 'bad'); return; }
+      const inst = makeItemInst(id, SUPPLY_BUNDLE[id] ?? 1);
+      const why = whyNoRoom(d, inst, null);
+      if (why) { notify(why, 'bad'); return; }
+      d.coins -= cost; addItem(d.inventory ??= [], inst); keepWorkshopHero(d);
+      notify(`Bought ${inst.qty} ${itemName({ id }).toLowerCase()} for ${formatCoins(cost)}.`, 'ok');
+      break;
+    }
+    case 'craft': {
+      if (!d) return;
+      const recipeId = el.dataset.recipe;
+      const sel = root.querySelector(`select[data-ws="material"][data-recipe="${CSS.escape(recipeId)}"]`);
+      const sheet = deriveCharacter(d, settingFor(d));
+      const r = craft({ recipeId, material: sel?.value ?? null, sheet, draft: d, safe });
+      if (!r.ok) { notify(r.message, 'bad'); return; }
+      if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 20, value: r.d20 }], caption: `${r.bonus >= 0 ? '+' : '−'} ${Math.abs(r.bonus)} = ${r.total} vs DC ${r.dc}` }], label: 'Crafting', verdict: { superior: 'Superior!', success: 'Success', fail: 'Failed', botch: 'Ruined' }[r.outcome], verdictKind: r.ok && r.outcome !== 'fail' && r.outcome !== 'botch' ? 'good' : 'bad' });
+      play(r.outcome === 'superior' || r.outcome === 'success' ? 'coins' : 'swing-miss', { volume: 0.6 });
+      w.last = r; keepWorkshopHero(d);
+      break;
+    }
+    default: return;
+  }
+  render();
+});
+root.addEventListener('change', (e) => {
+  const el = e.target.closest('[data-ws]');
+  if (!el || state.view !== 'workshop') return;
+  if (el.dataset.ws === 'material') { state.workshop.picks[el.dataset.recipe] = el.value; render(); }
+  if (el.dataset.ws === 'only') { state.workshop.only = el.checked; render(); }
+});
+
 /** Selling at the Trading Post: the hero's pack and purse are saved after every sale. */
 root.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-tr]');
@@ -491,6 +550,12 @@ function adventuresView() {
           <p class="muted small">Levels ${esc(cp.levels)} · a world map, 6 places, a quest</p>
           <button class="btn small primary" data-action="open-campaign" data-id="${esc(cp.id)}">${loadCampaignRun(cp.id) ? 'Continue the campaign' : 'Begin the campaign'}</button>
         </article>`).join('')}
+        <article class="card adventure market-card">
+          <div class="card-head"><h3>The Workshop</h3><span class="badge">Playable</span></div>
+          <p>Smelt ore into ingots, forge blades and mail, carve bows, tan hides and stitch leather. Resources plus skill: a roll decides, and a great one makes a superior piece. Smithing, woodcraft and leatherwork grow with practice.</p>
+          <p class="muted small">Any level · craft your own gear</p>
+          <button class="btn small primary" data-action="open-workshop">Open the workshop</button>
+        </article>
         <article class="card adventure market-card">
           <div class="card-head"><h3>The Trading Post</h3><span class="badge">Playable</span></div>
           <p>Between adventures, buy arms, armour and supplies, and sell what you brought back. Traders pay half the price new; haggle with Charisma for a better deal. Now and then Marta has something magical.</p>
@@ -767,7 +832,7 @@ function reviewStep(d, s) {
     <h2>Review your hero</h2>
     <p class="muted">Everything below is calculated from your choices. Click any ability, save, skill or attack to try a roll.</p>
     ${appearanceEditor(d)}
-    ${sheetHtml(deriveCharacter(d, s), heroLook(d))}
+    ${sheetHtml(deriveCharacter(d, s), heroLook(d), d.crafts)}
     ${diceTray()}`;
 }
 
@@ -814,7 +879,7 @@ function rollBtn(label, bonus, text) {
   return `<button class="roll-btn" data-action="check" data-label="${esc(label)}" data-bonus="${bonus}">${text}</button>`;
 }
 
-function sheetHtml(c, look) {
+function sheetHtml(c, look, crafts = {}) {
   return `
     <article class="sheet">
       <header class="sheet-head">
@@ -844,6 +909,8 @@ function sheetHtml(c, look) {
           <ul class="checklist">${c.savingThrows.map((st) => `<li class="${st.proficient ? 'prof' : ''}">${rollBtn(`${ABILITIES[st.ability].name} save`, st.bonus, `<span class="dot"></span><span>${ABILITIES[st.ability].name}</span><span class="b">${fmt(st.bonus)}</span>`)}</li>`).join('')}</ul>
           <h3>Skills</h3>
           <ul class="checklist">${c.skills.map((sk) => `<li class="${sk.proficient ? 'prof' : ''}">${rollBtn(sk.name, sk.bonus, `<span class="dot"></span><span>${esc(sk.name)} <small>(${ABILITIES[sk.ability].short})</small></span><span class="b">${fmt(sk.bonus)}</span>`)}</li>`).join('')}</ul>
+          <h3>Trades</h3>
+          <ul class="checklist">${CRAFT_IDS.map((id) => `<li><span class="dot"></span><span>${esc(CRAFT_SKILLS[id].name)} <small>(${CRAFT_SKILLS[id].ability.toUpperCase()}, rank 0-100)</small></span><span class="b">${rankOf({ crafts }, id).toFixed(1)}</span></li>`).join('')}</ul>
         </section>
         <section class="panel">
           <h3>Attacks</h3>
@@ -912,7 +979,7 @@ function sheetView() {
     </div>
     ${source === 'roster' && pendingLevelUps(draft).length ? `<div class="lu-waiting" role="status"><span>✦ <b>Level-up choices are waiting</b> (level ${pendingLevelUps(draft).join(', ')}): improve your abilities or train a new skill.</span>
       <button class="btn primary" data-action="level-choices" data-id="${esc(draft.id)}">Choose now</button></div>` : ''}
-    ${sheetHtml(c, heroLook(draft))}
+    ${sheetHtml(c, heroLook(draft), draft.crafts)}
     ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, doll: state.inv.doll, title: 'Inventory', safe: { items: safe.items(), slots: SAFE_SLOTS } })}</section>`
     : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
     ${diceTray()}`;
@@ -1099,6 +1166,7 @@ const actions = {
   'close-settings-bg'(el, e) { if (e?.target === el) { state.settingsOpen = false; render(); } },
   'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },
   'start-story'(el) { Object.assign(state, { view: 'story', storyId: el.dataset.id }); render(); window.scrollTo(0, 0); },
+  'open-workshop'() { Object.assign(state, { view: 'workshop', workshop: { heroId: explorerHeroes()[0]?.id ?? null, draft: null, skill: 'smithing', picks: {}, last: null, only: false } }); render(); window.scrollTo(0, 0); },
   'open-market'() { Object.assign(state, { view: 'market', market: { heroId: explorerHeroes()[0]?.id ?? null, haggles: {}, draft: null, tab: 'buy' } }); render(); window.scrollTo(0, 0); },
   'market-hero'(el) { state.market.heroId = el.dataset.id; state.market.draft = null; render(); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },

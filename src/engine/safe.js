@@ -29,6 +29,15 @@ export function createSafe(backend) {
       write(s);
       return { ok: true, n };
     },
+    /** Use up `n` of a plain resource kept in the safe (crafting). Returns how many were taken. */
+    remove(id, n) {
+      const s = read(); let left = n;
+      for (const x of [...s.items]) { if (left <= 0) break; if (x.id === id && !x.bonus) left -= removeItem(s.items, x.uid, left); }
+      write(s);
+      return n - left;
+    },
+    /** Put something straight into the safe (a crafted piece when the bag is full). */
+    add(inst) { const why = this.whyNot(inst); if (why) return { ok: false, message: why }; const s = read(); addItem(s.items, { ...structuredClone(inst), uid: undefined }); write(s); return { ok: true }; },
     /** Take an item out of the safe into a hero's bag, if the bag has room and the hero can carry it. */
     take(draft, uid, qty = Infinity, str = null) {
       const s = read(); const inst = s.items.find((x) => x.uid === uid);

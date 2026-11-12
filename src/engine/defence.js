@@ -169,7 +169,9 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
     const metal = metalOf(inst, def);
     const name = metal && metal !== metalOf({}, def) ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
     // Enchantment adds absorption, not stiffness: hindrance stays the armour's own (and its metal's).
-    const p = piece({ name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (inst.bonus ?? 0)), abs: withBonus(a.abs, inst.bonus ?? 0), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder, form: ARMOUR_FORM[def.id] ?? 'leather', metal });
+    // Enchantment and craftsmanship (a superior piece: +5%) both add absorption, not stiffness.
+    const better = (inst.bonus ?? 0) + (inst.quality === 'superior' ? 1 : 0);
+    const p = piece({ name: inst.quality === 'superior' ? `Superior ${name[0].toLowerCase()}${name.slice(1)}` : name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * better), abs: withBonus(a.abs, better), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder, form: ARMOUR_FORM[def.id] ?? 'leather', metal });
     p.slot = slot; pieces.push(p);
     raw += a.hinder === 0 ? 0 : rawHindrance(a.absorb, Object.values(a.cover).reduce((x, y) => x + y, 0)) * (METALS[metal]?.hinder ?? 1);
   }
@@ -178,7 +180,7 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
   const evasion = Math.max(Math.min(8, 10 + dex), 10 + dex - hinder) + magicEvasion;
   const offInst = eq('offHand'); const off = itemDef(offInst);
   const mainInst = eq('mainHand'); const main = itemDef(mainInst);
-  const shield = off?.cat === 'shield' ? shieldBlock(pb, shieldTrained) + 5 * (offInst.bonus ?? 0) : 0;
+  const shield = off?.cat === 'shield' ? shieldBlock(pb, shieldTrained) + 5 * ((offInst.bonus ?? 0) + (offInst.quality === 'superior' ? 1 : 0)) : 0;
   const parry = main?.weapon && !main.weapon.ranged && weaponTrained(main) ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
   return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces, armour: pieces.find((x) => x.slot === 'body') ?? pieces[0] ?? null, hinder, moveLost: moveSquaresLost(hinder, str), map: 'humanoid' };
