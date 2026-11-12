@@ -6,8 +6,8 @@
  * poison, necrotic, radiant, force, thunder, psychic) goes straight to total HP, lessened only by
  * the armour's overall resistance to it (the average over every point of the body).
  *
- * Form: how an armour is built decides which blows it stops well. Each form scales the armour's
- * absorption per damage type:
+ * Form: how an armour is built (the starting point for each armour's own absorptions in
+ * defence.js ARMOURS, which are set piece by piece):
  *   cloth (padded)   good against blunt blows, poor against points, burns
  *   leather, hide    even, a little against the elements
  *   mail             excellent against edges, poor against points and blunt blows; conducts lightning
@@ -80,12 +80,16 @@ export function metalOf(inst, def) {
 }
 
 /**
- * An armour piece's absorption against one damage type, in percent:
- *   base x form[type] x metal.absorb + metal.resist[type], at most 75, then x condition.
+ * An armour piece's absorption against one damage type, in percent. Each piece has its own
+ * absorption against each physical type (slashing, piercing, bludgeoning) and one overall figure
+ * against every elemental type (defence.js ARMOURS). The metal scales the physical ones and adds
+ * its own resistances to the elemental one; at most 75%, then x condition.
+ *   physical:  abs[type] x metal.absorb
+ *   elemental: abs.elemental + metal.resist[type]
  */
-export function absorbFor({ absorb, form = 'leather', metal = null, condition = 100 }, type) {
-  const f = FORMS[form] ?? FORMS.leather; const m = METALS[metal] ?? null;
-  const v = absorb * (f[type] ?? 0) * (m?.absorb ?? 1) + (m?.resist?.[type] ?? 0);
+export function absorbFor({ abs, metal = null, condition = 100 }, type) {
+  const m = METALS[metal] ?? null;
+  const v = isPhysical(type) ? (abs?.[type] ?? 0) * (m?.absorb ?? 1) : (abs?.elemental ?? 0) + (m?.resist?.[type] ?? 0);
   return Math.max(0, Math.round(Math.min(75, v) * Math.max(0, Math.min(100, condition)) / 100));
 }
 

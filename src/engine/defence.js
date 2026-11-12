@@ -39,32 +39,35 @@ import { absorbFor, ARMOUR_FORM, METALS, metalOf, isMetal } from './materials.js
  * neck 3, head 10.
  */
 export const ARMOURS = {
-  padded: { absorb: 10, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
-  leather: { absorb: 10, cover: { chest: 18, abdomen: 10, 'left-arm': 4, 'right-arm': 4 } },
-  'studded-leather': { absorb: 15, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
-  'hide-armour': { absorb: 20, cover: { chest: 20, abdomen: 13, 'left-arm': 8, 'right-arm': 8, 'left-leg': 3, 'right-leg': 3 } },
-  'chain-shirt': { absorb: 25, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
-  'mithral-shirt': { absorb: 30, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
-  'scale-mail': { absorb: 30, cover: { chest: 22, abdomen: 14, 'left-arm': 9, 'right-arm': 9, 'left-leg': 4, 'right-leg': 4 } },
-  breastplate: { absorb: 30, cover: { chest: 22, abdomen: 10 } },
-  'half-plate': { absorb: 40, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 5, 'right-leg': 5 } },
-  'ring-mail': { absorb: 30, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 6, 'right-leg': 6, neck: 1 } },
-  'chain-mail': { absorb: 40, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 7, 'right-leg': 7, neck: 2 } },
-  splint: { absorb: 45, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 8, 'right-leg': 8, neck: 2 } },
-  plate: { absorb: 55, cover: { chest: 22, abdomen: 15, 'left-arm': 12, 'right-arm': 12, 'left-leg': 9, 'right-leg': 9, neck: 3 } },
+  // absorb: the armour's nominal absorption (for hindrance and enchantment); abs: what it really
+  // stops, per physical damage type, plus one overall figure against every elemental type.
+  //                         edge (slashing) · point (piercing) · blunt (bludgeoning) · elemental
+  padded: { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 13, elemental: 3 }, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  leather: { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 8, elemental: 6 }, cover: { chest: 18, abdomen: 10, 'left-arm': 4, 'right-arm': 4 } },
+  'studded-leather': { absorb: 15, abs: { slashing: 15, piercing: 12, bludgeoning: 12, elemental: 8 }, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'hide-armour': { absorb: 20, abs: { slashing: 20, piercing: 16, bludgeoning: 16, elemental: 10 }, cover: { chest: 20, abdomen: 13, 'left-arm': 8, 'right-arm': 8, 'left-leg': 3, 'right-leg': 3 } },
+  'chain-shirt': { absorb: 25, abs: { slashing: 31, piercing: 15, bludgeoning: 15, elemental: 8 }, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'mithral-shirt': { absorb: 30, abs: { slashing: 38, piercing: 18, bludgeoning: 18, elemental: 9 }, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'scale-mail': { absorb: 30, abs: { slashing: 33, piercing: 27, bludgeoning: 24, elemental: 12 }, cover: { chest: 22, abdomen: 14, 'left-arm': 9, 'right-arm': 9, 'left-leg': 4, 'right-leg': 4 } },
+  breastplate: { absorb: 30, abs: { slashing: 36, piercing: 30, bludgeoning: 24, elemental: 15 }, cover: { chest: 22, abdomen: 10 } },
+  'half-plate': { absorb: 40, abs: { slashing: 48, piercing: 40, bludgeoning: 32, elemental: 18 }, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 5, 'right-leg': 5 } },
+  'ring-mail': { absorb: 30, abs: { slashing: 38, piercing: 18, bludgeoning: 18, elemental: 9 }, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 6, 'right-leg': 6, neck: 1 } },
+  'chain-mail': { absorb: 40, abs: { slashing: 50, piercing: 24, bludgeoning: 24, elemental: 12 }, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 7, 'right-leg': 7, neck: 2 } },
+  splint: { absorb: 45, abs: { slashing: 54, piercing: 45, bludgeoning: 36, elemental: 20 }, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 8, 'right-leg': 8, neck: 2 } },
+  plate: { absorb: 55, abs: { slashing: 66, piercing: 55, bludgeoning: 44, elemental: 22 }, cover: { chest: 22, abdomen: 15, 'left-arm': 12, 'right-arm': 12, 'left-leg': 9, 'right-leg': 9, neck: 3 } },
   // Pieces, each in its own slot: helm, gorget, vambraces, gloves, leg armour.
-  'leather-cap': { absorb: 10, cover: { head: 6 } },
-  'iron-helm': { absorb: 35, cover: { head: 7 } },
-  'mail-coif': { absorb: 35, cover: { head: 4, neck: 3 } },
-  'great-helm': { absorb: 50, cover: { head: 10 } },
-  'steel-gorget': { absorb: 45, cover: { neck: 3 } },
-  'leather-vambraces': { absorb: 10, cover: { 'left-arm': 5, 'right-arm': 5 } },
-  'steel-vambraces': { absorb: 40, cover: { 'left-arm': 8, 'right-arm': 8 } },
-  'leather-gloves': { absorb: 10, cover: { 'left-hand': 3, 'right-hand': 3 } },
-  gauntlets: { absorb: 40, cover: { 'left-hand': 4, 'right-hand': 4 } },
-  'leather-leggings': { absorb: 10, cover: { 'left-leg': 6, 'right-leg': 6 } },
-  'mail-chausses': { absorb: 40, cover: { 'left-leg': 8, 'right-leg': 8 } },
-  'steel-greaves': { absorb: 45, cover: { 'left-leg': 7, 'right-leg': 7 } },
+  'leather-cap': { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 8, elemental: 6 }, cover: { head: 6 } },
+  'iron-helm': { absorb: 35, abs: { slashing: 42, piercing: 35, bludgeoning: 28, elemental: 15 }, cover: { head: 7 } },
+  'mail-coif': { absorb: 35, abs: { slashing: 44, piercing: 21, bludgeoning: 21, elemental: 10 }, cover: { head: 4, neck: 3 } },
+  'great-helm': { absorb: 50, abs: { slashing: 60, piercing: 50, bludgeoning: 40, elemental: 20 }, cover: { head: 10 } },
+  'steel-gorget': { absorb: 45, abs: { slashing: 54, piercing: 45, bludgeoning: 36, elemental: 18 }, cover: { neck: 3 } },
+  'leather-vambraces': { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 8, elemental: 6 }, cover: { 'left-arm': 5, 'right-arm': 5 } },
+  'steel-vambraces': { absorb: 40, abs: { slashing: 48, piercing: 40, bludgeoning: 32, elemental: 16 }, cover: { 'left-arm': 8, 'right-arm': 8 } },
+  'leather-gloves': { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 8, elemental: 6 }, cover: { 'left-hand': 3, 'right-hand': 3 } },
+  gauntlets: { absorb: 40, abs: { slashing: 48, piercing: 40, bludgeoning: 32, elemental: 16 }, cover: { 'left-hand': 4, 'right-hand': 4 } },
+  'leather-leggings': { absorb: 10, abs: { slashing: 10, piercing: 8, bludgeoning: 8, elemental: 6 }, cover: { 'left-leg': 6, 'right-leg': 6 } },
+  'mail-chausses': { absorb: 40, abs: { slashing: 50, piercing: 24, bludgeoning: 24, elemental: 12 }, cover: { 'left-leg': 8, 'right-leg': 8 } },
+  'steel-greaves': { absorb: 45, abs: { slashing: 54, piercing: 45, bludgeoning: 36, elemental: 18 }, cover: { 'left-leg': 7, 'right-leg': 7 } },
 };
 /** Layers multiply: 40% over 40% lets 0.6 x 0.6 = 36% through (64% absorbed), at most 75%. */
 export const MAX_LAYERED = 75;
@@ -94,16 +97,20 @@ export const parryBlock = (pb) => Math.min(MAX_BLOCK, 5 + 5 * pb);
 export const effectiveAbsorb = (absorb, condition = 100) => Math.round(absorb * Math.max(0, Math.min(100, condition)) / 100);
 
 /** A piece's absorption against one damage type (materials.js: form x metal x condition). */
-export const pieceAbsorb = (p, type = 'slashing') => absorbFor({ absorb: p.absorb, form: p.form, metal: p.metal, condition: p.condition }, type);
+export const pieceAbsorb = (p, type = 'slashing') => absorbFor({ abs: p.abs, metal: p.metal, condition: p.condition }, type);
+/** An armour's four absorptions with its enchantment (+5 to each per +1). */
+const withBonus = (abs, bonus = 0) => Object.fromEntries(Object.entries(abs).map(([k, v]) => [k, v + 5 * bonus]));
+/** A creature's own hide, scales or shell: even against every blow, half as good against the elements. */
+const naturalAbs = (a) => ({ slashing: a, piercing: a, bludgeoning: a, elemental: Math.round(a / 2) });
 
 /**
  * One worn piece: { name, absorb (base), form, metal, condition, pct (against edges, for show),
  * cover, uid, hinder }. `cover` maps part id -> points covered (never more than the part's stretch).
  */
-function piece({ name, absorb, cover, condition = 100, uid = null, hinder = null, form = 'leather', metal = null, map = 'humanoid' }) {
+function piece({ name, absorb, abs, cover, condition = 100, uid = null, hinder = null, form = 'leather', metal = null, map = 'humanoid' }) {
   const c = Object.fromEntries(Object.entries(cover).map(([k, v]) => [k, Math.min(v, partOf(map, k)?.weight ?? 0)]));
   const points = Object.values(c).reduce((x, y) => x + y, 0);
-  const p = { name, absorb, form, metal, condition, cover: c, uid, hinder: hinder ?? hindranceOf(absorb, points) };
+  const p = { name, absorb, abs: abs ?? naturalAbs(absorb), form, metal, condition, cover: c, uid, hinder: hinder ?? hindranceOf(absorb, points) };
   p.pct = pieceAbsorb(p);
   return p;
 }
@@ -120,11 +127,11 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
   for (const slot of ['body', 'head', 'throat', 'arms', 'hands', 'legs']) {
     const inst = eq(slot); const def = itemDef(inst);
     if (!def?.armor) continue;
-    const a = ARMOURS[def.id] ?? { absorb: Math.max(5, 5 + 6 * ((def.armor.base ?? 11) - 10)), cover: ARMOURS.leather.cover };
+    const a = ARMOURS[def.id] ?? { absorb: 10, abs: ARMOURS.leather.abs, cover: ARMOURS.leather.cover };
     const metal = metalOf(inst, def);
     const name = metal && metal !== metalOf({}, def) ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
     // Enchantment adds absorption, not stiffness: hindrance stays the armour's own (and its metal's).
-    const p = piece({ name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (inst.bonus ?? 0)), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder, form: ARMOUR_FORM[def.id] ?? 'leather', metal });
+    const p = piece({ name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (inst.bonus ?? 0)), abs: withBonus(a.abs, inst.bonus ?? 0), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder, form: ARMOUR_FORM[def.id] ?? 'leather', metal });
     p.slot = slot; pieces.push(p);
     raw += a.hinder === 0 ? 0 : rawHindrance(a.absorb, Object.values(a.cover).reduce((x, y) => x + y, 0)) * (METALS[metal]?.hinder ?? 1);
   }

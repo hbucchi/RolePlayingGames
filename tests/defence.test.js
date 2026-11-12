@@ -108,23 +108,27 @@ test('local injuries: part health, multipliers to total HP, crippled parts', asy
   healParts(e, 100); assert.equal(isCrippled(e, 'neck'), false, 'healing mends parts');
 });
 
-test('materials: forms stop damage types differently; metals change the profile', async () => {
+test('materials: each piece has its own edge/point/blunt absorption and one against the elements; metals change it', async () => {
   const { absorbFor, rollMetal, METALS } = await import('../src/engine/materials.js');
-  // A coat of mail (40): edges 50, points 24, blunt 24, lightning 0 (it conducts).
-  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'slashing'), 50);
-  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'piercing'), 24);
-  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'lightning'), 0);
-  // Padded cloth is best against blunt blows and burns.
-  assert.ok(absorbFor({ absorb: 10, form: 'cloth' }, 'bludgeoning') > absorbFor({ absorb: 10, form: 'cloth' }, 'piercing'));
-  assert.equal(absorbFor({ absorb: 10, form: 'cloth' }, 'fire'), 0);
-  // Bronze adds fire resistance; gold is soft; mithral stronger and lighter.
-  assert.ok(absorbFor({ absorb: 40, form: 'mail', metal: 'bronze' }, 'fire') > absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'fire'));
-  assert.ok(absorbFor({ absorb: 40, form: 'mail', metal: 'gold' }, 'slashing') < 50);
+  const { ARMOURS } = await import('../src/engine/defence.js');
+  const mail = ARMOURS['chain-mail'].abs;
+  assert.deepEqual(mail, { slashing: 50, piercing: 24, bludgeoning: 24, elemental: 12 });
+  assert.equal(absorbFor({ abs: mail, metal: 'steel' }, 'slashing'), 50);
+  assert.equal(absorbFor({ abs: mail, metal: 'steel' }, 'piercing'), 24);
+  assert.equal(absorbFor({ abs: mail, metal: 'steel' }, 'fire'), 12, 'one figure for every element');
+  assert.equal(absorbFor({ abs: mail, metal: 'steel' }, 'lightning'), 12);
+  // Padded cloth is best against blunt blows.
+  assert.ok(ARMOURS.padded.abs.bludgeoning > ARMOURS.padded.abs.piercing);
+  // Bronze adds fire on top of the elemental figure; gold is soft; mithral stronger and lighter.
+  assert.equal(absorbFor({ abs: mail, metal: 'bronze' }, 'fire'), 22);
+  assert.equal(absorbFor({ abs: mail, metal: 'bronze' }, 'slashing'), 45);
+  assert.ok(absorbFor({ abs: mail, metal: 'gold' }, 'slashing') < 50);
   assert.ok(METALS.mithral.weight < 1 && METALS.gold.weight > 1);
+  assert.equal(absorbFor({ abs: mail, metal: 'steel', condition: 50 }, 'slashing'), 25, 'condition halves it');
   const g = kit('chain-mail'); g.inventory[0].material = 'bronze';
   const d = heroDefence(g, { dex: 0 });
   assert.match(d.armour.name, /^Bronze/);
-  assert.ok(resistance(d, 'fire') > 0, 'non-physical damage meets the armour overall');
+  assert.ok(resistance(d, 'fire') > 0, 'elemental damage meets the armour overall');
   for (let i = 0; i < 50; i++) assert.ok(METALS[rollMetal(3)]);
 });
 

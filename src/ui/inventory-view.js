@@ -53,9 +53,11 @@ function statLine(inst) {
     const cond = inst.condition ?? 100;
     const metal = metalOf(inst, def);
     const h = Math.round((a?.hinder ?? 0) * (METALS[metal]?.hinder ?? 1)); const sq = h >= 4 ? 2 : h >= 2 ? 1 : 0;
-    const by = (type) => (a ? absorbFor({ absorb: Math.min(60, a.absorb + 5 * b), form: ARMOUR_FORM[def.id], metal, condition: cond }, type) : 0);
-    const elems = ['fire', 'cold', 'lightning', 'acid', 'poison', 'necrotic'].map((x) => [x, by(x)]).filter(([, v]) => v > 0);
-    return `${FORMS[ARMOUR_FORM[def.id]]?.label ?? 'armour'}${metal ? ` of ${METALS[metal].name.toLowerCase()}` : ''} · edge ${by('slashing')}% · point ${by('piercing')}% · blunt ${by('bludgeoning')}%${elems.length ? ` · ${elems.map(([x, v]) => `${x} ${v}%`).join(' · ')}` : ''} · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}`;
+    const abs = a ? Object.fromEntries(Object.entries(a.abs).map(([k, v]) => [k, v + 5 * b])) : null;
+    const by = (type) => (abs ? absorbFor({ abs, metal, condition: cond }, type) : 0);
+    const bonus = Object.entries(METALS[metal]?.resist ?? {}).map(([x, v]) => `${x} +${v}`);
+    const elems = [[`elements ${by('force')}%`], ...(bonus.length ? [[`(${bonus.join(', ')})`]] : [])];
+    return `${FORMS[ARMOUR_FORM[def.id]]?.label ?? 'armour'}${metal ? ` of ${METALS[metal].name.toLowerCase()}` : ''} · edge ${by('slashing')}% · point ${by('piercing')}% · blunt ${by('bludgeoning')}%${` · ${elems.map(([x]) => x).join(' ')}`} · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}`;
   }
   if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b ? ` + ${5 * b}%` : ''}`;
   if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;
