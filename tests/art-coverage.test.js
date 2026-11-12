@@ -47,3 +47,10 @@ test('tints are CSS filter chains', () => {
   const bad = BESTIARY.flatMap((m) => [m.art.tint, m.art.portraitTint].filter((t) => t && !ok.test(t)).map((t) => `${m.id}: ${t}`));
   assert.deepEqual(bad, []);
 });
+
+test('every body has a slain version lying on its side (assets/dead), heroes included', async () => {
+  const { HERO_BODIES, deadKey } = await import('../src/content/media.js');
+  const bodies = new Set([...BESTIARY.map((m) => m.art.body).filter(Boolean), ...Object.values(HERO_BODIES)]);
+  const missing = [...bodies].filter((b) => !has(`assets/dead/${deadKey(b)}.png`));
+  assert.deepEqual(missing, [], `no dead picture for: ${missing.join(', ')}`);
+});

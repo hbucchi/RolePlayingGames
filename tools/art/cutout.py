@@ -65,10 +65,32 @@ def cut(img, tol=26):
     if n2:
         biggest = max(sizes)
         keep = np.array([s >= biggest * KEEP for s in sizes]); keep[0] = False
+        # EDGE_DROP: pieces touching the cell's edge that are much smaller than the figure are a
+        # neighbour's sliver, not a dropped weapon (those lie inside the cell).
+        if os.environ.get('EDGE_DROP'):
+            edge = set(np.unique(np.concatenate([comp_id[0], comp_id[-1], comp_id[:, 0], comp_id[:, -1]])))
+            for c in edge:
+                if c and sizes[c] < biggest * 0.3: keep[c] = False
         seen = ~keep[comp_id]
     alpha = Image.fromarray(np.where(seen, 0, 255).astype('uint8')).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
     out = img.convert('RGBA'); out.putalpha(alpha)
     return out
+
+
+def defringe(cut_img, src, width=5, tol=62):
+    """Lift the pale halo a painter's soft shadow leaves round a cut-out: within `width` px of the
+    transparent area, pixels still close to the background grey become transparent. Grey steel
+    deeper inside the figure is untouched."""
+    a = np.asarray(src.convert('RGB')).astype(int)
+    bg = np.median(np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]]), axis=0)
+    out = np.asarray(cut_img).copy()
+    clear = Image.fromarray(np.where(out[..., 3] < 128, 255, 0).astype('uint8')).filter(ImageFilter.MaxFilter(2 * width + 1))
+    near = np.asarray(clear) > 0
+    greyish = np.abs(a - bg).max(axis=2) <= tol
+    out[..., 3] = np.where(near & greyish, 0, out[..., 3])
+    alpha = Image.fromarray(out[..., 3]).filter(ImageFilter.GaussianBlur(0.8))
+    res = Image.fromarray(out, 'RGBA'); res.putalpha(alpha)
+    return res
 
 
 def trim(img, pad=6):

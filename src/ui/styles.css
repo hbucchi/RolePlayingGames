@@ -1244,3 +1244,6 @@ html { -webkit-tap-highlight-color: transparent; }
 @media (prefers-reduced-motion: reduce) { .tk-body.tk-selected .body-shadow { animation: none; } }
 /* A spoken line floating over a creature ("Argh, this hurts!"). */
 .dg-float.say { font: italic 700 19px Georgia, serif; fill: #fff3d6; stroke: #1a1208; stroke-width: 5px; }
+/* A body you are about to search (bodies view): it glows instead of a ring on the floor. */
+.remains-sel { filter: drop-shadow(0 0 5px #ffe08a) drop-shadow(0 0 2px #ffe08a); }
+.remains .dead-img { filter: brightness(.85) saturate(.9); }

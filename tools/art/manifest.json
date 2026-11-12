@@ -3,7 +3,8 @@
   "portrait": "A {cols} by {rows} grid of {n} separate painted fantasy role-playing-game creature portraits, each creature alone and centered in its own equal cell, head and shoulders for people, the whole creature for beasts and odd shapes, three-quarter view, dark muted background in every cell, rich oil-painting brushwork, soft dramatic light, realistic, no text, no labels, no borders.",
   "body": "Top-down game sprites for a realistic 2D role-playing game, every creature seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a {cols} by {rows} grid, each creature alone and centered in its own equal cell, facing up toward the top of the image, on a plain flat uniform light grey background, no ground, no cast shadows, no text, no borders. Realistic painted detail, natural colours.",
   "prop": "Top-down game sprites of dungeon and medieval furniture and objects for a realistic 2D role-playing game, every object seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPG maps), arranged in a {cols} by {rows} grid, each object alone and centered in its own equal cell with empty space around it, on a plain flat uniform light grey background, no floor, no cast shadows, no text, no borders. Realistic painted detail, warm natural colours, weathered wood, iron and stone.",
-  "icon": "A {cols} by {rows} grid of {n} separate painted fantasy role-playing-game inventory items, each object alone and centered in its own equal cell with empty space around it, three-quarter view, dark brown-black textured background in every cell, warm candle light, rich realistic painted detail, no text, no labels, no borders, no hands, no people."
+  "icon": "A {cols} by {rows} grid of {n} separate painted fantasy role-playing-game inventory items, each object alone and centered in its own equal cell with empty space around it, three-quarter view, dark brown-black textured background in every cell, warm candle light, rich realistic painted detail, no text, no labels, no borders, no hands, no people.",
+  "dead": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a {cols} by {rows} grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated."
  },
  "families": {
   "soldier": {
@@ -66,11 +67,13 @@
   },
   "werewolf": {
    "portrait": "a snarling werewolf with grey-black fur and burning yellow eyes",
-   "body": "a hunched werewolf with grey fur and clawed hands"
+   "body": "a hunched werewolf with grey fur and clawed hands",
+   "dead": "a werewolf with grey fur and clawed hands, lying dead"
   },
   "werebear": {
    "portrait": "a huge brown werebear with a bear head and human hands",
-   "body": "a huge brown werebear standing upright"
+   "body": "a huge brown werebear standing upright",
+   "dead": "a huge brown werebear, lying dead"
   },
   "weretiger": {
    "portrait": "a tiger-headed warrior with striped orange fur and golden eyes",
@@ -116,19 +119,23 @@
   },
   "air-elemental": {
    "portrait": "a swirling air elemental: a whirlwind with a ghostly face",
-   "body": "a swirling pale whirlwind of air and dust"
+   "body": "a swirling pale whirlwind of air and dust",
+   "dead": "a collapsed heap of grey dust, grit and dead leaves where a whirlwind died down"
   },
   "earth-elemental": {
    "portrait": "a hulking earth elemental of boulders and soil with glowing eyes",
-   "body": "a hulking earth elemental of boulders"
+   "body": "a hulking earth elemental of boulders",
+   "dead": "a tumbled heap of boulders and rubble in a rough human shape"
   },
   "fire-elemental": {
    "portrait": "a roaring fire elemental, a humanoid pillar of flame",
-   "body": "a roaring humanoid pillar of flame"
+   "body": "a roaring humanoid pillar of flame",
+   "dead": "a smoking heap of embers and grey ash in a sprawled human shape, a few last flames flickering"
   },
   "water-elemental": {
    "portrait": "a water elemental: a towering crashing wave with a face",
-   "body": "a towering swirling wave of water"
+   "body": "a towering swirling wave of water",
+   "dead": "a spreading puddle of water with foam and pebbles where a water spirit collapsed"
   },
   "mephit": {
    "portrait": "a small winged imp-like mephit made of ice and frost",
@@ -140,7 +147,8 @@
   },
   "genie": {
    "portrait": "a towering blue-skinned genie with a turban and a scimitar, lower body a whirlwind",
-   "body": "a towering genie with a scimitar, lower body a whirlwind"
+   "body": "a towering genie with a scimitar, lower body a whirlwind",
+   "dead": "a towering genie with a scimitar, its whirlwind lower body faded"
   },
   "gargoyle": {
    "portrait": "a grey stone gargoyle with horns, wings and a fanged grin",
@@ -152,7 +160,8 @@
   },
   "bigcat": {
    "portrait": "a lion with a thick mane, snarling",
-   "body": "a lion with a thick mane prowling"
+   "body": "a lion with a thick mane prowling",
+   "dead": "a lion with a thick mane, lying dead"
   },
   "horse": {
    "portrait": "a brown horse with a dark mane",
@@ -168,7 +177,8 @@
   },
   "ape": {
    "portrait": "a huge black-furred ape baring its fangs",
-   "body": "a huge ape on its knuckles"
+   "body": "a huge ape on its knuckles",
+   "dead": "a huge ape, lying dead"
   },
   "eagle": {
    "portrait": "a fierce golden eagle with spread wings",
@@ -308,7 +318,8 @@
   },
   "roper": {
    "portrait": "a roper: a stalagmite-like monster with one eye, a toothy maw and tentacles",
-   "body": "a stalagmite-like roper with tentacles"
+   "body": "a stalagmite-like roper with tentacles",
+   "dead": "a toppled stalagmite-like roper with its tentacles limp"
   },
   "doppelganger": {
    "portrait": "a grey faceless doppelganger with large white eyes",
@@ -360,7 +371,8 @@
   },
   "mimic": {
    "portrait": "a mimic: a treasure chest with teeth and a long tongue",
-   "body": "a toothed treasure chest with a tongue"
+   "body": "a toothed treasure chest with a tongue",
+   "dead": "a broken toothed treasure chest with a lolling tongue"
   },
   "minotaur": {
    "portrait": "a bull-headed minotaur with a great axe",
@@ -392,7 +404,8 @@
   },
   "animated-armor": {
    "portrait": "an empty suit of animated plate armour with a sword",
-   "body": "an empty suit of armour with a sword"
+   "body": "an empty suit of armour with a sword",
+   "dead": "an empty suit of plate armour fallen apart into pieces, with a sword"
   },
   "golem": {
    "portrait": "a towering stone golem carved with runes",
@@ -404,20 +417,24 @@
   },
   "flying-sword": {
    "portrait": "an animated flying longsword glowing faintly",
-   "body": "a flying longsword"
+   "body": "a flying longsword",
+   "dead": "a longsword lying on the floor, its blade snapped in two"
   },
   "rug": {
    "portrait": "a rug of smothering: a patterned carpet rising to attack",
    "body": "a patterned rug",
-   "prop": "a worn red and gold woven rug, rectangular"
+   "prop": "a worn red and gold woven rug, rectangular",
+   "dead": "a torn, rumpled patterned rug"
   },
   "treant": {
    "portrait": "a treant: an ancient oak tree with a face in the bark",
-   "body": "a great walking tree seen from above, a crown of leaves"
+   "body": "a great walking tree seen from above, a crown of leaves",
+   "dead": "a great fallen tree with a mossy trunk, branches and leaves, roots torn up"
   },
   "shrub": {
    "portrait": "an awakened shrub with twig arms",
-   "body": "a small walking shrub"
+   "body": "a small walking shrub",
+   "dead": "a small uprooted shrub, its roots in the air"
   },
   "shambling-mound": {
    "portrait": "a shambling mound of rotting vines and moss",
@@ -425,15 +442,18 @@
   },
   "fungus": {
    "portrait": "a violet fungus with tendrils, glowing faintly",
-   "body": "a cluster of violet fungus"
+   "body": "a cluster of violet fungus",
+   "dead": "a cluster of violet fungus, wilted and collapsed"
   },
   "ooze": {
    "portrait": "a black pudding: a glistening ooze dissolving the stone floor",
-   "body": "a spreading black ooze"
+   "body": "a spreading black ooze",
+   "dead": "a flattened, spreading puddle of black ooze"
   },
   "gelatinous-cube": {
    "portrait": "a transparent gelatinous cube with bones and coins inside",
-   "body": "a translucent green cube with bones inside"
+   "body": "a translucent green cube with bones inside",
+   "dead": "a collapsed, melting puddle of translucent green slime with bones and coins in it"
   },
   "giant": {
    "portrait": "a towering hill giant with a tree-trunk club",
@@ -488,11 +508,13 @@
   },
   "ghoul": {
    "portrait": "a ghoul: a gaunt grey corpse with long claws and a long tongue",
-   "body": "a gaunt grey ghoul crouching"
+   "body": "a gaunt grey ghoul crouching",
+   "dead": "a gaunt grey ghoul, lying dead"
   },
   "ghost": {
    "portrait": "a pale translucent ghost in a tattered shroud",
-   "body": "a pale translucent ghost"
+   "body": "a pale translucent ghost",
+   "dead": "a pale translucent ghost fading away"
   },
   "mummy": {
    "portrait": "a mummy wrapped in rotting bandages with glowing eyes",
@@ -500,11 +522,13 @@
   },
   "zombie": {
    "portrait": "a rotting zombie with torn clothes and grasping hands",
-   "body": "a shambling zombie"
+   "body": "a shambling zombie",
+   "dead": "a rotting zombie in torn clothes, lying dead"
   },
   "wisp": {
    "portrait": "a will-o'-wisp: a floating ball of pale blue light over a marsh",
-   "body": "a glowing ball of light"
+   "body": "a glowing ball of light",
+   "dead": "a dim little orb of light guttering out on the floor"
   },
   "dragon-turtle": {
    "portrait": "a dragon turtle with a craggy shell and a dragon head",
@@ -1692,6 +1716,301 @@
     "steel-greaves"
    ],
    "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game inventory items, each object alone and centered in its own equal cell with empty space around it, three-quarter view, dark brown-black textured background in every cell, warm candle light, rich realistic painted detail, no text, no labels, no borders, no hands, no people. Row 1, left to right: a simple boiled-leather skullcap; a round iron helm with a nasal guard; a hood of chain mail; a closed steel great helm with narrow eye slits. Row 2, left to right: a curved steel gorget collar; a pair of hardened leather forearm guards; a pair of steel forearm guards with elbow plates; a pair of thick brown leather gloves. Row 3, left to right: a pair of articulated steel gauntlets; a pair of boiled-leather leg guards for thighs and shins; a pair of chain mail leggings; a pair of steel greaves with knee guards."
+  },
+  {
+   "kind": "dead",
+   "name": "d1",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "amazon-archer",
+    "amazon-huntress",
+    "amazon-queen",
+    "amazon-spear",
+    "balrog",
+    "bat",
+    "demon",
+    "dwarf",
+    "elf",
+    "goblin",
+    "goblin-archer",
+    "halfling"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a red-haired amazon archer in red leather with green war paint, a longbow and a quiver, lying dead; a lean silver-haired amazon huntress in a leopard-skin mantle with two curved blades, lying dead; an amazon war-queen in gilded bronze scale armour, a crested golden helm and a red cloak, with a spear and a round bronze shield, lying dead; an amazon spear-maiden with a braided plait, a bronze helm, a long spear and a round bronze shield, lying dead. Row 2, left to right: a huge winged fire demon of black rock and smouldering embers with a flaming sword and a fiery whip, its fires guttering out, lying dead; a giant brown bat with leathery wings spread flat, lying dead; a red-skinned horned demon with bat wings, claws and a barbed tail, lying dead; a stout dwarf warrior with a horned steel helm, a braided red beard, mail, a round shield and an axe, lying dead. Row 3, left to right: a slender elf with long braided blond hair, a green cloak and a lute on her back, lying dead; a small green goblin with big pointed ears in ragged leather with a curved knife, lying dead; a small green goblin archer in a hood with a short bow and a quiver, lying dead; a curly-haired halfling in a brown cloak with a dagger and a satchel, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d2",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "lurker",
+    "man",
+    "necromancer",
+    "ogre",
+    "orc",
+    "orc-captain",
+    "skeleton",
+    "sorcerer",
+    "spider",
+    "troll",
+    "vampire",
+    "wight"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a gaunt pale hairless cave lurker with huge eyes and long clawed fingers, lying dead; a human ranger in a green hooded cloak with a longbow and a quiver of arrows, lying dead; a necromancer in black robes with a skull-topped staff, lying dead; a huge fat tan-skinned ogre in furs with a big wooden club, lying dead. Row 2, left to right: a grey-skinned orc in a round iron helm and chain armour with a cleaver, lying dead; an orc captain in spiked black plate and a horned helm, with a fur mantle and a great axe, lying dead; a skeleton warrior, a heap of loose bones, with a rusty sword and a round wooden shield, lying dead; a sorcerer in a dark blue hooded robe with a wooden staff, lying dead. Row 3, left to right: a giant black spider, curled on its back with its long legs folded in, lying dead; a hulking green warty troll with long arms and huge clawed hands, lying dead; a pale bald vampire lord in a black cloak with a red lining, lying dead; a wight in rotting leather armour and a rusty helm with a notched sword, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d3",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "witch",
+    "wolf",
+    "wraith",
+    "dragon-red",
+    "fam-aboleth",
+    "fam-air-elemental",
+    "fam-angel",
+    "fam-animated-armor",
+    "fam-ankheg",
+    "fam-ape",
+    "fam-axe-beak",
+    "fam-azer"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a hunched witch with long grey hair in a ragged green cloak with a crooked staff, lying dead; a grey wolf with thick fur, lying dead; a wraith in tattered black shrouds with an iron crown and a sword, its rags collapsed and empty, lying dead; a long red dragon with its wings folded along its body, its long neck and tail stretched out, lying dead. Row 2, left to right: a huge slimy eel-like aboleth with tentacles, lying dead; a collapsed heap of grey dust, grit and dead leaves where a whirlwind died down; an angel with white wings spread, lying dead; an empty suit of plate armour fallen apart into pieces, with a sword. Row 3, left to right: an ankheg, a giant insect with mandibles, lying dead; a huge ape, lying dead; a tall flightless bird, lying dead; a dwarf of glowing brass with a flaming beard and a hammer, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d4",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-badger",
+    "fam-bandit",
+    "fam-basilisk",
+    "fam-bear",
+    "fam-beetle",
+    "fam-behir",
+    "fam-bigcat",
+    "fam-boar",
+    "fam-bugbear",
+    "fam-bulette",
+    "fam-carrion-crawler",
+    "fam-centaur"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a badger, lying dead; a hooded bandit in a brown cloak with a short sword and a dagger, lying dead; an eight-legged lizard, lying dead; a huge brown bear on all fours, lying dead. Row 2, left to right: a giant beetle, lying dead; a long blue many-legged serpent, lying dead; a lion with a thick mane, lying dead; a bristling wild boar with tusks, lying dead. Row 3, left to right: a hulking hairy bugbear with a morningstar, lying dead; an armoured bulette with a crested back, lying dead; a giant pale centipede with face tentacles, lying dead; a centaur with a bow, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d5",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-chimera",
+    "fam-chuul",
+    "fam-cloaker",
+    "fam-cockatrice",
+    "fam-commoner",
+    "fam-couatl",
+    "fam-crab",
+    "fam-crocodile",
+    "fam-darkmantle",
+    "fam-deer",
+    "fam-doppelganger",
+    "fam-dragon-turtle"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a chimera with three heads and wings, lying dead; a lobster-like chuul with two great pincers, lying dead; a black manta-ray-shaped cloaker with spread wings, lying dead; a cockatrice with bat wings, lying dead. Row 2, left to right: a peasant in a wool tunic carrying a pitchfork, lying dead; a feathered serpent with wings, lying dead; a giant crab, lying dead; a long crocodile, lying dead. Row 3, left to right: a black squid-like darkmantle with tentacles spread, lying dead; a stag with great antlers, lying dead; a grey faceless humanoid, lying dead; a dragon turtle with a craggy shell, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d6",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-drider",
+    "fam-drow",
+    "fam-dryad",
+    "fam-eagle",
+    "fam-earth-elemental",
+    "fam-elephant",
+    "fam-ettercap",
+    "fam-ettin",
+    "fam-fell-beast",
+    "fam-fire-elemental",
+    "fam-fishfolk",
+    "fam-flying-sword"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a drider, dark elf torso on a spider body, lying dead; a dark elf in a black cloak with two short swords, lying dead; a dryad with leafy hair, lying dead; an eagle with wings spread wide, lying dead. Row 2, left to right: a tumbled heap of boulders and rubble in a rough human shape; an elephant, lying dead; a hunched spider-like humanoid, lying dead; a two-headed giant with two clubs, lying dead. Row 3, left to right: a black winged beast with wings spread, lying dead; a smoking heap of embers and grey ash in a sprawled human shape, a few last flames flickering; a scaly fish-headed sea devil with fins and a trident, lying dead; a longsword lying on the floor, its blade snapped in two."
+  },
+  {
+   "kind": "dead",
+   "name": "d7",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-fungus",
+    "fam-gargoyle",
+    "fam-gelatinous-cube",
+    "fam-genie",
+    "fam-ghost",
+    "fam-ghoul",
+    "fam-giant",
+    "fam-gibbering-mouther",
+    "fam-gladiator",
+    "fam-gnoll",
+    "fam-golem",
+    "fam-gorgon"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a cluster of violet fungus, wilted and collapsed; a stone gargoyle with folded wings, lying dead; a collapsed, melting puddle of translucent green slime with bones and coins in it; a towering genie with a scimitar, its whirlwind lower body faded. Row 2, left to right: a pale translucent ghost fading away; a gaunt grey ghoul, lying dead; a towering giant with a club, lying dead; a quivering mound of flesh covered in eyes and mouths, lying dead. Row 3, left to right: a muscular gladiator with a bronze helm, a trident and a round shield, lying dead; a hyena-headed gnoll with spotted fur and a spear, lying dead; a towering stone golem, lying dead; an iron-plated bull, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d8",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-griffon",
+    "fam-grimlock",
+    "fam-harpy",
+    "fam-homunculus",
+    "fam-horse",
+    "fam-hydra",
+    "fam-imp",
+    "fam-kobold",
+    "fam-kraken",
+    "fam-lamia",
+    "fam-lizard",
+    "fam-lizardfolk"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a griffon with wings spread, lying dead; an eyeless grey-skinned humanoid with a stone club, lying dead; a harpy with wings spread, lying dead; a tiny winged homunculus, lying dead. Row 2, left to right: a brown horse, lying dead; a five-headed hydra, lying dead; a small horned imp with bat wings, lying dead; a small scaly kobold with a spear, lying dead. Row 3, left to right: a colossal kraken with tentacles spread, lying dead; a lamia with a lion body, lying dead; a lizard, lying dead; a green-scaled lizardfolk with a club and a long tail, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d9",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-manticore",
+    "fam-medusa",
+    "fam-mephit",
+    "fam-merfolk",
+    "fam-mimic",
+    "fam-minotaur",
+    "fam-mummy",
+    "fam-naga",
+    "fam-octopus",
+    "fam-oni",
+    "fam-ooze",
+    "fam-otyugh"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a manticore with wings spread, lying dead; a medusa with snake hair and a bow, lying dead; a small winged mephit, lying dead; a merfolk with a long fish tail and a spear, lying dead. Row 2, left to right: a broken toothed treasure chest with a lolling tongue; a bull-headed minotaur with a great axe, lying dead; a bandaged mummy, lying dead; a coiled serpent with a human head, lying dead. Row 3, left to right: a giant octopus with arms spread, lying dead; a blue-skinned horned ogre-mage with a glaive, lying dead; a flattened, spreading puddle of black ooze; a round bloated otyugh with three legs and two tentacles, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d10",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-owl",
+    "fam-owlbear",
+    "fam-pegasus",
+    "fam-plesiosaur",
+    "fam-priest",
+    "fam-pteranodon",
+    "fam-purple-worm",
+    "fam-quipper",
+    "fam-rat",
+    "fam-raven",
+    "fam-remorhaz",
+    "fam-rhino"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: an owl with wings spread, lying dead; an owlbear, lying dead; a white winged horse with wings spread, lying dead; a plesiosaurus with a long neck and flippers, lying dead. Row 2, left to right: a robed priest in white and gold with a mace and a holy symbol, lying dead; a pteranodon with wings spread, lying dead; a colossal purple worm, lying dead; a small silver fish, lying dead. Row 3, left to right: a big grey rat, lying dead; a black raven with wings spread, lying dead; a long white many-legged worm with glowing back plates, lying dead; a rhinoceros, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d11",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-roper",
+    "fam-rug",
+    "fam-rust-monster",
+    "fam-satyr",
+    "fam-scorpion",
+    "fam-seahorse",
+    "fam-shambling-mound",
+    "fam-shark",
+    "fam-shrub",
+    "fam-snake",
+    "fam-soldier",
+    "fam-sphinx"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a toppled stalagmite-like roper with its tentacles limp; a torn, rumpled patterned rug; an insect-like rust monster, lying dead; a satyr with goat legs and panpipes, lying dead. Row 2, left to right: a giant scorpion with pincers and tail, lying dead; a giant sea horse, lying dead; a mound of rotting vines, lying dead; a great shark, lying dead. Row 3, left to right: a small uprooted shrub, its roots in the air; a long coiled snake, lying dead; a human soldier in mail and a steel helm with a spear and a kite shield, lying dead; a sphinx with a lion body and folded wings, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d12",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "fam-sprite",
+    "fam-succubus",
+    "fam-tarrasque",
+    "fam-toad",
+    "fam-treant",
+    "fam-triceratops",
+    "fam-tyrannosaur",
+    "fam-unicorn",
+    "fam-wasp",
+    "fam-water-elemental",
+    "fam-werebear",
+    "fam-weretiger"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 3 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a tiny winged sprite, lying dead; a winged fiend with small horns, lying dead; a colossal armoured reptile, lying dead; a fat warty toad, lying dead. Row 2, left to right: a great fallen tree with a mossy trunk, branches and leaves, roots torn up; a triceratops, lying dead; a huge tyrannosaurus, lying dead; a white unicorn, lying dead. Row 3, left to right: a giant wasp with wings spread, lying dead; a spreading puddle of water with foam and pebbles where a water spirit collapsed; a huge brown werebear, lying dead; a tiger-headed warrior with striped fur and claws, lying dead."
+  },
+  {
+   "kind": "dead",
+   "name": "d13",
+   "cols": 4,
+   "rows": 1,
+   "keys": [
+    "fam-werewolf",
+    "fam-wisp",
+    "fam-wyvern",
+    "fam-zombie"
+   ],
+   "prompt": "Top-down game sprites of slain creatures for a realistic 2D role-playing game, every creature lying dead on the ground seen from directly overhead (bird's-eye view, camera straight above, like classic top-down RPGs), arranged in a 4 by 1 grid, each one alone and centered in its own equal cell with empty space around it. Each body lies sprawled on its side, limp and still, eyes closed, limbs slack, stretched out horizontally across its cell with the head toward the right, any weapon dropped on the ground beside it. Plain flat uniform light grey background, no ground, no blood, no cast shadows, no text, no borders. Realistic painted detail, natural colours, slightly desaturated. Row 1, left to right: a werewolf with grey fur and clawed hands, lying dead; a dim little orb of light guttering out on the floor; a wyvern with wings spread, lying dead; a rotting zombie in torn clothes, lying dead."
   }
- ]
+ ],
+ "bodies": {
+  "amazon-archer": "a red-haired amazon archer in red leather with green war paint, a longbow and a quiver",
+  "amazon-huntress": "a lean silver-haired amazon huntress in a leopard-skin mantle with two curved blades",
+  "amazon-queen": "an amazon war-queen in gilded bronze scale armour, a crested golden helm and a red cloak, with a spear and a round bronze shield",
+  "amazon-spear": "an amazon spear-maiden with a braided plait, a bronze helm, a long spear and a round bronze shield",
+  "balrog": "a huge winged fire demon of black rock and smouldering embers with a flaming sword and a fiery whip, its fires guttering out",
+  "bat": "a giant brown bat with leathery wings spread flat",
+  "demon": "a red-skinned horned demon with bat wings, claws and a barbed tail",
+  "dwarf": "a stout dwarf warrior with a horned steel helm, a braided red beard, mail, a round shield and an axe",
+  "elf": "a slender elf with long braided blond hair, a green cloak and a lute on her back",
+  "goblin": "a small green goblin with big pointed ears in ragged leather with a curved knife",
+  "goblin-archer": "a small green goblin archer in a hood with a short bow and a quiver",
+  "halfling": "a curly-haired halfling in a brown cloak with a dagger and a satchel",
+  "lurker": "a gaunt pale hairless cave lurker with huge eyes and long clawed fingers",
+  "man": "a human ranger in a green hooded cloak with a longbow and a quiver of arrows",
+  "necromancer": "a necromancer in black robes with a skull-topped staff",
+  "ogre": "a huge fat tan-skinned ogre in furs with a big wooden club",
+  "orc": "a grey-skinned orc in a round iron helm and chain armour with a cleaver",
+  "orc-captain": "an orc captain in spiked black plate and a horned helm, with a fur mantle and a great axe",
+  "skeleton": "a skeleton warrior, a heap of loose bones, with a rusty sword and a round wooden shield",
+  "sorcerer": "a sorcerer in a dark blue hooded robe with a wooden staff",
+  "spider": "a giant black spider, curled on its back with its long legs folded in",
+  "troll": "a hulking green warty troll with long arms and huge clawed hands",
+  "vampire": "a pale bald vampire lord in a black cloak with a red lining",
+  "wight": "a wight in rotting leather armour and a rusty helm with a notched sword",
+  "witch": "a hunched witch with long grey hair in a ragged green cloak with a crooked staff",
+  "wolf": "a grey wolf with thick fur",
+  "wraith": "a wraith in tattered black shrouds with an iron crown and a sword, its rags collapsed and empty",
+  "dragon-red": "a long red dragon with its wings folded along its body, its long neck and tail stretched out"
+ }
 }

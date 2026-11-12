@@ -7,7 +7,10 @@ sprite's own averages (measured over its opaque pixels). The map shows the open 
 dragon attacks, breathes or beats its wings (src/ui/dungeon/render.js).
 
     python3 tools/art/open-wings.py
+    python3 tools/art/open-wings.py dead     the slain dragons (assets/dead/dead-dragon-<colour>.png)
+                                             from the one painted dead red dragon
 """
+import sys
 import colorsys
 import numpy as np
 from PIL import Image
@@ -48,22 +51,27 @@ def hsv_to_rgb(hsv):
     return np.stack([r, g, b], -1)
 
 
-def main():
-    src = Image.open(SRC).convert('RGBA')
-    src = src.resize((WIDTH, round(src.height * WIDTH / src.width)), Image.LANCZOS)
+def main(dead=False):
+    SRCF = 'assets/dead/dead-dragon-red.png' if dead else SRC
+    src = Image.open(SRCF).convert('RGBA')
+    if not dead: src = src.resize((WIDTH, round(src.height * WIDTH / src.width)), Image.LANCZOS)
     a = np.asarray(src).astype(float) / 255
-    h0, s0, v0 = stats(np.asarray(Image.open(SRC).convert('RGBA')))
+    h0, s0, v0 = stats(np.asarray(Image.open(SRCF).convert('RGBA')))
     hsv = rgb_to_hsv(a[..., :3])
     for c in COLOURS:
+        if dead and c == 'red': continue  # the painted one
         h1, s1, v1 = stats(np.asarray(Image.open(f'assets/bodies/body-dragon-{c}.png').convert('RGBA')))
         out = hsv.copy()
         out[..., 0] = (out[..., 0] + (h1 - h0)) % 1
         out[..., 1] = np.clip(out[..., 1] * (s1 / s0), 0, 1)
         out[..., 2] = np.clip(out[..., 2] * (v1 / v0), 0, 1)
         rgba = np.concatenate([hsv_to_rgb(out), a[..., 3:4]], -1)
-        Image.fromarray((rgba * 255).round().astype(np.uint8), 'RGBA').save(f'assets/bodies/body-dragon-{c}-open.png', optimize=True)
+        out_path = f'assets/dead/dead-dragon-{c}.png' if dead else f'assets/bodies/body-dragon-{c}-open.png'
+        Image.fromarray((rgba * 255).round().astype(np.uint8), 'RGBA').save(out_path, optimize=True)
         print(c, 'done')
 
 
 if __name__ == '__main__':
-    main()
+    main(dead=sys.argv[1:] == ['dead'])
+    if sys.argv[1:] == ['dead']:  # the test dragon is red
+        Image.open('assets/dead/dead-dragon-red.png').save('assets/dead/dead-test-dragon.png', optimize=True)

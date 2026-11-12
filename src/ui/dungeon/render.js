@@ -6,7 +6,7 @@
 import { trapTile } from '../../engine/features.js';
 import { morphInto } from '../morph.js';
 import { dims, orientFor, spanOf, isSquare, centerOf } from '../../engine/size.js';
-import { bodyUrl, bodyOpenUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
+import { bodyUrl, bodyOpenUrl, deadUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
 import { woundState, facingAngle, FACINGS, covers } from '../../engine/combat.js';
 import { TILE } from '../../engine/dungeon.js';
 import { cellKey } from '../../engine/movement.js';
@@ -40,15 +40,18 @@ export function installRender(ctx) {
   /**
    * What a fallen creature leaves: its body on its side in its own blood, darkened; a spirit
    * (ghost, wraith...) fades away and leaves only its cloak and mail on the floor. Click to search.
+   * In the bodies view the slain creature's own painting lies there (assets/dead: on its side,
+   * head to the right), along the way its body lay; a searched-for body glows instead of a ring.
    */
   function remains(m, hero = false) {
     const sz = S(); const d = dims(m.size ?? 1); const h = hashOf(m.id);
     const cx = (m.pos.x + d.w / 2) * sz; const cy = (m.pos.y + d.h / 2) * sz;
     const sel = s.selectedId === m.id || (s.target?.kind === 'corpse' && s.target.id === m.id) || (['corpses', 'corpse-ask'].includes(s.target?.kind) && s.target.ids?.includes(m.id));
+    const ring = sel && s.view !== 'bodies'; const glow = sel && s.view === 'bodies' ? ' remains-sel' : '';
     if (!hero && ctx.SPIRIT.test(m.statId ?? '')) {
       const k = Math.min(d.w, d.h) * sz;
-      return `<g class="remains garb" transform="translate(${cx} ${cy}) rotate(${h % 360})">
-        ${sel ? `<circle r="${k * 0.55}" class="tk-selring"/>` : ''}
+      return `<g class="remains garb${glow}" transform="translate(${cx} ${cy}) rotate(${h % 360})">
+        ${ring ? `<circle r="${k * 0.55}" class="tk-selring"/>` : ''}
         <image href="assets/items/hooded-cloak.jpg" x="${-k * 0.42}" y="${-k * 0.36}" width="${k * 0.8}" height="${k * 0.8}" mask="url(#blood-mask)" preserveAspectRatio="xMidYMid slice" style="filter:grayscale(.6) brightness(.7)"/>
         <image href="assets/items/chain-mail.jpg" x="${-k * 0.12}" y="${-k * 0.2}" width="${k * 0.5}" height="${k * 0.5}" mask="url(#blood-mask)" preserveAspectRatio="xMidYMid slice" transform="rotate(35)" style="filter:brightness(.75)"/>
       </g>`;
@@ -64,8 +67,16 @@ export function installRender(ctx) {
     const smears = (w, hgt) => (blood ? [0, 1, 2, 3, 4].map((k) => {
       const q = (h >> (k * 3)) % 97; return `<circle cx="${((q % 10) / 10 - 0.45) * w}" cy="${((q % 7) / 7 - 0.45) * hgt}" r="${(0.1 + (q % 5) * 0.03) * Math.min(w, hgt)}"/>`;
     }).join('') : '');
-    let pic;
-    if (url) {
+    const dead = tokensView ? null : deadUrl(hero ? m.race : m.statId);
+    let pic; let turnTo = turn;
+    if (dead) {
+      // Long bodies lie along their footprint (either way round); others at their own angle.
+      const L = Math.max(d.w, d.h) * sz * (spanOf(m.size ?? 1) === 1 ? 1.3 : 1.08) * bodyScale(hero ? m.race : m.statId);
+      turnTo = (d.w === d.h ? h % 360 : (d.w > d.h ? 0 : 90) + (h % 2 ? 180 : 0)) + ((h % 25) - 12);
+      pic = `<mask id="${id}" style="mask-type:alpha"><image href="${esc(dead)}" x="${-L / 2}" y="${-L / 2}" width="${L}" height="${L}" preserveAspectRatio="xMidYMid meet"/></mask>
+        <image href="${esc(dead)}" x="${-L / 2}" y="${-L / 2}" width="${L}" height="${L}" preserveAspectRatio="xMidYMid meet" class="dead-img" style="filter:${look}"/>
+        <g mask="url(#${id})" fill="url(#bl-${blood ?? 'red'})" opacity=".45">${smears(L * 0.7, Math.min(L * 0.3, sz))}</g>`; // spots a hand across, however big the body
+    } else if (url) {
       const north = dims(orientFor(m.size ?? 1, 0));
       const scale = (spanOf(m.size ?? 1) === 1 ? 1.2 : 1) * bodyScale(hero ? m.race : m.statId);
       const bw = north.w * sz * scale; const bh = north.h * sz * scale;
@@ -80,9 +91,9 @@ export function installRender(ctx) {
         <g clip-path="url(#${id})" fill="url(#bl-${blood ?? 'red'})" opacity=".8">${smears(2 * r, 2 * r)}</g>
         <circle r="${r}" class="remains-ring"/><text y="${r * 0.35}" class="remains-skull" style="font-size:${r}px">☠</text>`;
     }
-    return `<g class="remains ${hero ? 'fallen-hero' : ''}" transform="translate(${cx} ${cy})">
-      ${sel ? `<ellipse rx="${d.w * sz * 0.5}" ry="${d.h * sz * 0.5}" class="tk-selring"/>` : ''}
-      <g transform="rotate(${turn}) scale(1 .9)">${pic}</g>
+    return `<g class="remains ${hero ? 'fallen-hero' : ''}${glow}" transform="translate(${cx} ${cy})">
+      ${ring ? `<ellipse rx="${d.w * sz * 0.5}" ry="${d.h * sz * 0.5}" class="tk-selring"/>` : ''}
+      <g transform="rotate(${turnTo})${dead ? '' : ' scale(1 .9)'}">${pic}</g>
     </g>`;
   }
 

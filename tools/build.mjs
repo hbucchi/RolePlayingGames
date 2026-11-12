@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { BESTIARY } from '../src/content/bestiary/index.js';
-import { PORTRAITS, PORTRAIT_VARIANTS, HERO_BODIES } from '../src/content/media.js';
+import { PORTRAITS, PORTRAIT_VARIANTS, HERO_BODIES, deadKey } from '../src/content/media.js';
 import { SOUND_KEYS, variantsOf } from '../src/ui/audio.js';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -47,11 +47,11 @@ const add = (pack, asset, kind) => {
   placed.add(asset); (packs[pack] ??= []).push([asset, kind]);
 };
 for (const key of Object.keys(PORTRAITS)) for (let n = 1; n <= PORTRAIT_VARIANTS; n++) add('core', `assets/portraits/${key}-${n}.jpg`, 'portrait');
-for (const key of new Set(Object.values(HERO_BODIES))) add('core', `assets/bodies/${key}.png`, 'body');
+for (const key of new Set(Object.values(HERO_BODIES))) { add('core', `assets/bodies/${key}.png`, 'body'); add('core', `assets/dead/${deadKey(key)}.png`, 'body'); }
 for (const key of SOUND_KEYS) for (let n = 1; n <= variantsOf(key); n++) add('sounds', `assets/sounds/${key}-${n}.mp3`, 'sound');
 for (const m of [...BESTIARY].sort((a, b) => a.type.localeCompare(b.type))) {
   if (m.art.portrait) add(`portraits-${m.type}`, `assets/portraits/${m.art.portrait}-1.jpg`, 'portrait');
-  if (m.art.body) add(`bodies-${m.type}`, `assets/bodies/${m.art.body}.png`, 'body');
+  if (m.art.body) { add(`bodies-${m.type}`, `assets/bodies/${m.art.body}.png`, 'body'); add(`bodies-${m.type}`, `assets/dead/${deadKey(m.art.body)}.png`, 'body'); } // standing and slain
   if (m.art.bodyOpen) add(`bodies-${m.type}`, `assets/bodies/${m.art.bodyOpen}.png`, 'body'); // wings spread
 }
 
