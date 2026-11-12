@@ -19,6 +19,7 @@ import { injuryPenalties, healParts } from '../../engine/injury.js';
 import { attacksThisTurn } from '../../engine/combat.js';
 import { afterResistance } from '../../engine/defence.js';
 import { getSetting } from '../settings.js';
+import { bodyOpenUrl } from '../../content/media.js';
 
 export function installMonsterTurns(ctx) {
   const { reduceMotion, s, sleep } = ctx;
@@ -141,6 +142,16 @@ export function installMonsterTurns(ctx) {
   }
 
   /**
+   * Wings (render.js): a dragon spreads them before it strikes, breathes or beats them, and
+   * folds them when it is done. A short pause lets the eye see them open.
+   */
+  async function wings(m, open) {
+    if (!bodyOpenUrl(m.statId) || !!m.wingsOpen === open || (open && m.dead)) return;
+    m.wingsOpen = open; ctx.redraw();
+    if (open && ctx.canSee(m)) await sleep(reduceMotion ? 0 : Math.round(260 * ctx.PACE));
+  }
+
+  /**
    * Legendary actions (combat.js legendaryOf): a boss gets ONE extra move a round, taken at the
    * end of a hero's turn: a tail swipe at someone in reach, or a buffet of wings when it would
    * catch two or more. (In 5e it is three; one keeps a boss fight hard but winnable.)
@@ -164,8 +175,11 @@ export function installMonsterTurns(ctx) {
       if (!pick) continue;
       m.legUsed = true;
       ctx.log(`${m.name} takes a legendary action: ${pick.o.name}!`, 'warn');
-      if (pick.o.weapon) await ctx.doAttack(m, pick.target, pick.o.weapon);
-      else await castPower(m, pick.o.power, pick.target);
+      await wings(m, true);
+      try {
+        if (pick.o.weapon) await ctx.doAttack(m, pick.target, pick.o.weapon);
+        else await castPower(m, pick.o.power, pick.target);
+      } finally { await wings(m, false); }
       if (ctx.partyDown()) return;
     }
   }
@@ -208,10 +222,13 @@ export function installMonsterTurns(ctx) {
         const w = step.weapon;
         const thrownNow = w.thrown && ctx.edist(m, target) > (w.reach ?? 1);
         // Multiattack (combat.js): a dragon's bite and two claws, a troll's three blows...
-        for (const aw of attacksThisTurn(m, w)) {
-          if (target.hp <= 0 || m.dead) break;
-          await ctx.doAttack(m, target, aw);
-        }
+        await wings(m, true);
+        try {
+          for (const aw of attacksThisTurn(m, w)) {
+            if (target.hp <= 0 || m.dead) break;
+            await ctx.doAttack(m, target, aw);
+          }
+        } finally { await wings(m, false); }
         // A thrown javelin is gone: a creature carries only a couple (rocks are everywhere).
         if (thrownNow && Number.isFinite(w.throws) && --w.throws === 0) ctx.log(`${m.name} has nothing left to throw (${w.name.toLowerCase()}).`, 'info');
         if (target.hp <= 0) return true;
@@ -347,6 +364,12 @@ export function installMonsterTurns(ctx) {
   }
 
   async function castPower(m, p, target) {
+    // A breath (or any power) is taken with wings spread; they fold again when it is done.
+    const opened = !m.wingsOpen;
+    await wings(m, true);
+    try { await castPowerNow(m, p, target); } finally { if (opened) await wings(m, false); }
+  }
+  async function castPowerNow(m, p, target) {
     spend(p, m.uses);
     const look = ctx.boltFor(p.type);
     m.facing = facingToward(m.pos, target.pos);

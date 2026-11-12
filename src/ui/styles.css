@@ -1230,3 +1230,10 @@ html { -webkit-tap-highlight-color: transparent; }
 .dg-float .cap { font-size: 15px; font-weight: 700; letter-spacing: .4px; stroke-width: 6px; }
 .dg-float.big .cap { font-size: 17px; }
 .toggle-opt input { accent-color: var(--accent); }
+
+/* Wings: a dragon spreads them to strike or breathe (render.js bodyToken), and folds them after. */
+.tk-body .body-open { opacity: 0; transform: scale(.55, .8); transform-box: fill-box; transform-origin: center; transition: opacity .3s ease, transform .45s cubic-bezier(.2, .9, .3, 1.15); }
+.tk-body .body-closed { transition: opacity .3s ease .05s; }
+.tk-wings .body-open { opacity: 1; transform: scale(1); }
+.tk-wings .body-closed { opacity: 0; transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) { .tk-body .body-open, .tk-body .body-closed { transition: none; } }

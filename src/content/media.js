@@ -40,6 +40,8 @@ export const bodyScale = (key) => BODY_SCALE[bodyKey(key)] ?? 1;
 /** Body for a hero's kindred or a creature id (null when there is none: a round token is drawn). */
 export const bodyUrl = (key) => (bodyKey(key) ? packed(`assets/bodies/${bodyKey(key)}.png`) : null);
 export const bodyTint = (statId) => artOf(statId).tint || 'none';
+/** A winged creature's body with its wings spread (dragons), shown while it attacks; or null. */
+export const bodyOpenUrl = (statId) => (artOf(statId).bodyOpen ? packed(`assets/bodies/${artOf(statId).bodyOpen}.png`) : null);
 export const portraitTint = (statId) => artOf(statId).portraitTint || 'none';
 export const monsterPortrait = (statId, n = 1) => (artOf(statId).portrait ? portraitUrl(artOf(statId).portrait, n) : null);
 

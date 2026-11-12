@@ -178,7 +178,8 @@ const ageLore = {
 
 /** Which painting each colour uses (a few paintings are shared); every colour has its own body. */
 const PAINTING = { white: 'white-dragon', silver: 'white-dragon', blue: 'white-dragon', green: 'green-dragon', black: 'green-dragon' };
-const dragonArt = (color, age) => ({ portrait: age === 'wyrmling' ? 'dragon-wyrmling' : PAINTING[color] ?? 'red-dragon', body: `body-dragon-${color}` });
+// bodyOpen: the same dragon with its wings spread, shown while it attacks (tools/art/open-wings.py).
+const dragonArt = (color, age) => ({ portrait: age === 'wyrmling' ? 'dragon-wyrmling' : PAINTING[color] ?? 'red-dragon', body: `body-dragon-${color}`, bodyOpen: `body-dragon-${color}-open` });
 
 function makeDragon(color, def, row) {
   const [age, ac, hp, speed, ab, saves, skills, cr, biteExtra, clawDice, breathFeet, breathDice, breathDC, secondFeet, secondDur] = row;
@@ -256,7 +257,7 @@ export const dragons = [
     lore: lore('Greedy, moody and old as the reefs; can be bargained with.', 'Island-sized sea dragons that demand tribute from ships crossing their waters.', 'Capsize ships, boil crews with steam, drag the treasure down.'),
   },
   {
-    name: 'Pseudodragon', art: { portrait: 'dragon-wyrmling', body: 'body-dragon-red' }, voice: 'dragon', size: 'Tiny', type: 'dragon', alignment: 'neutral good',
+    name: 'Pseudodragon', art: { portrait: 'dragon-wyrmling', body: 'body-dragon-red', bodyOpen: 'body-dragon-red-open' }, voice: 'dragon', size: 'Tiny', type: 'dragon', alignment: 'neutral good',
     ac: 13, armor: 'natural armor', hp: '2d4+2', speed: { walk: 15, fly: 60 }, ab: [6, 15, 13, 10, 12, 10],
     skills: { perception: 3, stealth: 4 }, senses: { blindsight: 10, darkvision: 60 }, languages: 'understands Common and Draconic but can\'t speak', cr: '1/4',
     traits: [
@@ -271,7 +272,7 @@ export const dragons = [
     lore: lore('Affectionate, curious and a little smug; purrs when pleased.', 'Cat-sized dragons that bond with kind-hearted wizards as familiars.', 'Sting and flee; put a bully to sleep.'),
   },
   {
-    name: 'Wyvern', art: { portrait: 'fam-wyvern', body: 'body-dragon-bronze', tint: 'sepia(0.6) brightness(0.8)' }, voice: 'dragon', size: 'Large', type: 'dragon', alignment: 'unaligned',
+    name: 'Wyvern', art: { portrait: 'fam-wyvern', body: 'body-dragon-bronze', bodyOpen: 'body-dragon-bronze-open', tint: 'sepia(0.6) brightness(0.8)' }, voice: 'dragon', size: 'Large', type: 'dragon', alignment: 'unaligned',
     ac: 13, armor: 'natural armor', hp: '13d10+39', speed: { walk: 20, fly: 80 }, ab: [19, 10, 16, 5, 12, 6],
     skills: { perception: 4 }, senses: { darkvision: 60 }, languages: '—', cr: '6',
     actions: [

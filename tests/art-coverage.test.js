@@ -23,6 +23,12 @@ test('every creature has a body file', () => {
   assert.deepEqual(missing, []);
 });
 
+test('winged creatures that spread their wings have the open body file', () => {
+  const missing = BESTIARY.filter((m) => m.art.bodyOpen && !has(`assets/bodies/${m.art.bodyOpen}.png`)).map((m) => `${m.id} (${m.art.bodyOpen})`);
+  assert.deepEqual(missing, []);
+  assert.ok(BESTIARY.filter((m) => m.art.bodyOpen).length >= 40, 'every chromatic and metallic dragon');
+});
+
 test('every creature declares a voice, and its sounds exist', () => {
   assert.deepEqual(BESTIARY.filter((m) => !m.voice).map((m) => m.id), []);
   const missing = new Set();

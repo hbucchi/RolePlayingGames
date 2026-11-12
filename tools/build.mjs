@@ -52,6 +52,7 @@ for (const key of SOUND_KEYS) for (let n = 1; n <= variantsOf(key); n++) add('so
 for (const m of [...BESTIARY].sort((a, b) => a.type.localeCompare(b.type))) {
   if (m.art.portrait) add(`portraits-${m.type}`, `assets/portraits/${m.art.portrait}-1.jpg`, 'portrait');
   if (m.art.body) add(`bodies-${m.type}`, `assets/bodies/${m.art.body}.png`, 'body');
+  if (m.art.bodyOpen) add(`bodies-${m.type}`, `assets/bodies/${m.art.bodyOpen}.png`, 'body'); // wings spread
 }
 
 const images = Object.values(packs).flat().filter(([, kind]) => kind !== 'sound').map(([asset, kind]) => [path.join(ROOT, asset), kind === 'body' ? 82 : 80]);

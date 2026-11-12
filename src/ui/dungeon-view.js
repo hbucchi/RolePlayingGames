@@ -1333,7 +1333,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const fx = $('.dg-fx'); if (!fx) return;
     const stack = s.floats.filter((x) => x.x === pos.x && x.y === pos.y).length;
     const f = { x: pos.x, y: pos.y }; s.floats.push(f);
-    const sz = S(); const x = (pos.x + 0.5) * sz; const y = (pos.y - 0.62 * stack) * sz;
+    // Stacked captions (a bite and two claws) climb by a full caption's height and alternate sides.
+    const tall = typeof text === 'object' && (text.top || text.bottom) ? 1.15 : 0.62;
+    const sz = S(); const x = (pos.x + 0.5 + (stack ? (stack % 2 ? 0.45 : -0.45) : 0)) * sz; const y = (pos.y - tall * stack) * sz;
     const ns = 'http://www.w3.org/2000/svg';
     const el = document.createElementNS(ns, 'text');
     // A damage caption: { top: 'Piercing', main: '−4', bottom: 'L leg' } (small, big, small).

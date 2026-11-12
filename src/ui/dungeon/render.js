@@ -6,7 +6,7 @@
 import { trapTile } from '../../engine/features.js';
 import { morphInto } from '../morph.js';
 import { dims, orientFor, spanOf, isSquare, centerOf } from '../../engine/size.js';
-import { bodyUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
+import { bodyUrl, bodyOpenUrl, bodyScale, bodyTint, portraitTint } from '../../content/media.js';
 import { woundState, facingAngle, FACINGS, covers } from '../../engine/combat.js';
 import { TILE } from '../../engine/dungeon.js';
 import { cellKey } from '../../engine/movement.js';
@@ -145,14 +145,19 @@ export function installRender(ctx) {
     const bw = north.w * sz * scale; const bh = north.h * sz * scale;
     const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
     const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (hero ? 'none' : bodyTint(e.statId));
-    return `<g class="${cls} tk-body" transform="translate(${cx} ${cy})">
+    // Winged creatures (dragons): the same body with wings spread, faded in while it attacks. In
+    // that picture the body (head to tail) is about 76% of its height, and it is 5:4 wide.
+    const open = !hero && !e.dead && !e.cond?.petrified ? bodyOpenUrl(e.statId) : null;
+    const oh = bh * 1.3; const ow = oh * 1.25;
+    return `<g class="${cls} tk-body${open && e.wingsOpen ? ' tk-wings' : ''}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}
       ${hero && e === s.hero && s.members.length > 1 ? `<ellipse rx="${rx + 6}" ry="${ry + 6}" class="tk-activering"/>` : ''}
       <ellipse rx="${rx}" ry="${ry}" class="body-base" style="stroke:${ring}"/>
       ${auraSvg(e, rx, ry)}
       <g class="body-shadow"><g transform="rotate(${facingAngle(e.facing)})">
-        <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" class="body-img" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>
+        <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" class="body-img${open ? ' body-closed' : ''}" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>
+        ${open ? `<image href="${esc(open)}" x="${-ow / 2}" y="${-oh / 2 - bh * 0.04}" width="${ow}" height="${oh}" class="body-img body-open" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>` : ''}
       </g></g>
       <ellipse rx="${rx * 0.8}" ry="${ry * 0.8}" class="tk-hitflash"/>
       ${chainSvg(e, Math.min(rx, ry))}
