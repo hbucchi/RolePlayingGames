@@ -31,7 +31,7 @@
  */
 import { itemDef } from './items.js';
 import { BODY_PARTS, BODY_MAPS, partOf, strikeAt, bodyMapOf } from './body.js';
-import { absorbFor, ARMOUR_FORM, METALS, metalOf, isMetal } from './materials.js';
+import { absorbFor, ARMOUR_FORM, METALS, metalOf, isMetal, isPhysical } from './materials.js';
 
 /**
  * Every armour: absorption (%) and coverage (points of each part's stretch). Parts not listed are
@@ -219,6 +219,17 @@ export function resistance(def, type) {
   let sum = 0;
   for (const p of list) for (let o = 1; o <= p.weight; o++) sum += layered(piecesAt(def, p.id, o), type);
   return Math.round(sum / 100);
+}
+
+/**
+ * Elemental damage after the armour (spells, breath, burning ground...): physical damage is
+ * returned unchanged (it is dealt with where it lands); anything else is lessened by the armour's
+ * overall resistance to that type.
+ */
+export function afterResistance(def, amount, type) {
+  if (!(amount > 0) || !type || isPhysical(type)) return amount;
+  const res = resistance(def, type);
+  return res ? Math.round(amount * (1 - res / 100)) : amount;
 }
 
 /** Wear armour by one blow (1%, or 3% for a critical hit); returns the new condition. */

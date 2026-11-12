@@ -16,6 +16,7 @@ import { monsterPowers } from '../../engine/monster-magic.js';
 import { reachableSquares } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { injuryPenalties } from '../../engine/injury.js';
+import { afterResistance } from '../../engine/defence.js';
 
 export function installMonsterTurns(ctx) {
   const { reduceMotion, s, sleep } = ctx;
@@ -215,7 +216,8 @@ export function installMonsterTurns(ctx) {
     return { ok: c.ok, total: c.total, dc, evasion };
   }
 
-  function hurt(e, n) {
+  function hurt(e, n, type = null) {
+    n = afterResistance(e.defence, n, type); // armour takes its share of fire, cold, poison...
     if (!(n > 0)) return 0;
     if (e.isHero) { const back = s.active; ctx.activate(ctx.memberIndex(e)); ctx.damageHero(n); ctx.activate(back); } else { n = ctx.damageMonster(e, n); ctx.finishIfDead(e); }
     ctx.float(e.pos, `−${n}`, e.isHero || e.side ? 'bad' : 'good'); ctx.flashHit(e);
@@ -315,7 +317,7 @@ export function installMonsterTurns(ctx) {
     }
     if (p.kind === 'darts') {
       const bits = [];
-      for (let i = 0; i < p.count && target.hp > 0; i++) { await ctx.shootProjectile(from, to, look.color); const r = roll(p.dice); bits.push(hurt(target, r.total)); }
+      for (let i = 0; i < p.count && target.hp > 0; i++) { await ctx.shootProjectile(from, to, look.color); const r = roll(p.dice); bits.push(hurt(target, r.total, p.type)); }
       ctx.showVfx('arcane', to, spanOf(target.size ?? 1) / 2, 400);
       ctx.log(`${m.name} casts ${p.name}: ${bits.length} darts strike ${target.name} for ${bits.join(' + ')} = ${bits.reduce((a, b) => a + b, 0)} force damage.`, 'bad');
       return;
@@ -326,7 +328,7 @@ export function installMonsterTurns(ctx) {
       const sv = saveOf(target, p.save, p.dc);
       const r = p.dice ? roll(p.dice) : null;
       const dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
-      hurt(target, dmg);
+      dmg = hurt(target, dmg, p.type);
       if (!sv.ok && p.rider) riderOn(target, p.rider, p.dc);
       ctx.log(`${m.name} ${verb} ${p.name} on ${target.name}: ${p.save.toUpperCase()} save ${sv.total} vs DC ${p.dc} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type} damage` : ''}${!sv.ok && p.rider ? ` (${ctx.riderText[p.rider === 'flee' ? 'flee' : p.rider] ?? p.rider})` : ''}.`, target.isHero || target.side ? 'bad' : 'info');
       return;
@@ -356,7 +358,7 @@ export function installMonsterTurns(ctx) {
       const sv = saveOf(e, p.save, p.dc);
       let dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
       if (sv.evasion && r) dmg = sv.ok ? 0 : Math.floor(r.total / 2);
-      dmg = hurt(e, dmg);
+      dmg = hurt(e, dmg, p.type);
       if (!sv.ok && p.rider) riderOn(e, p.rider, p.dc);
       lines.push(`${e.name}: ${p.save.toUpperCase()} ${sv.total} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type}` : ''}${!sv.ok && p.rider ? ` (${p.rider === 'flee' ? 'frightened' : p.rider === 'restrain' ? 'restrained' : p.rider})` : ''}`);
     }
@@ -392,7 +394,7 @@ export function installMonsterTurns(ctx) {
       if (near.length) {
         ctx.showVfx(ctx.boltFor(m.aura.type).vfx, centerOf(m.pos, m.size ?? 1), spanOf(m.size ?? 1) / 2 + m.aura.size, 500);
         const r = roll(m.aura.dice);
-        ctx.log(`${m.name}'s ${m.aura.name} scorches ${near.map((e) => `${e.name} (${hurt(e, r.total)})`).join(', ')}: ${m.aura.dice} = ${r.total} ${m.aura.type}.`, 'bad');
+        ctx.log(`${m.name}'s ${m.aura.name} scorches ${near.map((e) => `${e.name} (${hurt(e, r.total, m.aura.type)})`).join(', ')}: ${m.aura.dice} = ${r.total} ${m.aura.type}.`, 'bad');
         await sleep(ctx.PAUSE_MS / 2);
       }
     }

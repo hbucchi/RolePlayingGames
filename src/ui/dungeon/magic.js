@@ -15,6 +15,7 @@ import { TILE } from '../../engine/dungeon.js';
 import { areaCells, GROUND } from '../../engine/monster-magic.js';
 import { cellKey } from '../../engine/movement.js';
 import { m as mtr } from '../../engine/units.js';
+import { afterResistance } from '../../engine/defence.js';
 
 export function installMagic(ctx) {
   const { reduceMotion, s, signed, sleep } = ctx;
@@ -237,6 +238,7 @@ export function installMagic(ctx) {
           const r = resolveAttack({ weapon: { ...pseudo, toHit: pseudo.toHit + boost.total }, ac: opts.ac, mode: opts.mode });
           const head = `${s.hero.name} casts ${label}${rays > 1 ? ` (ray ${i + 1})` : ''} at the ${target.name.toLowerCase()}: spell attack d20 (${r.d20s.join(', ')}) ${signed(pseudo.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}.`;
           if (r.hit) {
+            r.damage = Math.max(1, afterResistance(target.defence, r.damage, e.damageType));
             ctx.damageMonster(target, r.damage); ctx.flashHit(target); ctx.float(target.pos, `−${r.damage}`, 'good', r.crit);
             showVfx(vfxFor(item), centerOf(target.pos, target.size ?? 1), spanOf(target.size ?? 1) / 2);
             ctx.log(`${head} ${r.crit ? 'CRITICAL! ' : 'Hit! '}${r.damage} ${e.damageType} damage.`, 'good');
@@ -254,7 +256,7 @@ export function installMagic(ctx) {
         for (let i = 0; i < n; i++) {
           if (target.dead) break;
           await ctx.shootProjectile(s.hero.pos, centerOf(target.pos, target.size ?? 1), item.color);
-          const r = roll(e.dice); total += r.total; rolls.push(r.total);
+          const r = roll(e.dice); r.total = Math.max(1, afterResistance(target.defence, r.total, e.damageType ?? 'force')); total += r.total; rolls.push(r.total);
           ctx.damageMonster(target, r.total); ctx.flashHit(target); ctx.float(target.pos, `−${r.total}`, 'good');
           showVfx('arcane', centerOf(target.pos, target.size ?? 1), 0.3, 300);
           ctx.finishIfDead(target);
@@ -285,7 +287,7 @@ export function installMagic(ctx) {
         for (const m of targets) {
           const sv = ctx.monsterRoll(m, e.save, dc);
           let dmg = 0;
-          if (dmgRoll) dmg = sv.ok ? (e.half ? Math.floor(dmgRoll.total / 2) : 0) : dmgRoll.total;
+          if (dmgRoll) dmg = afterResistance(m.defence, sv.ok ? (e.half ? Math.floor(dmgRoll.total / 2) : 0) : dmgRoll.total, e.damageType);
           if (dmg) { ctx.damageMonster(m, dmg); ctx.flashHit(m); ctx.float(m.pos, `−${dmg}`, 'good'); }
           if (!sv.ok) applyRider(e.onFail, m, dc, e.rounds);
           lines.push(`${m.name}: ${e.save.toUpperCase()} save ${sv.total} vs DC ${dc} ${sv.ok ? 'saves' : 'fails'}${dmgRoll ? `, ${dmg} ${e.damageType}` : ''}${!sv.ok && e.onFail ? ` (${riderText[e.onFail]})` : ''}`);
@@ -296,7 +298,7 @@ export function installMagic(ctx) {
         if (item.target === 'point' && e.shape === 'radius' && chebyshev(s.hero.pos, center) <= e.size && dmgRoll) {
           const c = ctx.heroCheck(s.def.saves?.[e.save] ?? 0, dc, { save: true });
           const evade = s.def.evasion && e.save === 'dex';
-          const dmg = evade ? (c.ok ? 0 : Math.floor(dmgRoll.total / 2)) : (c.ok ? Math.floor(dmgRoll.total / 2) : dmgRoll.total);
+          const dmg = afterResistance(s.hero.defence, evade ? (c.ok ? 0 : Math.floor(dmgRoll.total / 2)) : (c.ok ? Math.floor(dmgRoll.total / 2) : dmgRoll.total), e.damageType);
           ctx.damageHero(dmg); ctx.float(s.hero.pos, `−${dmg}`, 'bad');
           lines.push(`${s.hero.name} is caught in the blast! ${ctx.checkText(`${e.save.toUpperCase()} save`, c)}: ${dmg} damage`);
         }
@@ -328,7 +330,7 @@ export function installMagic(ctx) {
     let sv;
     if (isHero) { const back = s.active; ctx.activate(ctx.memberIndex(m)); sv = ctx.heroCheck(s.def.saves?.[fx.save] ?? 0, fx.dc, { save: true }); ctx.activate(back); } else sv = ctx.monsterRoll(m, fx.save, fx.dc);
     const r = roll(fx.dice);
-    const dmg = sv.ok ? Math.floor(r.total / 2) : r.total;
+    const dmg = afterResistance(m.defence, sv.ok ? Math.floor(r.total / 2) : r.total, fx.damageType);
     if (isHero) { const back = s.active; ctx.activate(ctx.memberIndex(m)); ctx.damageHero(dmg); ctx.activate(back); } else { ctx.damageMonster(m, dmg); ctx.finishIfDead(m); }
     ctx.float(m.pos, `−${dmg}`, isHero ? 'bad' : 'good'); ctx.flashHit(m);
     return `${m.name} ${fx.damageType === 'poison' ? 'chokes in the cloud' : 'burns'}: ${fx.save.toUpperCase()} save ${sv.total} vs DC ${fx.dc}, ${dmg} ${fx.damageType}`;
