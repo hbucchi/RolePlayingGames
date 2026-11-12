@@ -6,7 +6,7 @@
  * square of its block.
  *
  * Long-bodied creatures (dragons, drakes, wyrms) fill a RECTANGLE instead: a young dragon is
- * 3 x 2, an adult 4 x 3, an ancient 5 x 4. A size is therefore either a number n (an n x n
+ * 3 x 2, an adult 7 x 5, an ancient 10 x 8. A size is therefore either a number n (an n x n
  * square) or { w, h }. The long side follows the way the creature faces: w > h lies east-west,
  * h > w lies north-south, and it turns when it has room.
  *
@@ -31,7 +31,7 @@ export const FOOTPRINT_OVERRIDE = {
   'test-dragon': { w: 5, h: 4, across: true },
 };
 /** Dragons are long: their body by size category (Medium wyrmlings still fit one square). */
-const DRAGON_BODY = { Large: { w: 3, h: 2 }, Huge: { w: 4, h: 3 }, Gargantuan: { w: 10, h: 8 } };
+const DRAGON_BODY = { Large: { w: 3, h: 2 }, Huge: { w: 7, h: 5 }, Gargantuan: { w: 10, h: 8 } };
 const LONG_BODY = /dragon|drake|wyrm/;
 
 /** Width and height of a size (a number means a square). */

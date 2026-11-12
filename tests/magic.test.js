@@ -145,7 +145,7 @@ test('creature sizes: blocks, distance between blocks, reach and big movers', as
   assert.equal(footprintOf(BESTIARY_BY_ID.ogre), 2);
   // Dragons are long: rectangles, not squares.
   assert.deepEqual(footprintOf(BESTIARY_BY_ID['young-red-dragon']), { w: 3, h: 2 });
-  assert.deepEqual(footprintOf(BESTIARY_BY_ID['adult-red-dragon']), { w: 4, h: 3 });
+  assert.deepEqual(footprintOf(BESTIARY_BY_ID['adult-red-dragon']), { w: 7, h: 5 });
   assert.deepEqual(footprintOf(BESTIARY_BY_ID['ancient-red-dragon']), { w: 10, h: 8 }); // Gargantuan: awe-inspiring
   assert.equal(footprintOf(BESTIARY_BY_ID['wyrmling-red-dragon']), 1);
   assert.deepEqual(footprintOf(BESTIARY_BY_ID.roc), { w: 10, h: 8, across: true }); // wings spread

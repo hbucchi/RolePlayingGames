@@ -132,7 +132,7 @@ export function installRender(ctx) {
 
   /**
    * A body seen from above: the sprite faces north and is turned to the creature's facing, with a
-   * soft shadow so it stands out from the floor. A thin ring of its side's colour lies under it.
+   * soft shadow so it stands out from the floor. Nothing is drawn on the floor around it.
    */
   function bodyToken(e, d, url, hero) {
     const sz = S(); const state = woundState(e.hp, e.maxHp);
@@ -152,15 +152,13 @@ export function installRender(ctx) {
     // that picture the body (head to tail) is about 76% of its height, and it is 5:4 wide.
     const open = !hero && !e.dead && !e.cond?.petrified ? bodyOpenUrl(e.statId) : null;
     const oh = bh * 1.3; const ow = oh * 1.25;
-    return `<g class="${cls} tk-body${open && e.wingsOpen ? ' tk-wings' : ''}" transform="translate(${cx} ${cy})">
-      ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
-      ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}
+    // Selected or aimed at: the figure itself glows (styles.css), no ring on the floor.
+    return `<g class="${cls} tk-body${open && e.wingsOpen ? ' tk-wings' : ''}${s.aiming === e.id ? ' tk-aimed' : ''}" transform="translate(${cx} ${cy})">
       ${auraSvg(e, rx, ry)}
       <g class="body-shadow"><g transform="rotate(${facingAngle(e.facing)})">
         <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" class="body-img${open ? ' body-closed' : ''}" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>
         ${open ? `<image href="${esc(open)}" x="${-ow / 2}" y="${-oh / 2 - bh * 0.04}" width="${ow}" height="${oh}" class="body-img body-open" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>` : ''}
       </g></g>
-      <ellipse rx="${rx * 0.8}" ry="${ry * 0.8}" class="tk-hitflash"/>
       ${chainSvg(e, Math.min(rx, ry))}
       ${hero || state !== 'unhurt' || (e.side && e.side !== 'npc') ? hpBar(-Math.max(rx, sz * 0.36), -ry - 16, 2 * Math.max(rx, sz * 0.36), hpFrac) : ''}
     </g>`;

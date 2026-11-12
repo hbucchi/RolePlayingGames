@@ -1237,3 +1237,8 @@ html { -webkit-tap-highlight-color: transparent; }
 .tk-wings .body-open { opacity: 1; transform: scale(1); }
 .tk-wings .body-closed { opacity: 0; transition-delay: 0s; }
 @media (prefers-reduced-motion: reduce) { .tk-body .body-open, .tk-body .body-closed { transition: none; } }
+/* Bodies view: a selected or targeted figure glows instead of standing in a ring. */
+.tk-body.tk-selected .body-shadow { filter: drop-shadow(0 0 5px #ffe08a) drop-shadow(0 0 2px #ffe08a) drop-shadow(5px 8px 5px rgba(0, 0, 0, .6)); animation: selglow 1.6s ease-in-out infinite alternate; }
+.tk-body.tk-aimed .body-shadow { filter: drop-shadow(0 0 8px #ffcf6b) drop-shadow(0 0 3px #fff3c4) drop-shadow(5px 8px 5px rgba(0, 0, 0, .6)); }
+@keyframes selglow { from { opacity: 1; } to { opacity: .82; } }
+@media (prefers-reduced-motion: reduce) { .tk-body.tk-selected .body-shadow { animation: none; } }
