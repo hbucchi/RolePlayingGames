@@ -2,9 +2,9 @@
  * Crafting: resources + skill + a roll.
  *
  * Three trades, each a skill from 0 to 100 that grows with practice (like Ultima Online's):
- *   smithing     STR   the forge: smelting ore into ingots, blades, mail and plate
- *   woodcraft    DEX   the workbench: bows, crossbows, staves, arrows, shields
- *   leatherwork  DEX   the tannery: tanning hides, leather armour, bandages, rope
+ *   smithing     STR   the forge: smelting ore into ingots; every weapon and every armour
+ *   woodcraft    DEX   the bowyer's bench: bows, crossbows, arrows, bolts, bowstrings
+ *   leatherwork  DEX   the tannery: tanning hides into leather, sinew, bandages, rope
  *
  * The roll:  d20 + ability modifier + rank/10 (0 to +10) + proficiency bonus with the trade's
  *            tools (dwarves of the Deep Halls are born to smith's tools), against the recipe's
@@ -28,7 +28,7 @@ import { cryptoRandomInt } from './dice.js';
 
 export const CRAFT_SKILLS = {
   smithing: { name: 'Smithing', ability: 'str', station: 'The forge', tool: /smith's tools/i },
-  woodcraft: { name: 'Woodcraft', ability: 'dex', station: 'The workbench', tool: /woodcarver's tools|carpenter's tools/i },
+  woodcraft: { name: 'Woodcraft', ability: 'dex', station: 'The bowyer\'s bench', tool: /woodcarver's tools|carpenter's tools/i },
   leatherwork: { name: 'Leatherwork', ability: 'dex', station: 'The tannery', tool: /leatherworker's tools/i },
 };
 export const CRAFT_IDS = Object.keys(CRAFT_SKILLS);

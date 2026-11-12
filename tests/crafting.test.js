@@ -89,3 +89,12 @@ test('superior pieces: +1 to hit and damage, +5% absorption, twice the value; no
   const arm = (inst) => { const d = { inventory: [inst], equipped: {} }; equipItem(d, inst.uid); return heroDefence(d, {}).pieces[0].abs.slashing; };
   assert.equal(arm(makeItem('chain-mail', 1, { quality: 'superior' })), arm(makeItem('chain-mail')) + 5);
 });
+
+test('who makes what: the smith every weapon and armour; woodcraft bows and what they shoot', () => {
+  for (const r of RECIPES) {
+    const def = ITEMS_BY_ID[r.output.id];
+    const bowish = /bow|bolts|arrows|bowstring/.test(r.output.id);
+    if (bowish && r.skill !== 'leatherwork') assert.equal(r.skill, 'woodcraft', `${r.id}`);
+    else if (['weapon', 'armor', 'shield'].includes(def.cat)) assert.equal(r.skill, 'smithing', `${r.id}`);
+  }
+});

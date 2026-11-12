@@ -3,7 +3,11 @@
  *
  *   { id, skill, group, dc, inputs: [{ id, qty }], slot?: { kind, qty }, output: { id, qty } }
  *
- * skill: smithing (the forge), woodcraft (the workbench) or leatherwork (the tannery).
+ * skill: who makes it.
+ *   smithing     every weapon and every piece of armour (blades, mail and plate, but also clubs,
+ *                staves, shields and leather armour): the smith is the armourer and weaponsmith
+ *   woodcraft    bows and crossbows, and what they shoot: arrows, bolts, bowstrings
+ *   leatherwork  supplies: tanning hides into leather, sinew, bandages, rope
  * slot:  a material the crafter chooses, which the made thing is then made of: kind 'metal'
  *        takes ingots (iron ... mithral), kind 'wood' takes logs (ash ... goldenwood). Rarer
  *        materials are harder to work (MATERIAL_DC in crafting.js).
@@ -50,10 +54,10 @@ export const RECIPES = [
 
   // ---- The workbench: bows, staves and shafts (the wood is the crafter's choice) ----------------
   R('twist-bowstring', 'woodcraft', 'Parts', 9, [['spider-silk', 2]], { id: 'bowstring', qty: 2 }),
-  R('carve-club', 'woodcraft', 'Weapons', 5, [], 'club', wood(1)),
-  R('carve-greatclub', 'woodcraft', 'Weapons', 6, [], 'greatclub', wood(3)),
-  R('carve-quarterstaff', 'woodcraft', 'Weapons', 8, [], 'quarterstaff', wood(2)),
-  R('carve-javelin', 'woodcraft', 'Weapons', 9, [['iron-ingot', 1]], { id: 'javelin', qty: 2 }, wood(1)),
+  R('carve-club', 'smithing', 'Weapons', 5, [], 'club', wood(1)),
+  R('carve-greatclub', 'smithing', 'Weapons', 6, [], 'greatclub', wood(3)),
+  R('carve-quarterstaff', 'smithing', 'Weapons', 8, [], 'quarterstaff', wood(2)),
+  R('carve-javelin', 'smithing', 'Weapons', 9, [['iron-ingot', 1]], { id: 'javelin', qty: 2 }, wood(1)),
   R('carve-shortbow', 'woodcraft', 'Weapons', 11, [['bowstring', 1]], 'shortbow', wood(2)),
   R('carve-longbow', 'woodcraft', 'Weapons', 14, [['bowstring', 1]], 'longbow', wood(3)),
   R('carve-light-crossbow', 'woodcraft', 'Weapons', 14, [['bowstring', 1], ['iron-ingot', 1]], 'light-crossbow', wood(2)),
@@ -61,7 +65,7 @@ export const RECIPES = [
   R('carve-heavy-crossbow', 'woodcraft', 'Weapons', 16, [['bowstring', 1], ['steel-ingot', 2]], 'heavy-crossbow', wood(3)),
   R('fletch-arrows', 'woodcraft', 'Ammunition', 8, [['ash-log', 1], ['feathers', 2], ['iron-ingot', 1]], { id: 'arrows', qty: 20 }),
   R('fletch-bolts', 'woodcraft', 'Ammunition', 9, [['oak-log', 1], ['feathers', 1], ['iron-ingot', 1]], { id: 'bolts', qty: 20 }),
-  R('build-shield', 'woodcraft', 'Armour', 10, [['oak-log', 3], ['iron-ingot', 1], ['tanned-leather', 1]], 'shield'),
+  R('build-shield', 'smithing', 'Armour', 10, [['oak-log', 3], ['iron-ingot', 1], ['tanned-leather', 1]], 'shield'),
 
   // ---- The tannery: leather and cloth -------------------------------------------------------------
   R('tan-hide', 'leatherwork', 'Tanning', 7, [['hide', 2], ['oak-log', 1]], 'tanned-leather'),
@@ -70,16 +74,16 @@ export const RECIPES = [
   R('cut-bandages', 'leatherwork', 'Supplies', 5, [['cloth', 1]], { id: 'bandage', qty: 3 }),
   R('braid-rope', 'leatherwork', 'Supplies', 9, [['hide', 2]], 'rope'),
   R('weave-elven-rope', 'leatherwork', 'Supplies', 15, [['spider-silk', 6]], 'elven-rope'),
-  R('sew-padded', 'leatherwork', 'Armour', 7, [['cloth', 4]], 'padded'),
-  R('stitch-leather', 'leatherwork', 'Armour', 9, [['tanned-leather', 4]], 'leather'),
-  R('stitch-studded', 'leatherwork', 'Armour', 12, [['tanned-leather', 5], ['iron-ingot', 1]], 'studded-leather'),
-  R('stitch-hide-armour', 'leatherwork', 'Armour', 8, [['hide', 4], ['tanned-leather', 1]], 'hide-armour'),
-  R('stitch-leather-cap', 'leatherwork', 'Armour', 7, [['tanned-leather', 1]], 'leather-cap'),
-  R('stitch-leather-vambraces', 'leatherwork', 'Armour', 8, [['tanned-leather', 2]], 'leather-vambraces'),
-  R('stitch-leather-gloves', 'leatherwork', 'Armour', 8, [['tanned-leather', 1]], 'leather-gloves'),
-  R('stitch-leather-leggings', 'leatherwork', 'Armour', 9, [['tanned-leather', 3]], 'leather-leggings'),
-  R('stitch-sling', 'leatherwork', 'Weapons', 6, [['tanned-leather', 1]], 'sling'),
-  R('braid-whip', 'leatherwork', 'Weapons', 9, [['tanned-leather', 2]], 'whip'),
+  R('sew-padded', 'smithing', 'Armour', 7, [['cloth', 4]], 'padded'),
+  R('stitch-leather', 'smithing', 'Armour', 9, [['tanned-leather', 4]], 'leather'),
+  R('stitch-studded', 'smithing', 'Armour', 12, [['tanned-leather', 5], ['iron-ingot', 1]], 'studded-leather'),
+  R('stitch-hide-armour', 'smithing', 'Armour', 8, [['hide', 4], ['tanned-leather', 1]], 'hide-armour'),
+  R('stitch-leather-cap', 'smithing', 'Armour', 7, [['tanned-leather', 1]], 'leather-cap'),
+  R('stitch-leather-vambraces', 'smithing', 'Armour', 8, [['tanned-leather', 2]], 'leather-vambraces'),
+  R('stitch-leather-gloves', 'smithing', 'Armour', 8, [['tanned-leather', 1]], 'leather-gloves'),
+  R('stitch-leather-leggings', 'smithing', 'Armour', 9, [['tanned-leather', 3]], 'leather-leggings'),
+  R('stitch-sling', 'smithing', 'Weapons', 6, [['tanned-leather', 1]], 'sling'),
+  R('braid-whip', 'smithing', 'Weapons', 9, [['tanned-leather', 2]], 'whip'),
 ];
 export const RECIPES_BY_ID = Object.fromEntries(RECIPES.map((r) => [r.id, r]));
 
