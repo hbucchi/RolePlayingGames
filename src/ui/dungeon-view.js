@@ -508,7 +508,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       } else {
         s.features = placeFeatures(s.map, s.seed, level);
         avoid = new Set([...s.features.chests.map((c) => cellKey(c.x, c.y)), cellKey(s.map.exit.x, s.map.exit.y), ...party().map((h) => cellKey(h.pos.x, h.pos.y)), ...(s.features.totem ? [cellKey(s.features.totem.x, s.features.totem.y)] : [])]);
-        const mix = depthMix(s.depth ?? 1);
+        const mix = depthMix(s.depth ?? 1, s.members.length);
         s.monsters = populateDungeon(s.map, s.seed, level, s.pool, { avoid, partySize: Math.max(1, s.members.length), mix, chance: mix.chance });
         placeCaptive(avoid);
         placeTrader(avoid);

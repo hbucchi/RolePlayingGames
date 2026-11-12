@@ -85,11 +85,12 @@ test('defeat, or closing the game mid-floor, undoes the floor', async () => {
   await p.close();
 });
 
-test('the tenth floor: one hall, a boss with a legendary action, the way out sealed until it falls', async () => {
+test('the tenth floor: one hall, a boss fit for one hero (no legendary blow), the way out sealed until it falls', async () => {
   const p = await fresh(); await enter(p);
   await p.evaluate(() => window.__dungeon.floor(10)); await p.waitForTimeout(400);
   const lair = await p.evaluate(() => { const s = window.__dungeon.state(); const b = s.monsters.find((m) => m.boss); return { rooms: s.map.rooms.length, boss: b?.name, legendary: !!b?.legendary }; });
-  assert.equal(lair.rooms, 1); assert.match(lair.boss, /Master of the Deep/); assert.ok(lair.legendary);
+  assert.equal(lair.rooms, 1); assert.match(lair.boss, /Master of the Deep/);
+  assert.equal(lair.legendary, false, 'against a lone hero the boss takes no legendary actions (depths.js)');
   await toStairs(p); await p.waitForTimeout(300);
   assert.equal(await p.evaluate(() => document.querySelector('.dg-endscreen').hidden), true, 'sealed while the boss lives');
   await p.evaluate(() => window.__dungeon.wound(9999)); await p.waitForTimeout(1500);

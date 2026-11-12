@@ -6,7 +6,7 @@
  */
 import { createMonster } from '../../engine/combat.js';
 import { seededRng } from '../../engine/dice.js';
-import { MAX_DEPTH, isBossFloor, depthReward, pickBoss } from '../../engine/depths.js';
+import { MAX_DEPTH, isBossFloor, depthReward, pickBoss, bossHasLegendary } from '../../engine/depths.js';
 import { SAFE_SLOTS } from '../../engine/safe.js';
 import { formatCoins, isEquipped, bagUsed, BAG_SLOTS, itemName } from '../../engine/items.js';
 import { play } from '../audio.js';
@@ -24,7 +24,7 @@ export function installExits(ctx) {
     const th = s.map.throne;
     const m = { ...createMonster(boss, 'boss', { ...th }, 4), aware: false };
     m.boss = true; m.name = `${boss.name}, Master of the Deep`;
-    m.legendary = m.legendary ?? bossLegendary(m);
+    m.legendary = bossHasLegendary(s.members.length) ? m.legendary ?? bossLegendary(m) : null;
     s.monsters = [m];
     guards.forEach((g, i) => s.monsters.push({ ...createMonster(g, `guard${i + 1}`, { x: th.x + (i ? 4 : -3), y: th.y + 2 }, 4), aware: false }));
     s.features = {
@@ -125,7 +125,7 @@ export function installExits(ctx) {
     const ids = uid ? [uid] : (s.draft.inventory ?? []).filter((x) => !isEquipped(s.draft, x.uid)).map((x) => x.uid);
     let msg = '';
     for (const u of ids) { const r = ctx.safe.store(s.draft, u); if (!r.ok) { msg = r.message; break; } }
-    ctx.persist(); ctx.refreshHero();
+    ctx.persist(); ctx.refreshHero(); ctx.redraw(); // the action bar's counts (bandages...) follow
     ctx.activate(back);
     keepGains();
     play('coins', { volume: 0.5 });

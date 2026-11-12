@@ -8,7 +8,7 @@ import { seededRng } from '../src/engine/dice.js';
 
 test('depths: ten floors, danger and pay rising gradually', () => {
   assert.equal(MAX_DEPTH, 10); assert.ok(isBossFloor(10)); assert.ok(!isBossFloor(9));
-  assert.deepEqual([1, 2, 3, 4, 6, 9, 10].map((d) => depthLevel(3, d)), [3, 3, 4, 4, 5, 6, 7]);
+  assert.deepEqual([1, 2, 3, 4, 6, 9, 10].map((d) => depthLevel(3, d)), [3, 3, 4, 4, 5, 5, 6]);
   assert.equal(depthReward(1), 1); assert.equal(depthReward(5), 2); assert.equal(depthReward(10), 3.25);
   assert.equal(lootLevel(3, 1), 3); assert.equal(lootLevel(3, 9), 7);
   const a = depthMix(1); const b = depthMix(9);
@@ -28,4 +28,13 @@ test('depths: the tenth floor is one hall, with a boss fit for the party', () =>
   }
   const low = pickBoss(pool, 1, 4, seededRng(1)).boss; const high = pickBoss(pool, 14, 4, seededRng(1)).boss;
   assert.ok(high.xp > low.xp, 'stronger parties meet stronger bosses');
+});
+
+test('depths: a smaller party meets fewer occupied rooms, more of them easy, and a gentler boss', () => {
+  const solo = depthMix(1, 1); const four = depthMix(1, 4);
+  assert.ok(solo.chance < four.chance * 0.6, 'about half the rooms for one hero');
+  assert.ok(solo.easy > four.easy && solo.hard < four.hard);
+  for (const n of [1, 2, 3, 4]) { const m = depthMix(7, n); assert.equal(m.easy + m.medium + m.hard, 100); }
+  const pool = DUNGEON_FOES.map((id) => BESTIARY_BY_ID[id]).filter(Boolean);
+  assert.ok(pickBoss(pool, 5, 1, seededRng(2)).boss.xp < pickBoss(pool, 5, 4, seededRng(2)).boss.xp);
 });
