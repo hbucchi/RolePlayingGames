@@ -26,7 +26,7 @@ import { createRoster, exportCharacter, importCharacter, defaultBackend } from '
 import { createDelveStore } from '../engine/delve.js';
 import { healInTown, healCost, isHurt, woundsOf } from '../engine/healing.js';
 import { workshopHtml, supplyPrice, SUPPLY_BUNDLE } from './workshop-view.js';
-import { craft, CRAFT_IDS, CRAFT_SKILLS, rankOf } from '../engine/crafting.js';
+import { craft, CRAFT_IDS, CRAFT_SKILLS, tradeLevel, tradeXp } from '../engine/crafting.js';
 import { makeItem as makeItemInst, addItem, whyNoRoom } from '../engine/items.js';
 import { createSafe, SAFE_SLOTS } from '../engine/safe.js';
 const safe = createSafe(defaultBackend());
@@ -458,9 +458,8 @@ root.addEventListener('click', async (e) => {
       const sheet = deriveCharacter(d, settingFor(d));
       const r = craft({ recipeId, material: sel?.value ?? null, sheet, draft: d, safe });
       if (!r.ok) { notify(r.message, 'bad'); return; }
-      // Percentile dice: a tens d10 and a units d10 (00 and 0 make 100).
-      const tens = Math.floor((r.d100 % 100) / 10) * 10; const units = r.d100 % 10;
-      if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 10, value: tens === 0 ? '00' : tens }, { sides: 10, value: units }], caption: `${r.d100} vs ${Math.round(r.chance * 100)}% (${Math.round(r.superiorChance * 100)}% superior)` }], label: 'Crafting (d100)', verdict: { superior: 'Superior!', success: 'Success', fail: 'Failed' }[r.outcome], verdictKind: r.outcome === 'fail' ? 'bad' : 'good' });
+      if (diceWanted(true)) await rollDice({ groups: [{ dice: [{ sides: 20, value: r.d20 }], caption: `+ ${r.bonus} = ${r.total} vs DC ${r.dc}` }], label: 'Crafting', verdict: { superior: 'Superior!', success: 'Success', fail: 'Failed' }[r.outcome], verdictKind: r.outcome === 'fail' ? 'bad' : 'good' });
+      if (r.levelUp) notify(`${CRAFT_SKILLS[r.skill].name} level ${r.levelUp}!`, 'ok');
       play(r.outcome === 'superior' || r.outcome === 'success' ? 'coins' : 'swing-miss', { volume: 0.6 });
       w.last = r; keepWorkshopHero(d);
       break;
@@ -834,7 +833,7 @@ function reviewStep(d, s) {
     <h2>Review your hero</h2>
     <p class="muted">Everything below is calculated from your choices. Click any ability, save, skill or attack to try a roll.</p>
     ${appearanceEditor(d)}
-    ${sheetHtml(deriveCharacter(d, s), heroLook(d), d.crafts)}
+    ${sheetHtml(deriveCharacter(d, s), heroLook(d), d.trades)}
     ${diceTray()}`;
 }
 
@@ -912,7 +911,7 @@ function sheetHtml(c, look, crafts = {}) {
           <h3>Skills</h3>
           <ul class="checklist">${c.skills.map((sk) => `<li class="${sk.proficient ? 'prof' : ''}">${rollBtn(sk.name, sk.bonus, `<span class="dot"></span><span>${esc(sk.name)} <small>(${ABILITIES[sk.ability].short})</small></span><span class="b">${fmt(sk.bonus)}</span>`)}</li>`).join('')}</ul>
           <h3>Trades</h3>
-          <ul class="checklist">${CRAFT_IDS.map((id) => `<li><span class="dot"></span><span>${esc(CRAFT_SKILLS[id].name)} <small>(${CRAFT_SKILLS[id].ability.toUpperCase()}, rank 0-100)</small></span><span class="b">${rankOf({ crafts }, id).toFixed(1)}</span></li>`).join('')}</ul>
+          <ul class="checklist">${CRAFT_IDS.map((id) => `<li><span class="dot"></span><span>${esc(CRAFT_SKILLS[id].name)} <small>(${tradeXp({ trades: crafts }, id).toLocaleString()} XP)</small></span><span class="b">level ${tradeLevel({ trades: crafts }, id)}</span></li>`).join('')}</ul>
         </section>
         <section class="panel">
           <h3>Attacks</h3>
@@ -981,7 +980,7 @@ function sheetView() {
     </div>
     ${source === 'roster' && pendingLevelUps(draft).length ? `<div class="lu-waiting" role="status"><span>✦ <b>Level-up choices are waiting</b> (level ${pendingLevelUps(draft).join(', ')}): improve your abilities or train a new skill.</span>
       <button class="btn primary" data-action="level-choices" data-id="${esc(draft.id)}">Choose now</button></div>` : ''}
-    ${sheetHtml(c, heroLook(draft), draft.crafts)}
+    ${sheetHtml(c, heroLook(draft), draft.trades)}
     ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, doll: state.inv.doll, title: 'Inventory', safe: { items: safe.items(), slots: SAFE_SLOTS } })}</section>`
     : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
     ${diceTray()}`;

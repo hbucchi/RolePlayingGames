@@ -29,7 +29,7 @@
  * armour named in the stat block (with its own coverage); natural armour (hide, scales, shell)
  * covers every point of the body, absorbing 6% per point of AC above 10 + DEX (at most 60%).
  */
-import { itemDef } from './items.js';
+import { itemDef, withMaterial } from './items.js';
 import { BODY_PARTS, BODY_MAPS, partOf, strikeAt, bodyMapOf } from './body.js';
 import { absorbFor, ARMOUR_FORM, METALS, metalOf, isMetal, isPhysical } from './materials.js';
 
@@ -167,7 +167,7 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
     if (!def?.armor) continue;
     const a = ARMOURS[def.id] ?? { absorb: 10, abs: ARMOURS.leather.abs, cover: ARMOURS.leather.cover };
     const metal = metalOf(inst, def);
-    const name = metal && metal !== metalOf({}, def) ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
+    const name = metal && metal !== metalOf({}, def) ? withMaterial(METALS[metal].name, def.name) : def.name;
     // Enchantment adds absorption, not stiffness: hindrance stays the armour's own (and its metal's).
     // Enchantment and craftsmanship (a superior piece: +5%) both add absorption, not stiffness.
     const better = (inst.bonus ?? 0) + (inst.quality === 'superior' ? 1 : 0);

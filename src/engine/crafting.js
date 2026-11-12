@@ -1,29 +1,25 @@
 /**
- * Crafting: resources + skill, the way Ultima Online does it.
+ * Crafting: resources + a trade, on the D&D scale (and inspired by Ultima Online's crafting).
  *
- * Three trades, each a skill from 0.0 to 100.0, kept apart from everything else a hero is: they
- * do not use the hero's level, abilities or XP, and crafting never gives XP. A trade grows only by
- * practising it.
+ * Three trades, each with its own level from 1 to 20 and its own experience, kept apart from the
+ * hero's: crafting never gives a hero XP, and a hero's level and abilities do not help at the bench.
  *   smithing     the forge: smelting ore into ingots; every weapon and every armour
  *   woodcraft    the bowyer's bench: bows, crossbows, arrows, bolts, bowstrings
  *   leatherwork  the tannery: tanning hides into leather, sinew, bandages, rope
  *
- * Every recipe has a target skill (its difficulty, and its material's: mithral is harder than
- * iron). Your chance to make it:
- *   success  = 50% + 1% for each point your skill is above the target   (0% to 100%)
- *              so at the target it is a coin toss, 50 points above it is certain, and 50
- *              below it is impossible (the recipe is shown, but you cannot try it yet)
- *   superior = 1% for every 2 points above the target, up to 25%  (+1 to hit and damage, or +5%
- *              absorption; worth twice as much; ingots and arrows come out double)
- *   failure  = the rest: half of each material is lost (rounded up)
- * Knowing the trade's tools (dwarves of the Deep Halls with smith's tools) counts as 5 more points.
+ * The roll:  d20 + trade level (+2 with the trade's tools: dwarves of the Deep Halls are born to
+ *            smith's tools) against the recipe's DC (its difficulty + its material's: mithral +9).
+ * Each recipe and material needs a trade level to try at all: DC - 12 (at least 1). At that level
+ * the roll succeeds about 45% of the time; each level above adds 5%, up to 95%. So every new level
+ * opens harder work, and makes the old work easier.
+ *   Superior  a natural 20, or a roll of 11+ on the die that beats the DC by 10: +1 to hit and
+ *             damage, or +5% absorption; worth twice as much; ingots and arrows come out double
+ *   Failure   a natural 1, or under the DC: half of each material is lost (rounded up)
  *
- * Getting better, on every attempt (a success or a failure):
- *   chance to gain = ((100 - skill) / 100 + (1 - success chance)) / 2
- * so you learn most from hard work and while you are still green; a recipe you cannot fail
- * teaches nothing. Each gain is worth 1.0 point up to 30, 0.5 up to 60, 0.3 up to 90 and 0.1
- * after that. Working at recipes near your skill: about 45 attempts to reach 30, 170 to 60,
- * 450 to 90 and 800 to 1,300 to master a trade (100): the last ten points are a master's slow work.
+ * Trade experience, on every attempt: the recipe's DC on a success, half of it on a failure,
+ * nothing for work you cannot fail (95%). Levels: 30 x L x (L - 1) XP (level 2: 60, 5: 600,
+ * 10: 2,700, 20: 11,400). Working at recipes near your level, that is about 8 attempts to level 2,
+ * 60 to level 5, 220 to level 10 and 670 to master a trade (level 20).
  */
 import { RECIPES_BY_ID } from '../content/crafting/recipes.js';
 import { ITEMS_BY_ID } from '../content/items/catalogue.js';
@@ -50,8 +46,19 @@ const MATERIALS_OF = {
   wood: ['ash', 'oak', 'beech', 'yew', 'holly', 'blackwood', 'goldenwood'],
 };
 
-/** A hero's rank in a trade (0-100). */
-export const rankOf = (draft, skill) => Math.min(100, Math.max(0, draft?.crafts?.[skill] ?? 0));
+export const TRADE_MAX = 20;
+/** Trade experience needed for each level (index = level). */
+export const TRADE_XP = Array.from({ length: TRADE_MAX + 1 }, (_, l) => (l <= 1 ? 0 : 30 * l * (l - 1)));
+/** A hero's experience in a trade. */
+export const tradeXp = (draft, skill) => Math.max(0, draft?.trades?.[skill] ?? 0);
+/** A hero's level in a trade (1-20). */
+export function tradeLevel(draft, skill) {
+  const xp = tradeXp(draft, skill); let lv = 1;
+  for (let l = 2; l <= TRADE_MAX; l++) if (xp >= TRADE_XP[l]) lv = l;
+  return lv;
+}
+/** Title by level, for the workshop. */
+export const tradeTitle = (lv) => (lv >= 20 ? 'Grandmaster' : lv >= 15 ? 'Master' : lv >= 10 ? 'Expert' : lv >= 5 ? 'Journeyman' : 'Apprentice');
 
 /** Does this hero know the trade's tools (a race or class feature that names them)? */
 export function toolProficient(sheet, skill) {
@@ -59,30 +66,23 @@ export function toolProficient(sheet, skill) {
   return !!re && (sheet?.features ?? []).some((f) => re.test(`${f.name} ${f.text ?? ''}`));
 }
 
-/** Your working skill in a trade: its rank, plus 5 if you know the trade's tools. */
-export const effectiveSkill = (sheet, draft, skill) => rankOf(draft, skill) + (toolProficient(sheet, skill) ? 5 : 0);
-/** Kept for the old name: the working skill. */
-export const craftBonus = effectiveSkill;
+/** The bonus on the roll: trade level, +2 with the trade's tools. */
+export const craftBonus = (sheet, draft, skill) => tradeLevel(draft, skill) + (toolProficient(sheet, skill) ? 2 : 0);
 
-/** A recipe's difficulty in its material, as a DC (shown to the player) and a target skill. */
+/** A recipe's DC in its material. */
 export const recipeDc = (recipe, material = null) => recipe.dc + (material ? MATERIAL_DC[material] ?? 0 : 0);
-/** DC 8 (smelting iron) is a target of 0; each DC point is 5 skill points (plate of mithral: 95). */
-export const targetSkill = (recipe, material = null) => Math.min(100, Math.max(0, (recipeDc(recipe, material) - 8) * 5));
+/** The trade level a recipe needs, in its material: DC - 12, at least 1 (iron plate 6, mithral plate 15). */
+export const minLevel = (recipe, material = null) => Math.max(1, recipeDc(recipe, material) - 12);
 
-/** Chances with a working skill against a target (0..1): success, superior, failure. */
-export function chances(skill, target) {
-  const success = Math.min(1, Math.max(0, 0.5 + (skill - target) / 100));
-  const superior = success > 0 ? Math.min(0.25, Math.max(0, (skill - target) / 200)) : 0;
-  return { success, superior: Math.min(superior, success), failure: 1 - success };
+/** Chances for a bonus against a DC (0..1): success, superior, failure. */
+export function chances(bonus, dc) {
+  const atLeast = (face) => Math.min(20, Math.max(0, 21 - face)) / 20; // P(d20 >= face)
+  const success = Math.min(0.95, Math.max(0.05, atLeast(dc - bonus)));
+  const superior = Math.min(success, Math.max(0.05, atLeast(Math.max(11, dc + 10 - bonus))));
+  return { success, superior, failure: 1 - success };
 }
-
-/** Points gained per step at a rank: quick while green, slow near mastery. */
-export const gainStep = (rank) => (rank < 30 ? 1 : rank < 60 ? 0.5 : rank < 90 ? 0.3 : 0.1);
-/** The chance an attempt teaches something (see the header). Trivial or impossible work: none. */
-export function gainChance(rank, success) {
-  if (success >= 1 || success <= 0 || rank >= 100) return 0;
-  return ((100 - rank) / 100 + (1 - success)) / 2;
-}
+/** Trade XP from one attempt: the DC on a success, half on a failure, none if it could not fail. */
+export const tradeXpFor = (dc, ok, success) => (success >= 0.95 ? 0 : ok ? dc : Math.floor(dc / 2));
 
 // ---- Resources: the hero's bag first, then the company's safe -------------------------------------
 
@@ -119,7 +119,7 @@ export const canAfford = (recipe, material, draft, safe) => (!recipe.slot || mat
 /**
  * Make something. `sheet`: the hero's derived character (abilities, features); `draft`: their
  * saved record (bag, crafts); `safe`: the company's safe (engine/safe.js) or null.
- * @returns {{ ok, outcome: 'superior'|'success'|'fail', d100, skillValue, target, chance, superiorChance, gainChance, lost, made, gain, message }}
+ * @returns {{ ok, outcome: 'superior'|'success'|'fail', d20, bonus, total, dc, chance, superiorChance, lost, made, gain, levelUp, message }}
  */
 export function craft({ recipeId, material = null, sheet, draft, safe = null, rng = cryptoRandomInt }) {
   const recipe = RECIPES_BY_ID[recipeId];
@@ -127,12 +127,13 @@ export function craft({ recipeId, material = null, sheet, draft, safe = null, rn
   if (recipe.slot && !MATERIALS_OF[recipe.slot.kind].includes(material)) return { ok: false, message: 'Choose what to make it of.' };
   if (!canAfford(recipe, material, draft, safe)) return { ok: false, message: 'You do not have everything it needs.' };
   const skill = recipe.skill;
-  const eff = effectiveSkill(sheet, draft, skill);
-  const target = targetSkill(recipe, material);
-  const c = chances(eff, target);
-  if (c.success <= 0) return { ok: false, message: `Too difficult yet: it needs about ${target - 50} ${CRAFT_SKILLS[skill].name.toLowerCase()} to try.` };
-  const d100 = rng(100) + 1; // 1..100: at or under the chance succeeds
-  const outcome = d100 <= Math.round(c.superior * 100) ? 'superior' : d100 <= Math.round(c.success * 100) ? 'success' : 'fail';
+  const level = tradeLevel(draft, skill); const need = minLevel(recipe, material);
+  if (level < need) return { ok: false, message: `Too difficult yet: it needs ${CRAFT_SKILLS[skill].name.toLowerCase()} level ${need}.` };
+  const bonus = craftBonus(sheet, draft, skill);
+  const dc = recipeDc(recipe, material);
+  const c = chances(bonus, dc);
+  const d20 = rng(20) + 1; const total = d20 + bonus;
+  const outcome = d20 === 20 || (d20 >= 11 && total >= dc + 10) ? 'superior' : d20 !== 1 && total >= dc ? 'success' : 'fail';
   const ok = outcome !== 'fail';
   // Resources: all used on a success; half lost on a failure.
   const lost = [];
@@ -151,14 +152,14 @@ export function craft({ recipeId, material = null, sheet, draft, safe = null, rn
     if (whyNoRoom(draft, made, null) && safe?.add(made).ok) made.inSafe = true;
     else addItem(draft.inventory ??= [], made);
   }
-  // Practice: a chance to get better, success or not (see the header).
-  const rank = rankOf(draft, skill);
-  const gc = gainChance(rank, c.success);
-  const gain = rng(1000) < gc * 1000 ? Math.min(100 - rank, gainStep(rank)) : 0;
-  if (gain) { draft.crafts ??= {}; draft.crafts[skill] = Math.round((rank + gain) * 10) / 10; }
+  // Practice: trade experience, and perhaps a new level.
+  const gain = tradeXpFor(dc, ok, c.success);
+  const before = level;
+  if (gain) { draft.trades ??= {}; draft.trades[skill] = tradeXp(draft, skill) + gain; }
+  const levelUp = tradeLevel(draft, skill) > before ? tradeLevel(draft, skill) : null;
   const name = made ? `${made.qty > 1 ? `${made.qty} × ` : ''}${itemName(made)}` : itemName({ id: recipe.output.id });
   const where = made?.inSafe ? ' (the bag is full: it went into the safe)' : '';
   const message = outcome === 'superior' ? `A masterwork! ${name}${where}.` : outcome === 'success' ? `Made: ${name}${where}.`
     : `It goes wrong: half the materials are lost.`;
-  return { ok: true, outcome, d100, skillValue: eff, target, chance: c.success, superiorChance: c.superior, gainChance: gc, lost, made, gain, skill, message };
+  return { ok: true, outcome, d20, bonus, total, dc, chance: c.success, superiorChance: c.superior, lost, made, gain, levelUp, skill, message };
 }

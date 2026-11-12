@@ -42,6 +42,9 @@ export function makeItem(id, qty = 1, extra = {}) {
   return inst;
 }
 
+/** "Bronze" + "Steel gorget" = "Bronze gorget": a material replaces the one already in the name. */
+export const withMaterial = (material, name) => `${material} ${name.replace(/^(iron|steel) /i, '').toLowerCase()}`;
+
 /** Display name, including enchantment: "Longsword of Might". */
 export function itemName(inst) {
   const def = itemDef(inst);
@@ -51,7 +54,7 @@ export function itemName(inst) {
   if (inst.label) return `${def.name} (${inst.label})`;
   // Made of a metal other than its usual one: "Bronze coat of mail" (materials.js).
   const metal = metalOf(inst, def); const usual = metalOf({}, def);
-  let base = metal && metal !== usual ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
+  let base = metal && metal !== usual ? withMaterial(METALS[metal].name, def.name) : def.name;
   // A masterwork from the forge or workbench (crafting.js): "Superior steel longsword".
   if (inst.quality === 'superior') base = `Superior ${base[0].toLowerCase()}${base.slice(1)}`;
   return suffix ? `${base} ${suffix}` : base;
