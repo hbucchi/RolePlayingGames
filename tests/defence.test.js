@@ -14,14 +14,18 @@ test('armour absorbs a percentage: 10 damage through 40% is 6', () => {
   assert.equal(ARMOUR_ABSORB['chain-mail'], 40); assert.equal(ARMOUR_ABSORB.plate, 55);
 });
 
-test('heroes: Evasion from DEX (capped by armour), block from shield or trained weapon', () => {
+test('heroes: Evasion from DEX minus armour hindrance, block from shield or trained weapon', () => {
   const light = heroDefence(kit('leather', 'shortsword'), { dex: 3, pb: 2 });
   assert.equal(light.evasion, 13); assert.equal(light.block, parryBlock(2)); assert.equal(light.blockWith, 'parry');
   assert.equal(light.armour.pct, 10); assert.equal(light.armour.cover['left-arm'], 4); assert.equal(light.armour.cover['left-leg'], undefined);
   const heavy = heroDefence(kit('chain-mail', 'longsword', 'shield'), { dex: 2, pb: 2 });
-  assert.equal(heavy.evasion, 10, 'heavy armour: no DEX'); assert.equal(heavy.block, shieldBlock(2)); assert.equal(heavy.blockWith, 'shield');
+  assert.equal(heavy.evasion, 9, '10 + DEX 2 - hindrance 3'); assert.equal(heavy.moveLost, 1);
+  assert.equal(heroDefence(kit('chain-mail'), { dex: 2, str: 16 }).moveLost, 0, 'STR 16 shrugs off a square');
+  assert.equal(heroDefence(kit('plate'), { dex: 0 }).hinder, 5); assert.equal(heroDefence(kit('plate'), { dex: 0 }).moveLost, 2);
+  assert.equal(heroDefence(kit('leather'), { dex: 0 }).hinder, 0, 'leather does not hinder');
+  assert.equal(heroDefence(kit('mithral-shirt'), { dex: 3 }).evasion, 13, 'mithral does not hinder'); assert.equal(heavy.block, shieldBlock(2)); assert.equal(heavy.blockWith, 'shield');
   assert.equal(heroDefence(kit('plate'), { dex: 0 }).armour.cover.head, 8, 'plate has a helm (8 of the head\'s 10 points)');
-  assert.equal(heroDefence(kit('scale-mail'), { dex: 4 }).evasion, 12, 'medium armour: DEX at most +2');
+  assert.equal(heroDefence(kit('scale-mail'), { dex: 4 }).evasion, 12, '10 + 4 - hindrance 2');
   assert.equal(heroDefence(kit('leather', 'longsword'), { dex: 0, weaponTrained: () => false }).block, 0, 'no parry with an untrained weapon');
   assert.equal(heroDefence(kit('leather'), { dex: 1, magicEvasion: 1 }).evasion, 12, 'a ring of protection adds to Evasion');
 });

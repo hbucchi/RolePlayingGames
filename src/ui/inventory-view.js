@@ -46,7 +46,8 @@ function statLine(inst) {
     const a = ARMOURS[def.id];
     const pts = a ? Object.values(a.cover).reduce((x, y) => x + y, 0) : 0;
     const cond = inst.condition ?? 100;
-    return `Absorbs ${a ? Math.min(60, a.absorb + 5 * b) : '?'}% · covers ${pts}/100 · condition ${cond}% · ${def.armor.type}${def.armor.type === 'medium' ? ' (DEX max +2)' : def.armor.type === 'heavy' ? ' (no DEX to Evasion)' : ''}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
+    const h = a?.hinder ?? 0; const sq = h >= 4 ? 2 : h >= 2 ? 1 : 0;
+    return `Absorbs ${a ? Math.min(60, a.absorb + 5 * b) : '?'}% · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
   }
   if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b ? ` + ${5 * b}%` : ''}`;
   if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;

@@ -45,10 +45,13 @@ test('dwarf warrior derives the right numbers', () => {
   assert.equal(c.mods.con, 3);
   // HP = d10 max (10) + CON 3 + Dwarven Toughness 1
   assert.equal(c.maxHp, 14);
-  // Defence (defence.js): heavy armour lets no DEX count, so Evasion is 10; the shield blocks
-  // 15% + 5% x proficiency 2 = 25%; the coat of mail absorbs 40% wherever it covers.
-  assert.equal(c.ac, 10);
-  assert.equal(c.defence.evasion, 10);
+  // Defence (defence.js): Evasion 10 + DEX 1 - coat-of-mail hindrance 3 = 8; the shield blocks
+  // 15% + 5% x proficiency 2 = 25%; the coat of mail absorbs 40% wherever it covers, and costs a
+  // square of movement (STR 15 is not enough to shrug it off): 25 ft - 5 = 20 ft.
+  assert.equal(c.mods.dex, 1);
+  assert.equal(c.ac, 8);
+  assert.equal(c.defence.evasion, 8); assert.equal(c.defence.hinder, 3); assert.equal(c.defence.moveLost, 1);
+  assert.equal(c.speed, 20);
   assert.equal(c.defence.block, 25); assert.equal(c.defence.blockWith, 'shield');
   assert.equal(c.defence.armour.pct, 40); assert.equal(c.defence.armour.cover.chest, 22); assert.equal(c.defence.armour.cover['left-leg'], 7);
   assert.equal(c.defence.armour.cover.head, undefined, 'a coat of mail has no helm');
@@ -60,7 +63,7 @@ test('dwarf warrior derives the right numbers', () => {
   assert.equal(c.attacks[0].name, 'Longsword');
   assert.equal(c.attacks[0].toHit, 4);
   assert.equal(c.attacks[0].damage, '1d8+2');
-  assert.equal(c.speed, 25);
+  assert.equal(c.speed, 20, 'dwarves walk 25 ft; the coat of mail costs a square');
   assert.equal(c.passivePerception, 10 + 2 + 2);
 });
 

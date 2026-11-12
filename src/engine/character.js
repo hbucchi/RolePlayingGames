@@ -261,11 +261,12 @@ export function deriveCharacter(draft, setting) {
   // Defence (defence.js): Evasion replaces Armour Class; shields and weapons block; armour absorbs.
   const shieldInst = (gear.inventory ?? []).find((x) => x.uid === gear.equipped?.offHand);
   const defence = heroDefence(gear, {
-    dex: mods.dex, pb, magicEvasion: g.magicAc,
+    dex: mods.dex, pb, str: scores.str, magicEvasion: g.magicAc,
     shieldTrained: !shieldInst || armorProficient(itemDef(shieldInst), cls?.armorProficiencies ?? []),
     weaponTrained: (def) => weaponProficient(def, cls?.weaponProficiencies ?? []),
   });
   const ac = defence.evasion;
+  if (defence.hinder) g.notes.push(`${defence.armour.name} hinders you: −${defence.hinder} Evasion${defence.moveLost ? `, −${defence.moveLost * 1.5} m movement` : ''}.`);
   // Encumbrance (items.js): above STR x 10 lb you are burdened (speed -10 ft); STR x 15 lb is the
   // most you can carry (more is only possible with gear from before the limit: speed -20 ft).
   const load = carriedWeight(gear.inventory, gear.coins ?? draft.coins ?? 0);
@@ -300,7 +301,7 @@ export function deriveCharacter(draft, setting) {
     maxHp,
     ac,
     initiative: mods.dex,
-    speed: (race?.speed ?? 30) - g.speedPenalty - burden,
+    speed: (race?.speed ?? 30) - g.speedPenalty - burden - 5 * defence.moveLost,
     load, capacity, burdenedAt: limits.burdened, burden, defence,
     bag: { used: bagUsed(gear), slots: BAG_SLOTS },
     // Thieves' tools checks use DEX, plus proficiency if trained (burglars are).
