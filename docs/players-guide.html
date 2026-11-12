@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tales of the Westlands: Player's Guide</title>
+<style>
+  @page { size: A4; margin: 16mm 16mm 18mm; }
+  :root { --ink: #2a2119; --muted: #6c5d4c; --line: #d6c6a5; --accent: #8a2f1d; --gold: #a87a1f; --paper: #fbf6ea; --band: #f1e7d0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); background: var(--paper); font: 10.2pt/1.45 Georgia, 'Times New Roman', serif; }
+  h1, h2, h3 { font-family: 'Palatino Linotype', Palatino, Georgia, serif; color: var(--accent); line-height: 1.15; text-wrap: balance; }
+  h1 { font-size: 30pt; margin: 0 0 4mm; letter-spacing: .5px; }
+  h2 { font-size: 15pt; margin: 7mm 0 2mm; padding-bottom: 1mm; border-bottom: 1.5px solid var(--gold); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 4mm 0 1mm; color: var(--ink); break-after: avoid; }
+  p { margin: 0 0 2mm; }
+  ul { margin: 0 0 2mm; padding-left: 5mm; }
+  li { margin: 0 0 .8mm; }
+  b { color: #1d1610; }
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; text-align: center; break-after: page; border: 2px solid var(--gold); padding: 20mm; background: var(--band); }
+  .cover .sub { font-size: 13pt; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 14mm; }
+  .cover p { max-width: 120mm; margin: 0 auto 3mm; color: var(--muted); }
+  .toc { columns: 2; column-gap: 10mm; font-size: 10pt; }
+  .toc li { break-inside: avoid; }
+  .formula { font-family: 'Courier New', monospace; font-size: 9.4pt; background: var(--band); border-left: 3px solid var(--gold); padding: 1.5mm 3mm; margin: 1.5mm 0 2.5mm; break-inside: avoid; }
+  .box { background: var(--band); border: 1px solid var(--line); border-radius: 2mm; padding: 2.5mm 3.5mm; margin: 2mm 0 3mm; break-inside: avoid; }
+  .box b:first-child { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; margin: 1.5mm 0 3mm; font-size: 9.2pt; break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 1.1mm 2mm; text-align: left; vertical-align: top; }
+  th { background: var(--band); font-family: 'Palatino Linotype', Palatino, Georgia, serif; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  section { break-inside: auto; }
+  .page { break-before: page; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <div class="sub">Hero Forge</div>
+  <h1>Tales of the Westlands</h1>
+  <div class="sub">The Player's Guide</div>
+  <p>Every rule of the game in brief: how heroes are made, how a blow lands and what armour stops, how the dungeons deepen, how wounds, loot and experience are kept, and how a smith turns ore into mithral plate.</p>
+  <p class="small">Built on the fifth edition of the world's favourite tabletop roleplaying game (SRD 5.1), with rules of its own for defence, injuries, crafting and the descent.</p>
+</div>
+
+<h2>Contents</h2>
+<ol class="toc">
+  <li>Heroes</li><li>Dice and checks</li><li>Moving and seeing</li><li>Combat: the attack</li>
+  <li>Defence: evasion, blocking, armour</li><li>Hit locations and injuries</li><li>Damage types and materials</li>
+  <li>Magic and abilities</li><li>Conditions</li><li>Monsters</li><li>Words instead of swords</li>
+  <li>Exploring: traps, locks, secrets</li><li>The descent: ten floors</li><li>Keeping what you win</li>
+  <li>Experience and levels</li><li>Wounds and healing</li><li>Gear, the bag and the safe</li>
+  <li>Trade and repair</li><li>Crafting</li><li>The campaign, tales and the arena</li>
+</ol>
+
+<h2>1. Heroes</h2>
+<p>A hero is built as in the fifth edition: a <b>kindred</b>, a <b>calling</b> (class), a <b>background</b>, six ability scores (Strength, Dexterity, Constitution, Intelligence, Wisdom, Charisma) and the skills that follow from them. Four ready-made heroes (Halric Greyfell, Brannoc Ironbrow, Pippa Underhedge and Lírien of the Wood) can be played at once and are adopted into your company the first time they keep loot or experience.</p>
+<table>
+  <tr><th>Kindreds</th><td>Men of the West; Riders of the Plains; Elves (of the Elder Light, Wood-elves); Dwarves (Folk of the Deep Halls, Ironfolk of the Eastern Hills); Halflings (Hillfolk, Riverfolk)</td></tr>
+  <tr><th>Callings</th><td>Warrior (d10), Ranger (d10), Warden (d10), Burglar (d8), Minstrel (d8), Loremaster (d6)</td></tr>
+  <tr><th>Backgrounds</th><td>Wanderer, Scholar of the Archives, Soldier of the Watch, Hearth-folk, Exile, River Trader</td></tr>
+</table>
+<p>Ability modifier = (score &minus; 10) &divide; 2, rounded down. Proficiency bonus rises from +2 at level 1 to +6 at level 17. Hit points at level 1 are the hit die's maximum + CON modifier; each later level adds the die's average (rounded up) + CON modifier. Heroes may adventure alone or as a party of up to four.</p>
+
+<h2>2. Dice and checks</h2>
+<p>A <b>check</b> is a d20 + an ability modifier (+ proficiency if trained) against a Difficulty Class (DC). <b>Advantage</b> rolls two d20s and keeps the higher, <b>disadvantage</b> the lower. A natural 20 on an attack is a critical hit (damage dice doubled); a natural 1 always misses. You can watch every roll on the animated dice (d4 to d20), or turn them off in the settings.</p>
+<div class="formula">chance to roll N or more on a d20 = (21 &minus; N) &divide; 20&nbsp;&nbsp;&nbsp;(each point is 5%)</div>
+
+<h2>3. Moving and seeing</h2>
+<ul>
+  <li>The map is a grid of squares, <b>1.5 m</b> each. A hero moves their speed in squares each turn; diagonals cost 1 square (the standard rule) or alternate 1-2 (the variant), as you choose.</li>
+  <li>Heroes <b>face</b> a direction. What lies in the dark half behind you is unseen, and an attack <b>from behind</b> has advantage and cannot be blocked. Turning is free.</li>
+  <li>Walls and closed doors block sight; so do living creatures in the way. Corpses do not. Corridors are revealed square by square as they come into view (fog of war).</li>
+  <li>A target partly hidden has <b>half cover</b> (+2 to its defence against missiles); a fully hidden one cannot be shot.</li>
+  <li><b>Sneaking:</b> one Stealth check; creatures whose passive Perception is lower do not notice you. A fight is loud: every foe in the same room joins in.</li>
+  <li>Heavy armour, a lame leg and a full pack all cost movement (see below).</li>
+</ul>
+
+<h2>4. Combat: the attack</h2>
+<p>Everyone rolls initiative (d20 + DEX). On your turn: move, take one <b>action</b> (attack, cast, use an item, dash, bandage...), perhaps a <b>bonus action</b>, and you keep a <b>reaction</b> for an opportunity attack when a foe leaves your reach. Warriors and rangers gain extra attacks at higher levels; monsters make every attack their <b>Multiattack</b> lists (a dragon's bite and two claws).</p>
+<p>A blow passes three gates, one after another:</p>
+<div class="formula">1. EVADE&nbsp;&nbsp;d20 + attack bonus &ge; target's Evasion?&nbsp;&nbsp;no: a miss<br>2. BLOCK&nbsp;&nbsp;the target's shield or parry stops it?&nbsp;&nbsp;yes: blocked<br>3. ABSORB d100 picks where it lands; the armour there absorbs a share of the damage</div>
+<div class="formula">chance a blow lands = c + (p &minus; c) &times; (1 &minus; b)&nbsp;&nbsp;&nbsp;p: past Evasion, c: critical chance, b: block chance</div>
+<p>Critical hits cannot be blocked. Neither can spells, attacks from behind, or blows against the unaware or the helpless. Only a shield stops arrows.</p>
+
+<h2>5. Defence: evasion, blocking, armour</h2>
+<h3>Evasion</h3>
+<p>In place of Armour Class, a creature has <b>Evasion = 10 + DEX modifier</b> (+ magic rings and the like), lowered by the <b>hindrance</b> of stiff armour, but never below 8.</p>
+<h3>Blocking</h3>
+<div class="formula">shield: 15% + 5% &times; proficiency bonus&nbsp;&nbsp;&nbsp;parry (a trained melee weapon): 5% + 5% &times; proficiency&nbsp;&nbsp;&nbsp;(at most 50%)</div>
+<p>Only fighters with a mind for it parry (monsters of INT 8 or more with a made weapon); claws and jaws do not.</p>
+<h3>Armour: absorption, coverage, condition</h3>
+<p>Armour does not make you harder to hit; it makes the blow hurt less. Each piece covers some parts of the body and absorbs a <b>percentage</b> of each kind of damage: separately for <b>slashing</b>, <b>piercing</b> and <b>bludgeoning</b>, and one figure for every element. A hit of 10 on mail that absorbs 40% deals 6. Pieces worn over each other combine: 1 &minus; (1 &minus; a)(1 &minus; b), to at most 75%.</p>
+<table>
+  <tr><th>Slot</th><th>Pieces</th></tr>
+  <tr><td>Body</td><td>padded, leather, studded, hide, chain shirt, ring mail, scale, breastplate, half plate, coat of mail, splint, plate</td></tr>
+  <tr><td>Head / throat</td><td>leather cap, iron helm, mail coif, great helm / steel gorget</td></tr>
+  <tr><td>Arms / hands / legs</td><td>vambraces (leather, steel) / gloves, gauntlets / leggings, mail chausses, greaves</td></tr>
+</table>
+<p>Every blow wears armour down (1% of its <b>condition</b>, 3% on a critical); absorption falls with condition. A smith restores it. <b>Hindrance</b> = absorption &times; coverage &divide; 1000 (&times; the metal's stiffness): it costs Evasion, and 2+ costs a square of movement, 4+ two squares (STR 16+ shrugs one off).</p>
+<h3>Monsters' hides</h3>
+<p>Slow, heavy creatures carry their armour in their skin: <b>natural armour</b> absorbs 6% for each point of a stat block's AC above 10 + DEX (at most 60%), over the whole body except its <b>weak spots</b> (a beast's throat and belly, a spider's abdomen). Monsters wearing mail or plate use the same armour as heroes.</p>
+
+<h2>6. Hit locations and injuries</h2>
+<p>A d100 decides where a landed blow strikes. A person's body: left arm 1&ndash;12, right arm 13&ndash;24, hands 25&ndash;32, legs 33&ndash;50, abdomen 51&ndash;65, chest 66&ndash;87, neck 88&ndash;90, head 91&ndash;100. Beasts (four legs, neck, tail) and spiders (eight legs, abdomen) have maps of their own. The armour that covers that point absorbs; a gap absorbs nothing.</p>
+<p>A blow hurts twice: the <b>part</b> takes the damage, and <b>total HP</b> takes it times the part's multiplier.</p>
+<table>
+  <tr><th>Part</th><th>Health (share of max HP)</th><th>To total HP</th><th>If crippled</th></tr>
+  <tr><td>Head</td><td>75%</td><td>&times;1.5</td><td>dazed: &minus;2 Evasion, disadvantage on attacks</td></tr>
+  <tr><td>Neck</td><td>60%</td><td>&times;2</td><td>bleeding: &minus;1 HP each turn</td></tr>
+  <tr><td>Chest / abdomen</td><td>90% / 80%</td><td>&times;1</td><td>bleeding</td></tr>
+  <tr><td>Arms / hands</td><td>80% / 60%</td><td>&times;0.75 / &times;0.5</td><td>weapon arm: disadvantage, no parry; shield arm: no shield</td></tr>
+  <tr><td>Legs</td><td>85%</td><td>&times;0.75</td><td>lame: &minus;2 squares of movement</td></tr>
+</table>
+<p>No part has less than 6 health. If total HP reaches 0 first, the creature falls; if a part does, it is crippled until healed. Any healing (a potion, a spell, a bandage) mends total HP and every hurt part by the same amount.</p>
+
+<h2>7. Damage types and materials</h2>
+<p><b>Physical</b> damage (slashing, piercing, bludgeoning) lands on a body part and meets that part's armour. <b>Elemental</b> damage (fire, cold, lightning, acid, poison, necrotic, radiant, force, thunder, psychic) goes to total HP, lessened by the armour's average resistance over the whole body.</p>
+<p>Creatures may be <b>immune</b> (no damage), <b>resistant</b> (half) or <b>vulnerable</b> (double) to a type; skeletons shatter under clubs, red dragons laugh at fire. Against creatures that shrug off <b>plain weapons</b>, a non-magic, non-silver blow does &times;0.75 (resistant) or &times;0.5 (immune). <b>Silvered</b> blades, sold by every trader, bite werewolves and the like, and burn undead and fiends for +1d6 radiant.</p>
+<h3>Metals and woods</h3>
+<table>
+  <tr><th>Metal</th><th>As armour</th><th>As a weapon</th></tr>
+  <tr><td>Iron / steel</td><td>&times;0.9 / &times;1 absorption</td><td>&minus;1 / &plusmn;0 damage</td></tr>
+  <tr><td>Copper / bronze</td><td>softer; resist acid & poison / fire & cold</td><td>&minus;1 damage</td></tr>
+  <tr><td>Black iron</td><td>&times;1; resists cold and necrotic</td><td>+1 damage</td></tr>
+  <tr><td>Silver</td><td>&times;0.85; resists necrotic</td><td>bane of undead and fiends</td></tr>
+  <tr><td>Gold</td><td>&times;0.7, heavy; resists fire and acid</td><td>&minus;2 damage</td></tr>
+  <tr><td>Dwarf-steel</td><td>&times;1.15; resists fire, lightning</td><td>+1 damage</td></tr>
+  <tr><td>Mithral</td><td>&times;1.1, half the weight and stiffness</td><td>+1 to hit</td></tr>
+</table>
+<p>Bows, crossbows, staves and clubs are made of <b>wood</b>: ash and oak (plain), beech, yew (+1 damage), holly (+1 to hit), blackwood (+1/+1) and goldenwood (+2 to hit, +1 damage, light).</p>
+
+<h2>8. Magic and abilities</h2>
+<p>Magic runs on <b>mana</b>, not spell slots. Full casters (Loremaster, Minstrel) have 2 mana at level 1, rising to 10 at level 20; half casters (Ranger, Warden) from 2 at level 2 up to 6. A spell costs mana by its circle (1st&ndash;2nd: 1, 3rd&ndash;4th: 2, 5th&ndash;6th: 3, 7th: 4, 8th: 5, 9th: 7); cantrips are free. There is <b>no resting in a dungeon</b>: spent mana and class abilities come back only at a <b>mana totem</b> (one per floor, once), or by sleeping at an inn or a camp.</p>
+<div class="formula">spell save DC = 8 + proficiency + spellcasting modifier&nbsp;&nbsp;&nbsp;spell attack = proficiency + modifier</div>
+<p>Areas (cones, lines, bursts) catch everyone inside, friend or foe; some leave burning ground, ice, rubble or poison cloud behind for a few rounds. Concentration spells end if the caster fails a CON save after taking damage.</p>
+
+<h2>9. Conditions</h2>
+<table>
+  <tr><td><b>Frightened</b></td><td>disadvantage on attacks; WIS save at the end of each turn</td><td><b>Restrained</b></td><td>cannot move; attacks against it have advantage; STR save to break free</td></tr>
+  <tr><td><b>Prone</b></td><td>easy to hit up close, hard from afar; standing up costs half your movement</td><td><b>Held</b> (paralysed)</td><td>loses its turns until a WIS save; blows from next to it are critical</td></tr>
+  <tr><td><b>Stunned</b></td><td>loses its next turn</td><td><b>Bound</b></td><td>chained to a wall or floor: cannot move until freed</td></tr>
+  <tr><td><b>Mocked / cursed</b></td><td>disadvantage on its next attack</td><td><b>Asleep, petrified</b></td><td>helpless</td></tr>
+</table>
+
+<h2>10. Monsters</h2>
+<ul>
+  <li><b>356 creatures</b> from the SRD and the Westlands, each with a portrait, a body on the map, a voice, lore and a full stat block in the Bestiary. Big creatures fill several squares and reach further.</li>
+  <li>How a monster fights depends on its mind (INT): beasts charge, dim brutes rush in, average ones use cover, cunning ones pick off the weakest and flee when the fight is lost. Spellcasters keep their distance; dragons breathe whenever they can.</li>
+  <li><b>Breath weapons</b> recharge on a 5&ndash;6 at the start of each turn. Monsters cast real spells (fireball, cone of cold, hold person...), and healers mend themselves when badly hurt.</li>
+  <li><b>Legendary creatures</b> take one extra action a round (a tail swipe, a wing buffet), at the end of a hero's turn.</li>
+  <li><b>Dragons</b> are worth twice their XP and guard a hoard of sure magic treasures (1 for a wyrmling to 4 for an ancient).</li>
+</ul>
+
+<h2>11. Words instead of swords</h2>
+<p>Many creatures can be talked to: <b>Parley</b> or <b>Soothe</b> (calm it), <b>Recruit</b> (it joins you), <b>Intimidate</b> (it flees), <b>Taunt</b> (it attacks only you), <b>Mock</b> (disadvantage on its next attack). Each is a skill check against the creature's resolve. Calming or recruiting a foe earns its full XP. Prisoners found chained on some floors can be freed and will follow you.</p>
+
+<h2>12. Exploring: traps, locks, secrets</h2>
+<ul>
+  <li><b>Traps</b> wait in corridors and rooms: search (Perception or Investigation) to find them, then disarm them with thieves' tools, or step around.</li>
+  <li><b>Locked doors and chests:</b> pick the lock (thieves' tools, DEX) or force it (STR). Iron doors may need a key hidden in a chest on the same floor.</li>
+  <li><b>Secret doors</b> open shortcuts; the dungeon can always be crossed without them.</li>
+  <li>Bodies and chests hold loot: click them to search.</li>
+</ul>
+
+<h2>13. The descent: ten floors</h2>
+<p>A generated dungeon is ten floors deep. Each floor down is more dangerous and pays more:</p>
+<table>
+  <tr><th></th><th>Floor 1</th><th>Each floor deeper</th><th>Floor 10</th></tr>
+  <tr><td>Foes matched to</td><td>your level</td><td>+0.3 level</td><td>one great hall: the boss</td></tr>
+  <tr><td>Hard rooms</td><td>15%</td><td>+2.5% (at most 35%)</td><td>&mdash;</td></tr>
+  <tr><td>Occupied rooms</td><td>45%</td><td>+1.7% (at most 60%)</td><td>&mdash;</td></tr>
+  <tr><td>XP and coins</td><td>&times;1</td><td>+25%</td><td>&times;3.25</td></tr>
+</table>
+<p><b>Party size</b> sets how full a floor is: one hero meets about half the occupied rooms a party of four does, and more of them easy. Each room's foes are built from the 5e encounter budget (easy, medium, hard, deadly) for your party's size and level. Before level 5, a party armed only with plain steel meets nothing that shrugs it off.</p>
+<p>On the <b>tenth floor</b> the master of the deep waits on its throne, matched to your party (easier for one or two heroes), with its hoard in two chests. A lone hero's boss takes no legendary action. The way out opens only when it falls.</p>
+
+<h2>14. Keeping what you win</h2>
+<div class="box"><b>Gains are kept only at an exit.</b> Experience, loot, coins and levels won inside are real while you play, but they are made safe only at the stairs (or the way out of a campaign place). If the party falls, or walks away (back to the menu, a new dungeon, closing the game), every hero returns to how they were at the last exit.</div>
+<p>At the stairs you choose: <b>go deeper</b> (everything carried so far is safe), or <b>leave the dungeon</b>: store loot in the <b>safe</b> in town, and start again from floor 1 next time. There is no running from a fight.</p>
+
+<h2>15. Experience and levels</h2>
+<p>Foes give their XP (shared among the living heroes); clever play gives a little too (finding traps, picking locks, sneaking past). Where it is earned matters:</p>
+<div class="formula">generated dungeons &times;0.25 (&times; the floor's pay)&nbsp;&nbsp;&nbsp;story battles &times;1&nbsp;&nbsp;&nbsp;campaign places &times;1.5</div>
+<p>Dungeons can be played again and again, so they teach little; the campaign, where foes are <b>veterans</b> (+30% HP, +1 to hit), teaches the most. Levels follow the 5e table (300 XP for level 2 ... 355,000 for level 20). On a new level a pop-up lets you choose improvements (ability scores at 4, 8, 12, 16 and 19).</p>
+
+<h2>16. Wounds and healing</h2>
+<p>Wounds and injuries <b>stay</b> between adventures, and there are no short or long rests. Healing comes from:</p>
+<ul>
+  <li><b>Bandages</b> (an action out of combat): a DC 10 Medicine check heals 1d6 + Medicine.</li>
+  <li><b>Potions</b> (2d4+2 and stronger) and healing <b>spells</b>.</li>
+  <li><b>In town:</b> a bed at the inn (1 gp: every wound mended) or a healer (2 sp per hit point); the chapel in Ashford.</li>
+</ul>
+<p>After a won fight, fallen companions come round with 1 HP.</p>
+
+<h2>17. Gear, the bag and the safe</h2>
+<ul>
+  <li>The <b>bag</b> holds <b>20 slots</b>; a stack of the same thing takes one slot; what you wear is not in the bag.</li>
+  <li><b>Weight</b> counts too: over STR &times; 4.5 kg you are burdened (&minus;3 m speed); STR &times; 6.8 kg is all you can carry.</li>
+  <li>Worn gear sits on the figure: body, head, throat, arms, hands, legs, main hand, off hand, ranged, cloak, neck, wrists and ten fingers.</li>
+  <li><b>Magic</b> items carry +1 to +3 ("Longsword of Might"); <b>superior</b> crafted pieces +1 (see Crafting).</li>
+  <li>The <b>safe</b> in town holds <b>120 slots</b> for the whole company. Fill it when you leave a dungeon, or from the sheet.</li>
+</ul>
+
+<h2>18. Trade and repair</h2>
+<p>Traders (the Trading Post, Ashford's merchants, caravans camped in some dungeon rooms) sell standard gear you can afford from your haul, and now and then something magical (a 10% chance, three times the price, refreshed every three adventures). They buy at half price; once a visit you may haggle with Persuasion:</p>
+<div class="formula">sale price = value &times; clamp(50% + 1% &times; (total &minus; 10), 50%, 75%)&nbsp;&nbsp;&nbsp;(a natural 1 annoys: 45%)</div>
+<div class="formula">repair = price new &times; (100 &minus; condition)% &times; &frac12;, at least 1 sp</div>
+
+<h2>19. Crafting</h2>
+<p>Three trades, each with its own <b>level from 1 to 20</b> and its own experience, kept apart from the hero: crafting never gives hero XP, and a hero's level and abilities do not help at the bench.</p>
+<table>
+  <tr><th>Trade</th><th>Station</th><th>Makes</th></tr>
+  <tr><td>Smithing</td><td>The forge</td><td>ingots from ore; every weapon and every armour (blades, mail and plate, clubs and staves, shields, leather armour)</td></tr>
+  <tr><td>Woodcraft</td><td>The bowyer's bench</td><td>bows, crossbows, arrows, bolts, bowstrings</td></tr>
+  <tr><td>Leatherwork</td><td>The tannery</td><td>tanned leather, sinew, bandages, rope</td></tr>
+</table>
+<div class="formula">roll d20 + trade level (+2 with the trade's tools) &ge; recipe DC + material's DC</div>
+<ul>
+  <li>Every recipe and material needs a <b>trade level</b> to try: DC &minus; 12 (iron plate 6, mithral plate 15). At that level you succeed about 45%; each level above adds 5%, up to 95%.</li>
+  <li><b>Superior</b>: a natural 20, or an 11+ on the die that beats the DC by 10: +1 to hit and damage, or +5% absorption; worth twice as much; ingots and arrows come out double.</li>
+  <li><b>Failure</b> (or a natural 1): half of each material is lost.</li>
+  <li><b>Trade XP</b> each attempt: the DC on a success, half on a failure, none for work you cannot fail. Levels need 30 &times; L &times; (L &minus; 1) XP: about 60 attempts to level 5, 220 to level 10, 670 to level 20.</li>
+  <li><b>Composite resources</b>: ore + coal &rarr; ingots; iron &rarr; steel; steel + silver &rarr; dwarf-steel; iron + bloodmoss &rarr; black iron; hides &rarr; leather; silk or sinew &rarr; bowstrings.</li>
+  <li><b>Material</b>: the ingot or log you choose is what the piece is made of ("Mithral longsword", "Yew longbow").</li>
+  <li>Resources come from your bag and the safe. Coal, common ores, ash and oak, hides, cloth and feathers are sold at the workshop; silver, gold, mithral, the fine woods and pelts are only found.</li>
+</ul>
+
+<h2>20. The campaign, tales and the arena</h2>
+<ul>
+  <li><b>The campaign</b> (The Steward's Signet, levels 1&ndash;3): a painted world map around Ashford. Travel between places, talk to people, take quests, trade, sleep at the inn. Places are hand-made maps with veteran foes.</li>
+  <li><b>Tales</b>: stories told in scenes and choices, with battles fought on the board.</li>
+  <li><b>The Arena</b>: build a battlefield square by square (grass, mud, rivers, walls), choose up to four heroes and any of the 356 creatures, and fight. Practice only: no XP, loot or wounds are kept.</li>
+  <li><b>The Bestiary</b>: every creature's stat block, lore and portrait.</li>
+</ul>
+<p class="small">Hero Forge uses game mechanics from the System Reference Document 5.1 (Wizards of the Coast LLC), licensed under CC-BY-4.0. Descriptions, the Westlands, and the rules for defence, injuries, the descent and crafting are this game's own.</p>
+</body>
+</html>
