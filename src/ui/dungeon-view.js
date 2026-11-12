@@ -27,7 +27,7 @@ import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
 import { play, preload, SOUND_KEYS } from './audio.js';
 import { setMood } from './music.js';
-import { getFigures, getSetting, setSetting, PACE_FACTOR } from './settings.js';
+import { getFigures, getSetting, setSetting, PACE_FACTOR, settingValue } from './settings.js';
 import { roll } from '../engine/dice.js';
 import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { furnishDungeon } from '../engine/props.js';
@@ -1323,8 +1323,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   }
 
   /**
-   * A caption that rises and fades over a square (Tibia-style). `text` may have two lines
-   * ("Piercing dmg\n4 left leg"): a small label and the amount. It lives on the effects layer
+   * A caption that rises and fades over a square (Tibia-style). `text` is a word ("miss") or a
+   * damage caption { top, main, bottom }: the kind of blow (small), the amount (big) and the
+   * body part (small); the settings can hide the small lines. It lives on the effects layer
    * (.dg-fx), which redraws never touch, so it plays once, smoothly; captions on the same square
    * stack (a bite and two claws).
    */
@@ -1335,11 +1336,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const sz = S(); const x = (pos.x + 0.5) * sz; const y = (pos.y - 0.62 * stack) * sz;
     const ns = 'http://www.w3.org/2000/svg';
     const el = document.createElementNS(ns, 'text');
-    const [a, b] = String(text).split('\n');
-    el.setAttribute('class', `dg-float ${b === undefined ? '' : 'cap2'} ${kind ?? ''} ${big ? 'big' : ''}`);
-    el.setAttribute('x', x); el.setAttribute('y', b === undefined ? y : y - sz * 0.32);
+    // A damage caption: { top: 'Piercing', main: '−4', bottom: 'L leg' } (small, big, small).
+    const cap = typeof text === 'object' ? text : null;
+    el.setAttribute('class', `dg-float ${cap ? 'cap3' : ''} ${kind ?? ''} ${big ? 'big' : ''}`);
     const span = (cls, str, dy) => { const t = document.createElementNS(ns, 'tspan'); if (cls) t.setAttribute('class', cls); t.setAttribute('x', x); if (dy) t.setAttribute('dy', dy); t.textContent = str; return t; };
-    if (b === undefined) el.textContent = a; else el.append(span('cap', a), span('', b, '1.05em'));
+    if (cap) {
+      el.setAttribute('x', x); el.setAttribute('y', y - (cap.top ? sz * 0.28 : 0));
+      if (cap.top) el.append(span('cap', cap.top));
+      el.append(span('amount', cap.main, cap.top ? '1.05em' : null));
+      if (cap.bottom) el.append(span('cap', cap.bottom, '1.25em'));
+    } else { el.setAttribute('x', x); el.setAttribute('y', y); el.textContent = String(text); }
     fx.append(el);
     const ms = reduceMotion ? 900 : 1700;
     const done = () => { el.remove(); s.floats = s.floats.filter((q) => q !== f); };
@@ -1869,7 +1875,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'reveal': s.revealAll = el.checked; redraw(); break;
       case 'rule': s.rule = el.value; redraw(); break;
       case 'setting':
-        setSetting(el.dataset.setting, el.value);
+        setSetting(el.dataset.setting, settingValue(el));
         if (el.dataset.setting === 'figures') { s.view = el.value; redraw(); }
         if (el.dataset.setting === 'pace') applyPace();
         break;

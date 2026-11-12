@@ -9,7 +9,8 @@ import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.
 import { countOf, consume } from '../../engine/items.js';
 import { absorbed, strike, wearArmour, partCover, resistance, typeFactor, afterResistance } from '../../engine/defence.js';
 import { isPhysical } from '../../engine/materials.js';
-import { partOf } from '../../engine/body.js';
+import { partOf, shortName } from '../../engine/body.js';
+import { getSetting } from '../settings.js';
 import { rollDie, roll } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
@@ -386,11 +387,11 @@ export function installAttacks(ctx) {
       dmg = Math.max(0, dmg);
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
       line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'}${where}! ${dmg} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
-      // A Tibia-style caption: what kind of blow, and how much where ("Piercing dmg / 4 left leg").
+      // A Tibia-style caption: the kind of blow (small), the damage (big), where it landed (small).
       const kinds = [...(main > 0 ? [weapon.type] : []), ...Object.keys(extraByType).filter((k) => extraByType[k] > 0)];
-      const label = `${r.crit ? 'Critical! ' : ''}${kinds.length ? `${kinds[0][0].toUpperCase()}${kinds[0].slice(1)}${kinds.length > 1 ? ` + ${kinds.slice(1).join(' + ')}` : ''} dmg` : 'Hit'}`;
-      const spot = target.lastHit && main > 0 ? ` ${partOf(target.bodyMap ?? 'humanoid', target.lastHit.part)?.name.toLowerCase() ?? ''}` : '';
-      ctx.float(target.pos, `${label}\n${dmg}${spot}`, target === s.hero ? 'bad' : 'good', r.crit);
+      const top = getSetting('dmgType') === 'on' && kinds.length ? `${r.crit ? 'Critical! ' : ''}${kinds.map((k, i) => (i ? k : `${k[0].toUpperCase()}${k.slice(1)}`)).join(' + ')}` : r.crit ? 'Critical!' : '';
+      const bottom = getSetting('dmgPart') === 'on' && target.lastHit && main > 0 ? shortName(target.bodyMap ?? 'humanoid', target.lastHit.part) : '';
+      ctx.float(target.pos, { top, main: `−${dmg}`, bottom }, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120, volume: 0.85 });

@@ -18,6 +18,7 @@ import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { injuryPenalties, healParts } from '../../engine/injury.js';
 import { attacksThisTurn } from '../../engine/combat.js';
 import { afterResistance } from '../../engine/defence.js';
+import { getSetting } from '../settings.js';
 
 export function installMonsterTurns(ctx) {
   const { reduceMotion, s, sleep } = ctx;
@@ -255,7 +256,7 @@ export function installMonsterTurns(ctx) {
     n = afterResistance(e.defence, n, type); // armour takes its share of fire, cold, poison...
     if (!(n > 0)) return 0;
     if (e.isHero) { const back = s.active; ctx.activate(ctx.memberIndex(e)); ctx.damageHero(n); ctx.activate(back); } else { n = ctx.damageMonster(e, n); ctx.finishIfDead(e); }
-    ctx.float(e.pos, type && type !== 'none' ? `${type[0].toUpperCase()}${type.slice(1)} dmg\n${n}` : `−${n}`, e.isHero || e.side ? 'bad' : 'good'); ctx.flashHit(e);
+    ctx.float(e.pos, { top: getSetting('dmgType') === 'on' && type && type !== 'none' ? `${type[0].toUpperCase()}${type.slice(1)}` : '', main: `−${n}` }, e.isHero || e.side ? 'bad' : 'good'); ctx.flashHit(e);
     return n;
   }
 

@@ -81,6 +81,7 @@
 <p>A blow passes three gates, one after another:</p>
 <div class="formula">1. EVADE&nbsp;&nbsp;d20 + attack bonus &ge; target's Evasion?&nbsp;&nbsp;no: a miss<br>2. BLOCK&nbsp;&nbsp;the target's shield or parry stops it?&nbsp;&nbsp;yes: blocked<br>3. ABSORB d100 picks where it lands; the armour there absorbs a share of the damage</div>
 <div class="formula">chance a blow lands = c + (p &minus; c) &times; (1 &minus; b)&nbsp;&nbsp;&nbsp;p: past Evasion, c: critical chance, b: block chance</div>
+<p>Every blow shows a floating caption over its target: the kind of damage (small), the amount (big) and the body part hit (small), e.g. <i>Piercing / &minus;4 / L leg</i>. The settings can hide the kind and the part.</p>
 <p>Critical hits cannot be blocked. Neither can spells, attacks from behind, or blows against the unaware or the helpless. Only a shield stops arrows.</p>
 
 <h2>5. Defence: evasion, blocking, armour</h2>
@@ -102,13 +103,13 @@
 <p>Slow, heavy creatures carry their armour in their skin: <b>natural armour</b> absorbs 6% for each point of a stat block's AC above 10 + DEX (at most 60%), over the whole body except its <b>weak spots</b> (a beast's throat and belly, a spider's abdomen). Monsters wearing mail or plate use the same armour as heroes.</p>
 
 <h2>6. Hit locations and injuries</h2>
-<p>A d100 decides where a landed blow strikes. A person's body: left arm 1&ndash;12, right arm 13&ndash;24, hands 25&ndash;32, legs 33&ndash;50, abdomen 51&ndash;65, chest 66&ndash;87, neck 88&ndash;90, head 91&ndash;100. Beasts (four legs, neck, tail) and spiders (eight legs, abdomen) have maps of their own. The armour that covers that point absorbs; a gap absorbs nothing.</p>
+<p>A d100 decides where a landed blow strikes. A person's body: left arm 1&ndash;12, right arm 13&ndash;24, hands 25&ndash;32, legs 33&ndash;50, torso 51&ndash;65, chest 66&ndash;87, neck 88&ndash;90, head 91&ndash;100. Beasts (four legs, neck, tail) and spiders (eight legs, torso) have maps of their own. The armour that covers that point absorbs; a gap absorbs nothing.</p>
 <p>A blow hurts twice: the <b>part</b> takes the damage, and <b>total HP</b> takes it times the part's multiplier.</p>
 <table>
   <tr><th>Part</th><th>Health (share of max HP)</th><th>To total HP</th><th>If crippled</th></tr>
   <tr><td>Head</td><td>75%</td><td>&times;1.5</td><td>dazed: &minus;2 Evasion, disadvantage on attacks</td></tr>
   <tr><td>Neck</td><td>60%</td><td>&times;2</td><td>bleeding: &minus;1 HP each turn</td></tr>
-  <tr><td>Chest / abdomen</td><td>90% / 80%</td><td>&times;1</td><td>bleeding</td></tr>
+  <tr><td>Chest / torso</td><td>90% / 80%</td><td>&times;1</td><td>bleeding</td></tr>
   <tr><td>Arms / hands</td><td>80% / 60%</td><td>&times;0.75 / &times;0.5</td><td>weapon arm: disadvantage, no parry; shield arm: no shield</td></tr>
   <tr><td>Legs</td><td>85%</td><td>&times;0.75</td><td>lame: &minus;2 squares of movement</td></tr>
 </table>
@@ -232,6 +233,7 @@
   <li><b>Tales</b>: stories told in scenes and choices, with battles fought on the board.</li>
   <li><b>The Arena</b>: build a battlefield square by square (grass, mud, rivers, walls), choose up to four heroes and any of the 356 creatures, and fight. Practice only: no XP, loot or wounds are kept.</li>
   <li><b>The Bestiary</b>: every creature's stat block, lore and portrait.</li>
+  <li><b>Settings</b> (on the menu and in game): light or dark colours (also the &#9728;/&#127769; button at the top), how creatures are drawn, the pace of monster turns, dice, and the damage captions.</li>
 </ul>
 <p class="small">Hero Forge uses game mechanics from the System Reference Document 5.1 (Wizards of the Coast LLC), licensed under CC-BY-4.0. Descriptions, the Westlands, and the rules for defence, injuries, the descent and crafting are this game's own.</p>
 </body>

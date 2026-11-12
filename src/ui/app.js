@@ -41,7 +41,7 @@ import { playRange } from '../engine/range.js';
 import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
-import { setSetting, settingsControls, applyTheme } from './settings.js';
+import { setSetting, settingsControls, applyTheme, settingValue, isDark } from './settings.js';
 import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl, STYLES, FRAMES, VOICES, appearanceFilter } from '../content/media.js';
 import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
@@ -232,6 +232,7 @@ function renderInto(body) {
         <button class="sound-toggle" data-action="toggle-music" aria-pressed="${music.state().enabled}" title="${esc(musicTitle())}">${music.state().enabled ? '🎵' : '🎵'}<span class="sr-only">${music.state().enabled ? 'Turn music off' : 'Turn music on'}</span></button>
         <input type="range" class="music-vol" min="0" max="100" value="${Math.round(music.state().volume * 100)}" data-music="volume" aria-label="Music volume" title="Music volume (each step is the same loudness change to the ear)" ${music.state().enabled ? '' : 'disabled'}>
       </div>
+      <button class="sound-toggle" data-action="toggle-theme" title="${isDark() ? 'Switch to light colours' : 'Switch to dark colours'}">${isDark() ? '☀' : '🌙'}<span class="sr-only">${isDark() ? 'Light colours' : 'Dark colours'}</span></button>
       <button class="sound-toggle" data-action="toggle-sound" aria-pressed="${!isMuted()}" title="${isMuted() ? 'Sound off' : 'Sound on'}">${isMuted() ? '🔇' : '🔊'}<span class="sr-only">${isMuted() ? 'Turn sound on' : 'Turn sound off'}</span></button>
       ${state.view === 'home' ? '<button class="sound-toggle" data-action="open-settings" title="Settings" aria-haspopup="dialog">⚙<span class="sr-only">Settings</span></button>' : ''}
       ${state.view === 'home' ? `
@@ -1110,7 +1111,14 @@ async function logRoll(label, bonus) {
 
 const actions = {
   /** Bodies or tokens on the map (start screen); remembered in this browser. */
-  setting(el) { setSetting(el.dataset.setting, el.value); toast('Setting saved.'); },
+  setting(el) { setSetting(el.dataset.setting, settingValue(el)); toast('Setting saved.'); },
+  // Swap colours in place: re-rendering would reset a dungeon in progress.
+  'toggle-theme'(el) {
+    setSetting('theme', isDark() ? 'light' : 'dark');
+    const dark = isDark();
+    el.innerHTML = `${dark ? '☀' : '🌙'}<span class="sr-only">${dark ? 'Light colours' : 'Dark colours'}</span>`; el.title = dark ? 'Switch to light colours' : 'Switch to dark colours';
+    for (const r of root.querySelectorAll('input[data-setting="theme"]')) r.checked = r.value === (dark ? 'dark' : 'light');
+  },
   home() {
     if (state.view === 'wizard' && state.dirty && !confirmTwice('leave', 'Leave without saving this hero?')) return;
     if (['dungeon', 'arena', 'arena-fight', 'story', 'story-fight', 'campaign', 'campaign-place'].includes(state.view)) state.tab = 'adventures';

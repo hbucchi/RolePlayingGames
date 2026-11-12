@@ -1223,6 +1223,10 @@ html { -webkit-tap-highlight-color: transparent; }
 @keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 /* Damage captions (Tibia-style): a small label line and the amount with the part hit, rising and fading. */
-.dg-float.cap2 { font-size: 30px; stroke-width: 8px; }
-.dg-float .cap { font-size: 19px; font-weight: 700; letter-spacing: .4px; }
-.dg-float.big .cap { font-size: 22px; }
+/* Damage captions: a small label (type), the amount big, a small label (part). */
+.dg-float.cap3 { font-size: 36px; stroke-width: 8px; }
+.dg-float.cap3 .amount { font-size: 38px; }
+.dg-float.cap3.big .amount { font-size: 50px; }
+.dg-float .cap { font-size: 15px; font-weight: 700; letter-spacing: .4px; stroke-width: 6px; }
+.dg-float.big .cap { font-size: 17px; }
+.toggle-opt input { accent-color: var(--accent); }

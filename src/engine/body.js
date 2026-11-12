@@ -13,13 +13,13 @@
 import { equippedIn, itemDef, itemName, JEWEL_SLOTS } from './items.js';
 
 export const BODY_PARTS = [
-  { id: 'left-arm', name: 'Left arm', weight: 12, x: 0.71, y: 0.38 },
-  { id: 'right-arm', name: 'Right arm', weight: 12, x: 0.29, y: 0.38 },
-  { id: 'left-hand', name: 'Left hand', weight: 4, x: 0.8, y: 0.54 },
-  { id: 'right-hand', name: 'Right hand', weight: 4, x: 0.2, y: 0.54 },
-  { id: 'left-leg', name: 'Left leg', weight: 9, x: 0.59, y: 0.72 },
-  { id: 'right-leg', name: 'Right leg', weight: 9, x: 0.41, y: 0.72 },
-  { id: 'abdomen', name: 'Abdomen', weight: 15, x: 0.496, y: 0.4 },
+  { id: 'left-arm', name: 'Left arm', short: 'L arm', weight: 12, x: 0.71, y: 0.38 },
+  { id: 'right-arm', name: 'Right arm', short: 'R arm', weight: 12, x: 0.29, y: 0.38 },
+  { id: 'left-hand', name: 'Left hand', short: 'L hand', weight: 4, x: 0.8, y: 0.54 },
+  { id: 'right-hand', name: 'Right hand', short: 'R hand', weight: 4, x: 0.2, y: 0.54 },
+  { id: 'left-leg', name: 'Left leg', short: 'L leg', weight: 9, x: 0.59, y: 0.72 },
+  { id: 'right-leg', name: 'Right leg', short: 'R leg', weight: 9, x: 0.41, y: 0.72 },
+  { id: 'abdomen', name: 'Torso', weight: 15, x: 0.496, y: 0.4 },
   { id: 'chest', name: 'Chest', weight: 22, x: 0.496, y: 0.27 },
   { id: 'neck', name: 'Neck', weight: 3, x: 0.496, y: 0.19 },
   { id: 'head', name: 'Head', weight: 10, x: 0.496, y: 0.09 },
@@ -36,27 +36,29 @@ stretch(BODY_PARTS);
 export const BODY_MAPS = {
   humanoid: BODY_PARTS,
   quadruped: stretch([
-    { id: 'fore-left-leg', name: 'Left foreleg', weight: 8 },
-    { id: 'fore-right-leg', name: 'Right foreleg', weight: 8 },
-    { id: 'hind-left-leg', name: 'Left hind leg', weight: 8 },
-    { id: 'hind-right-leg', name: 'Right hind leg', weight: 8 },
+    { id: 'fore-left-leg', name: 'Left foreleg', short: 'L foreleg', weight: 8 },
+    { id: 'fore-right-leg', name: 'Right foreleg', short: 'R foreleg', weight: 8 },
+    { id: 'hind-left-leg', name: 'Left hind leg', short: 'L hind leg', weight: 8 },
+    { id: 'hind-right-leg', name: 'Right hind leg', short: 'R hind leg', weight: 8 },
     { id: 'tail', name: 'Tail', weight: 5 },
-    { id: 'hindquarters', name: 'Hindquarters', weight: 13 },
-    { id: 'abdomen', name: 'Belly', weight: 12 },
-    { id: 'chest', name: 'Chest and shoulders', weight: 18 },
+    { id: 'hindquarters', name: 'Rump', weight: 13 },
+    { id: 'abdomen', name: 'Torso', weight: 12 },
+    { id: 'chest', name: 'Chest', weight: 18 },
     { id: 'neck', name: 'Neck', weight: 7 },
     { id: 'head', name: 'Head', weight: 13 },
   ]),
   arachnid: stretch([
-    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `leg-${n}`, name: `${n <= 4 ? 'Left' : 'Right'} leg ${((n - 1) % 4) + 1}`, weight: n % 2 ? 5 : 6 })),
-    { id: 'abdomen', name: 'Abdomen', weight: 24 },
-    { id: 'cephalothorax', name: 'Body', weight: 20 },
-    { id: 'head', name: 'Head and fangs', weight: 12 },
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `leg-${n}`, name: `${n <= 4 ? 'Left' : 'Right'} leg ${((n - 1) % 4) + 1}`, short: `${n <= 4 ? 'L' : 'R'} leg ${((n - 1) % 4) + 1}`, weight: n % 2 ? 5 : 6 })),
+    { id: 'abdomen', name: 'Torso', weight: 24 },
+    { id: 'cephalothorax', name: 'Thorax', weight: 20 },
+    { id: 'head', name: 'Head', weight: 12 },
   ]),
 };
 /** Humanoid parts by id (the hero's body); `partOf(map, id)` for any body. */
 export const BODY_BY_ID = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
 export const partOf = (map, id) => (BODY_MAPS[map] ?? BODY_PARTS).find((p) => p.id === id) ?? BODY_BY_ID[id];
+/** The short name of a part, for captions on the map: "L arm", "Torso". */
+export const shortName = (map, id) => { const p = partOf(map, id); return p ? (p.short ?? p.name) : id; };
 
 /**
  * What body a creature has. Spiders and scorpions: arachnid; beasts that walk on four legs

@@ -9,7 +9,7 @@
  * defeat  – what happens when every hero falls (a mod setting):
  *   'death' the usual defeat screen, 'captive' the party is taken prisoner instead
  */
-const KEYS = { theme: 'rpg.theme', figures: 'rpg.view', pace: 'rpg.pace', dice: 'rpg.dice', defeat: 'rpg.defeat' };
+const KEYS = { theme: 'rpg.theme', figures: 'rpg.view', pace: 'rpg.pace', dice: 'rpg.dice', defeat: 'rpg.defeat', dmgType: 'rpg.cap.type', dmgPart: 'rpg.cap.part' };
 
 export const SETTINGS = {
   theme: {
@@ -42,6 +42,15 @@ export const SETTINGS = {
       { id: 'all', label: 'Show every roll', hint: 'Monsters\' dice too: slower, but nothing is hidden.' },
       { id: 'off', label: 'No dice', hint: 'Results only, in the battle log.' },
     ],
+  },
+  // Toggles (checkboxes): the floating damage captions on the map ("Piercing / −4 / L leg").
+  dmgType: {
+    kind: 'toggle', group: 'Damage captions on the map', legend: 'Type of damage', fallback: 'on',
+    hint: 'Show "Piercing", "Fire"... above the damage.', choices: [{ id: 'on' }, { id: 'off' }],
+  },
+  dmgPart: {
+    kind: 'toggle', group: 'Damage captions on the map', legend: 'Body part hit', fallback: 'on',
+    hint: 'Show "L leg", "Torso"... under the damage.', choices: [{ id: 'on' }, { id: 'off' }],
   },
   defeat: {
     legend: 'When all heroes fall (mod)', fallback: 'death',
@@ -87,11 +96,27 @@ export const PACE_FACTOR = { slow: 1.8, normal: 1.4, fast: 1 };
  * on the start screen data-action="setting", in the game data-dg="setting".
  */
 export function settingsControls(attr, names = Object.keys(SETTINGS), scope = 'x') {
-  return names.map((name) => {
+  const out = []; let group = null;
+  for (const name of names) {
     const def = SETTINGS[name]; const current = getSetting(name);
-    return `<fieldset class="figures-choice"><legend>${def.legend}</legend>
+    if (def.kind === 'toggle') {
+      // Toggles that share a group sit together in one box, as checkboxes.
+      const box = `<label class="figure-opt toggle-opt"><input type="checkbox" name="${scope}-${name}" value="on" ${attr} data-setting="${name}" ${current === 'on' ? 'checked' : ''}>
+        <span><b>${def.legend}</b><small>${def.hint}</small></span></label>`;
+      if (group?.name === def.group) group.items.push(box); else { group = { name: def.group, items: [box] }; out.push(group); }
+      continue;
+    }
+    group = null;
+    out.push(`<fieldset class="figures-choice"><legend>${def.legend}</legend>
       ${def.choices.map((c) => `<label class="figure-opt"><input type="radio" name="${scope}-${name}" value="${c.id}" ${attr} data-setting="${name}" ${current === c.id ? 'checked' : ''}>
         <span><b>${c.label}</b><small>${c.hint}</small></span></label>`).join('')}
-    </fieldset>`;
-  }).join('');
+    </fieldset>`);
+  }
+  return out.map((x) => (typeof x === 'string' ? x : `<fieldset class="figures-choice"><legend>${x.name}</legend>${x.items.join('')}</fieldset>`)).join('');
 }
+
+/** The value a settings input stands for: a checkbox is "on" or "off", a radio its value. */
+export const settingValue = (el) => (el.type === 'checkbox' ? (el.checked ? 'on' : 'off') : el.value);
+
+/** Is the game showing dark colours right now (chosen, or following the device)? */
+export const isDark = () => { const v = getSetting('theme'); return v === 'dark' || (v === 'auto' && !!window.matchMedia?.('(prefers-color-scheme: dark)').matches); };
