@@ -27,6 +27,9 @@ export const CR_TABLE = {
 };
 
 /** CR as a number, for sorting and filtering ("1/4" -> 0.25). */
+/** Dragons are worth this many times their challenge rating's XP. */
+export const DRAGON_XP = 2;
+
 export function crValue(cr) {
   const s = String(cr);
   if (s.includes('/')) { const [a, b] = s.split('/').map(Number); return a / b; }
@@ -96,7 +99,10 @@ export function buildMonster(raw) {
   const scores = Object.fromEntries(ABILITY_IDS.map((id, i) => [id, raw.ab[i]]));
   const mods = Object.fromEntries(ABILITY_IDS.map((id) => [id, abilityModifier(scores[id])]));
   const cr = String(raw.cr);
-  const { xp, pb } = CR_TABLE[cr] ?? { xp: 0, pb: 2 };
+  const { xp: crXp, pb } = CR_TABLE[cr] ?? { xp: 0, pb: 2 };
+  // Dragons are much harder than their challenge rating says (a breath can fell a whole party),
+  // so they are worth twice the XP: in rewards and in the encounter budget alike.
+  const xp = raw.type === 'dragon' ? crXp * DRAGON_XP : crXp;
   const hpAvg = /d/.test(raw.hp) ? averageRoll(raw.hp) : Number(raw.hp);
   const skills = raw.skills ?? {};
   const perception = skills.perception ?? mods.wis;

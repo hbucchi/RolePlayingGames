@@ -101,7 +101,31 @@ function rollProfile(profile, cr, rng) {
 
 /** Loot from a slain monster. */
 export function rollMonsterLoot(stat, rng = cryptoRandomInt) {
-  return rollProfile(lootProfileFor(stat), stat.crValue ?? 0, rng);
+  const loot = rollProfile(lootProfileFor(stat), stat.crValue ?? 0, rng);
+  if (stat.type === 'dragon') addHoard(loot, stat, rng);
+  return loot;
+}
+
+/** How many sure magic treasures a dragon guards, by age: wyrmling 1, young 2, adult 3, ancient 4. */
+export function hoardSize(stat) {
+  const id = stat.id ?? '';
+  if (/ancient|wyrm\b|ember-wyrm/.test(id)) return 4;
+  if (/adult/.test(id)) return 3;
+  if (/young/.test(id)) return 2;
+  return 1;
+}
+
+/**
+ * A dragon's hoard, on top of what it carries: sure magic treasures (rolled as if the dragon
+ * were 3 challenge ratings higher, so they run richer), gems, and a heap of coins.
+ */
+function addHoard(loot, stat, rng) {
+  const cr = (stat.crValue ?? 0) + 3;
+  for (let i = 0; i < hoardSize(stat); i++) loot.items.push(rollMagicItem(cr, rng));
+  const gems = ['ruby', 'emerald', 'sapphire', 'diamond'];
+  for (let i = 0; i < hoardSize(stat); i++) loot.items.push(makeItem(gems[rng(gems.length)], 1 + rng(2)));
+  for (let i = 0; i < 2 * hoardSize(stat); i++) loot.coins += rollCoins(cr, rng);
+  loot.hoard = true;
 }
 
 /** Loot in a treasure chest for a dungeon of the given level; better potions at higher levels. */

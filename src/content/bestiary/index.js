@@ -16,6 +16,7 @@ import { fiends } from './fiends.js';
 import { giants } from './giants.js';
 import { elementals, celestials, constructs, fey, oozes, plants, aberrations } from './others.js';
 import { westlandsFoes } from './westlands.js';
+import { tune } from './tuning.js';
 
 const RAW = [
   ...humanoids,
@@ -35,7 +36,7 @@ const RAW = [
   ...westlandsFoes,
 ];
 
-const BUILT = RAW.map(buildMonster);
+const BUILT = RAW.map(tune).map(buildMonster); // tuning.js: stat blocks rebalanced for these rules
 
 /**
  * Test Dragon: an ancient red dragon under another name, used to try out top-down bodies

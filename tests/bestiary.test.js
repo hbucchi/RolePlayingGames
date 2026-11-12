@@ -45,3 +45,12 @@ test('filtering by type and CR', () => {
   const low = filterMonsters(BESTIARY, { type: 'humanoid', maxCr: 0.25 });
   assert.ok(low.length > 0 && low.every((m) => m.type === 'humanoid' && m.crValue <= 0.25));
 });
+
+test('tuning: heavy hitters rebalanced for these rules, and the printed stat block follows', async () => {
+  const { BESTIARY_BY_ID: B } = await import('../src/content/bestiary/index.js');
+  const sword = B['storm-giant'].actions.find((a) => a.name === 'Greatsword');
+  assert.equal(sword.attack.damage[0].dice, '4d6+9');
+  assert.match(sword.text, /\(4d6 \+ 9\)/);
+  assert.equal(B.gladiator.actions.find((a) => a.name === 'Multiattack').text, 'Makes two melee attacks.');
+  assert.ok(B.gladiator.hp < 112);
+});

@@ -62,8 +62,9 @@ function attack(a, t, st, weapon = a.weapon) {
   st.swings++;
   const pen = injuryPenalties(a);
   const tp = injuryPenalties(t);
-  const dis = pen.attackDis.length || a.cond?.frightened || a.cond?.restrained;
-  const adv = t.cond?.restrained;
+  const dis = pen.attackDis.length || a.cond?.frightened || a.cond?.restrained || a.mocked;
+  a.mocked = false;
+  const adv = t.cond?.restrained || t.cond?.paralyzed || t.stun > 0;
   const mode = dis && !adv ? 'disadvantage' : adv && !dis ? 'advantage' : 'normal';
   const r = resolveAttack({ weapon, ac: t.ac + tp.evasion, mode });
   if (!r.hit) { st.dodged++; return; }
@@ -108,10 +109,14 @@ function hurtBy(t, n, type, st) { const got = afterResistance(t.defence, n, type
 function rider(t, p) {
   if (p.rider === 'flee') t.cond.frightened = { dc: p.dc, save: 'wis' };
   if (p.rider === 'restrain') t.cond.restrained = { dc: p.dc, save: 'str' };
+  if (p.rider === 'hold') t.cond.paralyzed = { dc: p.dc, save: 'wis' };
+  if (p.rider === 'stun') t.stun = Math.max(t.stun ?? 0, 1);
+  if (p.rider === 'mock') t.mocked = true;
 }
 /** Use a power: area (everyone caught saves), single-target save, a spell attack, or darts. */
 function usePower(m, p, target, heroes, st) {
   st.powers++;
+  if (p.kind === 'heal') { m.hp = Math.min(m.maxHp, m.hp + roll(p.dice).total); return; }
   if (p.kind === 'bolt') { attack(m, target, st, { name: p.name, toHit: p.toHit, damage: p.dice, type: p.type, ranged: true, extra: [] }); return; }
   if (p.kind === 'darts') { for (let i = 0; i < p.count; i++) hurtBy(target, roll(p.dice).total, p.type, st); return; }
   const caught = p.kind === 'area' ? heroes.filter((h) => h === target || Math.random() < catchChance(p)) : [target];
@@ -124,10 +129,12 @@ function usePower(m, p, target, heroes, st) {
     if (!ok && p.rider) rider(h, p);
   }
 }
-const powerScore = (p, nHeroes) => (p.kind === 'area' ? (1 + (nHeroes - 1) * catchChance(p)) : 1) * (p.kind === 'darts' ? p.count * avg(p.dice) : p.dice ? avg(p.dice) * 0.7 : 4);
+const powerScore = (p, nHeroes) => (p.kind === 'area' ? (1 + (nHeroes - 1) * catchChance(p)) : 1) * (p.kind === 'darts' ? p.count * avg(p.dice) : p.dice ? avg(p.dice) * 0.7 : p.rider === 'hold' ? 14 : p.rider === 'stun' ? 9 : 4);
 /** The game's choice (monster-turns.js choosePower): a ready breath always; else magic often. */
 function choosePower(m, heroes) {
-  const ready = (m.powers ?? []).filter((p) => canUse(p, m.uses) && p.kind !== 'wall');
+  const mend = m.hp < m.maxHp / 2 && (m.powers ?? []).find((p) => p.kind === 'heal' && canUse(p, m.uses));
+  if (mend && Math.random() < 0.8) return mend;
+  const ready = (m.powers ?? []).filter((p) => canUse(p, m.uses) && p.kind !== 'wall' && p.kind !== 'heal');
   if (!ready.length) return null;
   const best = ready.map((p) => ({ p, s: powerScore(p, heroes.length) + (p.level > 0 ? 2 : 0) })).sort((a, b) => b.s - a.s)[0].p;
   if (best.recharge) return best;
@@ -173,7 +180,9 @@ export function fight(makeHeroes, makeFoes, { maxRounds = 40, magic = true, lege
           if (p) { spend(p, e.uses); usePower(e, p, t, alive(heroes), st.foe); continue; }
         }
       }
-      const swings = e.swings ?? Array.from({ length: e.attacks }, () => e.weapon);
+      const held = e.side === 'hero' && (e.cond.paralyzed || e.stun > 0);
+      if (e.stun > 0) e.stun--;
+      const swings = held ? [] : e.swings ?? Array.from({ length: e.attacks }, () => e.weapon);
       for (const w of swings) { if (t.hp <= 0) break; attack(e, t, st[e.side], w); }
       if (e.side === 'hero') {
         // End of a hero's turn: shake off fear or bonds; then legendary monsters may act.

@@ -194,3 +194,16 @@ test('every dungeon has stairs down in the room farthest from the entrance', asy
     assert.ok(!f.traps.some((t) => t.x === map.exit.x && t.y === map.exit.y));
   }
 });
+
+test('dragons: twice the XP, and a hoard of sure magic treasures by age', async () => {
+  const { BESTIARY_BY_ID } = await import('../src/content/bestiary/index.js');
+  const { rollMonsterLoot, hoardSize } = await import('../src/engine/loot.js');
+  const { CR_TABLE } = await import('../src/engine/monsters.js');
+  const adult = BESTIARY_BY_ID['adult-red-dragon'];
+  assert.equal(adult.xp, CR_TABLE[adult.cr].xp * 2);
+  assert.equal(BESTIARY_BY_ID.goblin.xp, 50, 'others keep their XP');
+  assert.equal(hoardSize(adult), 3); assert.equal(hoardSize(BESTIARY_BY_ID['wyrmling-red-dragon']), 1); assert.equal(hoardSize(BESTIARY_BY_ID['ancient-red-dragon']), 4);
+  const loot = rollMonsterLoot(BESTIARY_BY_ID['young-red-dragon']);
+  assert.ok(loot.hoard && loot.items.filter((i) => i.bonus || /ring|wand|cloak|amulet|potion|staff|boots|gloves|bracers/.test(i.id)).length >= 1);
+  assert.ok(loot.coins > 0);
+});

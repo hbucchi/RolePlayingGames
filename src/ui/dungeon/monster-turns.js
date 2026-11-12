@@ -5,7 +5,7 @@
  */
 import { lineOfSight, rangedCover } from '../../engine/vision.js';
 import { immobile, planMonsterTurn, facingToward, rollInitiative } from '../../engine/combat.js';
-import { GROUND, areaCells, canUse, powerRange, spend, rollRecharge } from '../../engine/monster-magic.js';
+import { GROUND, areaCells, canUse, powerRange, spend, rollRecharge, RIDER_TEXT } from '../../engine/monster-magic.js';
 import { cellKey } from '../../engine/movement.js';
 import { TILE } from '../../engine/dungeon.js';
 import { cellsOf, centerOf, spanOf, dims, rotated, blockDistance } from '../../engine/size.js';
@@ -15,7 +15,7 @@ import { fightingStyle, pickTarget } from '../../engine/tactics.js';
 import { monsterPowers } from '../../engine/monster-magic.js';
 import { reachableSquares } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
-import { injuryPenalties } from '../../engine/injury.js';
+import { injuryPenalties, healParts } from '../../engine/injury.js';
 import { attacksThisTurn } from '../../engine/combat.js';
 import { afterResistance } from '../../engine/defence.js';
 
@@ -236,6 +236,9 @@ export function installMonsterTurns(ctx) {
     if (rider === 'restrain') c.restrained = dc;
     if (rider === 'mock') c.mock = true;
     if (rider === 'prone') c.prone = true;
+    // Held (paralysed): no turns until a WIS save at the end of one; attacks from next to it always crit.
+    if (rider === 'hold') c.paralyzed = dc;
+    if (rider === 'stun') c.stun = Math.max(c.stun ?? 0, 1);
   }
 
   /** End of a hero's turn: a save to shake off fear or bonds. */
@@ -243,6 +246,8 @@ export function installMonsterTurns(ctx) {
     const c = s.hero?.cond; if (!c) return;
     if (c.frightened) { const sv = saveOf(s.hero, 'wis', c.frightened.dc); if (sv.ok) { delete c.frightened; ctx.log(`${s.hero.name} masters the fear (WIS save ${sv.total} vs DC ${sv.dc}).`, 'good'); } }
     if (c.restrained) { const sv = saveOf(s.hero, 'str', c.restrained); if (sv.ok) { delete c.restrained; ctx.log(`${s.hero.name} breaks free (STR save ${sv.total} vs DC ${sv.dc}).`, 'good'); } }
+    if (c.paralyzed && s.heldTurn) { const sv = saveOf(s.hero, 'wis', c.paralyzed); if (sv.ok) { delete c.paralyzed; ctx.log(`${s.hero.name} shakes off the hold (WIS save ${sv.total} vs DC ${sv.dc}).`, 'good'); } else ctx.log(`${s.hero.name} is still held fast (WIS save ${sv.total} vs DC ${sv.dc}).`, 'bad'); }
+    s.heldTurn = false;
   }
 
   // ---------------------------------------------------------------------------
@@ -282,8 +287,11 @@ export function installMonsterTurns(ctx) {
     const clear = rangedCover(cellsOf(m.pos, m.size ?? 1), cellsOf(target.pos, target.size ?? 1), ctx.opaque(), new Set(ctx.occupied(m))) !== 'total';
     const d = ctx.edist(m, target);
     let best = null;
+    // Badly hurt (under half its hit points), a healer mends itself first.
+    const mend = m.hp < m.maxHp / 2 && m.powers.find((p) => p.kind === 'heal' && canUse(p, m.uses));
+    if (mend && Math.random() < 0.8) return mend;
     for (const p of m.powers) {
-      if (!canUse(p, m.uses)) continue;
+      if (!canUse(p, m.uses) || p.kind === 'heal') continue;
       if (d > powerRange(p) + (p.shape === 'radius' ? 0 : 0)) continue;
       if (!clear && p.kind !== 'area' && p.kind !== 'wall') continue; // bolts, darts and single-target spells need a clear shot
       let score;
@@ -316,6 +324,14 @@ export function installMonsterTurns(ctx) {
     play(p.breath ? ctx.cry(m, 'attack') : look.sound, { volume: 0.85 });
     const from = centerOf(m.pos, m.size ?? 1); const to = centerOf(target.pos, target.size ?? 1);
     const verb = p.spell ? 'casts' : 'uses';
+    if (p.kind === 'heal') {
+      const n = Math.min(m.maxHp - m.hp, roll(p.dice).total);
+      m.hp += n; healParts(m, n);
+      ctx.showVfx('heal', centerOf(m.pos, m.size ?? 1), spanOf(m.size ?? 1) / 2, 500);
+      ctx.float(m.pos, `+${n}`, 'heal');
+      ctx.log(`${m.name} ${verb} ${p.name} and mends ${n} hit points.`, 'warn');
+      return;
+    }
     if (p.kind === 'bolt') {
       await ctx.doAttack(m, target, { name: p.name, toHit: p.toHit, damage: p.dice, type: p.type, ranged: true, melee: false, normal: powerRange(p), long: powerRange(p), spell: true });
       return;
@@ -335,7 +351,7 @@ export function installMonsterTurns(ctx) {
       const dmg = r ? (sv.ok ? (p.half ? Math.floor(r.total / 2) : 0) : r.total) : 0;
       dmg = hurt(target, dmg, p.type);
       if (!sv.ok && p.rider) riderOn(target, p.rider, p.dc);
-      ctx.log(`${m.name} ${verb} ${p.name} on ${target.name}: ${p.save.toUpperCase()} save ${sv.total} vs DC ${p.dc} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type} damage` : ''}${!sv.ok && p.rider ? ` (${ctx.riderText[p.rider === 'flee' ? 'flee' : p.rider] ?? p.rider})` : ''}.`, target.isHero || target.side ? 'bad' : 'info');
+      ctx.log(`${m.name} ${verb} ${p.name} on ${target.name}: ${p.save.toUpperCase()} save ${sv.total} vs DC ${p.dc} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type} damage` : ''}${!sv.ok && p.rider ? ` (${RIDER_TEXT[p.rider] ?? p.rider})` : ''}.`, target.isHero || target.side ? 'bad' : 'info');
       return;
     }
     if (p.kind === 'wall') {
@@ -365,7 +381,7 @@ export function installMonsterTurns(ctx) {
       if (sv.evasion && r) dmg = sv.ok ? 0 : Math.floor(r.total / 2);
       dmg = hurt(e, dmg, p.type);
       if (!sv.ok && p.rider) riderOn(e, p.rider, p.dc);
-      lines.push(`${e.name}: ${p.save.toUpperCase()} ${sv.total} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type}` : ''}${!sv.ok && p.rider ? ` (${p.rider === 'flee' ? 'frightened' : p.rider === 'restrain' ? 'restrained' : p.rider})` : ''}`);
+      lines.push(`${e.name}: ${p.save.toUpperCase()} ${sv.total} ${sv.ok ? 'saves' : 'fails'}${r ? `, ${dmg} ${p.type}` : ''}${!sv.ok && p.rider ? ` (${RIDER_TEXT[p.rider] ?? p.rider})` : ''}`);
     }
     if (p.linger) addGround(p.linger, cells, p.lingerRounds ?? 2, { dc: p.dc, owner: m.id });
     ctx.log(`${m.name} ${verb} ${p.name}${r ? ` (${p.dice} = ${r.total})` : ''}! ${lines.join('; ') || 'It catches no one'}.${p.linger ? ` ${GROUND[p.linger].label[0].toUpperCase()}${GROUND[p.linger].label.slice(1)} for ${p.lingerRounds ?? 2} rounds.` : ''}`, 'bad');

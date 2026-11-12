@@ -5,7 +5,10 @@
  * Each usable power becomes a plain object:
  *   { id, name, kind, range, save, dc, dice, type, half, shape, size, rider, linger, level, recharge, perDay }
  * kind: 'bolt' (spell attack roll), 'darts' (never misses), 'save' (one target saves),
- *       'area' (everyone in a cone, line, burst or ring saves), 'wall' (a lasting line of fire).
+ *       'area' (everyone in a cone, line, burst or ring saves), 'wall' (a lasting line of fire),
+ *       'heal' (mends the caster, when badly hurt).
+ * rider: what a failed save also does: flee (frightened), restrain, prone, mock (disadvantage),
+ *       hold (paralysed until a WIS save at the end of its turn), stun (loses its next turn).
  * shape (squares): 'radius' n around a point, 'around' n around the caster, 'cone' n long, 'line' n long.
  * linger: ground left changed for a few rounds: 'fire' burns, 'ice' and 'rubble' slow,
  *         'poison' chokes.
@@ -40,7 +43,36 @@ export const MONSTER_SPELLS = {
   disintegrate: { kind: 'save', save: 'dex', dice: '10d6+40', type: 'force', range: 12, level: 6, half: false },
   harm: { kind: 'save', save: 'con', dice: '14d6', type: 'necrotic', range: 12, level: 6, half: true },
   'finger of death': { kind: 'save', save: 'con', dice: '7d8+30', type: 'necrotic', range: 12, level: 7, half: true },
+  // Touch and short-range attacks
+  'shocking grasp': { kind: 'bolt', dice: '1d8', type: 'lightning', range: 1, level: 0 },
+  'inflict wounds': { kind: 'bolt', dice: '3d10', type: 'necrotic', range: 1, level: 1 },
+  'spiritual weapon': { kind: 'bolt', dice: '1d8+3', type: 'force', range: 12, level: 2 },
+  'heat metal': { kind: 'save', save: 'con', dice: '2d8', type: 'fire', range: 12, level: 2, half: false },
+  'phantasmal killer': { kind: 'save', save: 'wis', dice: '4d10', type: 'psychic', range: 24, level: 4, half: false, rider: 'flee' },
+  'power word kill': { kind: 'save', save: 'con', dice: '10d10+20', type: 'necrotic', range: 12, level: 9, half: false }, // here: a killing word that a hardy hero may outlast
+  // Holding, stunning, confusing: the hero loses turns (hold: a WIS save at the end of each)
+  'hold person': { kind: 'save', save: 'wis', range: 12, level: 2, rider: 'hold' },
+  'hold monster': { kind: 'save', save: 'wis', range: 18, level: 5, rider: 'hold' },
+  suggestion: { kind: 'save', save: 'wis', range: 6, level: 2, rider: 'stun' }, // "drop your sword and walk away"
+  'bestow curse': { kind: 'save', save: 'wis', range: 1, level: 3, rider: 'mock' },
+  banishment: { kind: 'save', save: 'cha', range: 12, level: 4, rider: 'hold' },
+  'dominate person': { kind: 'save', save: 'wis', range: 12, level: 5, rider: 'hold' },
+  'dominate monster': { kind: 'save', save: 'wis', range: 12, level: 8, rider: 'hold' },
+  'power word stun': { kind: 'save', save: 'con', range: 12, level: 8, rider: 'stun' },
+  confusion: { kind: 'area', shape: 'radius', size: 2, range: 18, save: 'wis', type: 'none', rider: 'stun', level: 4 },
+  // Great blasts
+  'spirit guardians': { kind: 'area', shape: 'around', size: 3, save: 'wis', dice: '3d8', type: 'radiant', half: true, level: 3 },
+  'insect plague': { kind: 'area', shape: 'radius', size: 4, range: 60, save: 'con', dice: '4d10', type: 'piercing', half: true, level: 5, linger: 'poison', lingerRounds: 3 },
+  'blade barrier': { kind: 'area', shape: 'line', size: 12, save: 'dex', dice: '6d10', type: 'slashing', half: true, level: 6, linger: 'rubble', lingerRounds: 3 },
+  'circle of death': { kind: 'area', shape: 'radius', size: 6, range: 30, save: 'con', dice: '8d6', type: 'necrotic', half: true, level: 6 },
+  'fire storm': { kind: 'area', shape: 'radius', size: 4, range: 30, save: 'dex', dice: '7d10', type: 'fire', half: true, level: 7, linger: 'fire', lingerRounds: 2 },
+  // Mending its own wounds, when badly hurt
+  'cure wounds': { kind: 'heal', dice: '1d8+3', level: 1 },
+  'mass cure wounds': { kind: 'heal', dice: '3d8+4', level: 5 },
+  heal: { kind: 'heal', dice: '70', level: 6 },
 };
+/** What each rider does to a hero, in words. */
+export const RIDER_TEXT = { flee: 'frightened', restrain: 'restrained', prone: 'knocked prone', mock: 'cursed: disadvantage on the next attack', hold: 'held fast (paralysed)', stun: 'stunned: loses a turn' };
 
 /** What a damage type leaves on the ground when a breath or blast lingers. */
 export const LINGER_FOR_TYPE = { fire: 'fire', cold: 'ice', thunder: 'rubble', lightning: 'rubble', poison: 'poison', acid: 'poison' };
@@ -70,7 +102,15 @@ export function parseAreaAction(action) {
   // "One creature within 60 feet", "at one target within 60 feet": a gaze or a word at one
   // target, not a blast around the caster.
   const single = !cone && !line && /(?:^|targets |at )one (?:creature|target)\b/i.test(text);
-  if (cone) { shape = 'cone'; size = Number(cone[1]) / 5; } else if (line) { shape = 'line'; size = Number(line[1]) / 5; } else if (within && !single) { shape = 'around'; size = Math.min(12, Number(within[1]) / 5); }
+  // A burst: "each creature within 10 feet of that point", "in a 20-foot radius". At a point it
+  // aims at (Lightning Strike), or all around itself ("extends out from the vrock").
+  const burst = /within (\d+) feet of (?:that|the) point/.exec(text) ?? /(\d+)-foot[- ]radius/.exec(text);
+  const atPoint = /\bpoint\b/.test(text);
+  let range;
+  if (cone) { shape = 'cone'; size = Number(cone[1]) / 5; } else if (line) { shape = 'line'; size = Number(line[1]) / 5; } else if (burst) {
+    shape = atPoint ? 'radius' : 'around'; size = Math.min(12, Number(burst[1]) / 5);
+    if (atPoint) { const far = /point (?:it can see )?within (\d+) feet/.exec(text) ?? within; range = far ? Number(far[1]) / 5 : 12; }
+  } else if (within && !single) { shape = 'around'; size = Math.min(12, Number(within[1]) / 5); }
   if (!shape && !single) return null;
   const dmg = /\d+ \((\d+d\d+(?: [+-] \d+)?)\) (\w+) damage/.exec(text);
   const rider = /frightened/.test(text) ? 'flee' : /restrained/.test(text) ? 'restrain' : /prone/.test(text) ? 'prone' : null;
@@ -80,7 +120,7 @@ export function parseAreaAction(action) {
   const type = dmg ? dmg[2] : 'none';
   return {
     id: action.name.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-+$/, ''),
-    name: action.name.replace(/\s*\(.*\)$/, ''), kind: single ? 'save' : 'area', shape, size, range: single && within ? Number(within[1]) / 5 : undefined,
+    name: action.name.replace(/\s*\(.*\)$/, ''), kind: single ? 'save' : 'area', shape, size, range: single && within ? Number(within[1]) / 5 : range,
     save: ABIL[save[2].toLowerCase()], dc: Number(save[1]), dice: dmg ? dmg[1].replace(/ /g, '') : null, type,
     half: /half as much/.test(text), rider,
     linger: dmg && shape && shape !== 'around' ? LINGER_FOR_TYPE[type] ?? null : null, lingerRounds: 2,

@@ -709,6 +709,16 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Song of Heroes: temporary hit points equal to your spellcasting modifier each turn.
       if (s.buffs.heroism) s.hero.tempHp = Math.max(s.hero.tempHp ?? 0, s.def?.caster?.mod ?? 1);
       refreshAC();
+      // Held (Hold Person) or stunned: this turn is lost. A held hero tries a WIS save at its end.
+      const c = s.hero.cond ?? {};
+      if (s.mode === 'combat' && s.hero.hp > 0 && (c.paralyzed || c.stun > 0)) {
+        if (c.stun > 0) c.stun--;
+        s.heldTurn = !!c.paralyzed;
+        s.actionUsed = true; s.bonusUsed = true; s.moveLeft = 0;
+        log(`${s.hero.name} ${c.paralyzed ? 'is held fast and cannot move' : 'is stunned and loses the turn'}.`, 'bad');
+        const who = s.hero;
+        setTimeout(() => { if (s.hero === who && s.mode === 'combat' && !s.busy) endHeroTurn(); }, 900);
+      }
     }
   }
 
