@@ -166,14 +166,14 @@ export function placeFeatures(map, seed, level = 1) {
  * Fill rooms with monsters suited to the hero's level using the encounter budget:
  * most rooms easy or medium, a few hard. About half the rooms are empty.
  */
-export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = new Set(), partySize = 1 } = {}) {
+export function populateDungeon(map, seed, level, pool, { chance = 0.5, avoid = new Set(), partySize = 1, mix = { easy: 40, medium: 45 } } = {}) {
   const rng = seededRng((seed * 2654435761) >>> 0);
   const monsters = [];
   let n = 0;
   for (const r of map.rooms) {
     if (r.entrance || rng(1000) / 1000 >= chance) continue;
     const roll = rng(100);
-    const difficulty = roll < 40 ? 'easy' : roll < 85 ? 'medium' : 'hard';
+    const difficulty = roll < mix.easy ? 'easy' : roll < mix.easy + mix.medium ? 'medium' : 'hard'; // deeper floors are harder (depths.js)
     const group = buildEncounter(level, pool, rng, { difficulty, partySize, maxCount: Math.min(4, partySize + 1) });
     const used = new Set();
     for (const stat of group) {

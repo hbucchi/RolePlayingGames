@@ -429,6 +429,27 @@ function tryGenerate(seed, cfg) {
 }
 
 /**
+ * The tenth floor (engine/depths.js): one great hall. The party comes in at the south end; the
+ * boss waits at the north end, with its hoard and the way out behind it. Pillars break the
+ * line of sight here and there.
+ */
+export function generateBossLair(seed = 1, { width = 32, height = 32 } = {}) {
+  const rng = seededRng((seed >>> 0) || 1);
+  const grid = Array.from({ length: height }, () => Array(width).fill(TILE.ROCK));
+  const hall = { id: 1, x: 6, y: 5, w: 20, h: 22, size: 'large', name: 'The Throne of the Deep', doors: [], entrance: true };
+  for (let y = hall.y; y < hall.y + hall.h; y++) for (let x = hall.x; x < hall.x + hall.w; x++) grid[y][x] = TILE.ROOM;
+  // Two rows of pillars down the hall, leaving the middle open.
+  for (const px of [hall.x + 4, hall.x + hall.w - 5]) for (let y = hall.y + 4; y < hall.y + hall.h - 4; y += 4 + rng(2)) grid[y][px] = TILE.ROCK;
+  return {
+    version: 1, width, height, cellSize: DUNGEON_DEFAULTS.cellSize, feetPerCell: DUNGEON_DEFAULTS.feetPerCell,
+    tiles: grid, rooms: [hall], doors: [], seed, boss: true,
+    entrance: { roomId: 1, x: hall.x + Math.floor(hall.w / 2), y: hall.y + hall.h - 1 },
+    exit: { roomId: 1, x: hall.x + Math.floor(hall.w / 2), y: hall.y, distance: hall.h },
+    throne: { x: hall.x + Math.floor(hall.w / 2) - 1, y: hall.y + 3 },
+  };
+}
+
+/**
  * The way down: stairs in the room whose centre is the longest walk from the entrance
  * (breadth-first search distances), so finding them means exploring the dungeon.
  */

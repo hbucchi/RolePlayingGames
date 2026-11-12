@@ -24,6 +24,7 @@ import { roll, rollAbilityScore, rollDie } from '../engine/dice.js';
 import { SKILLS } from '../engine/skills.js';
 import { createRoster, exportCharacter, importCharacter, defaultBackend } from '../engine/storage.js';
 import { createDelveStore } from '../engine/delve.js';
+import { healInTown, healCost, isHurt, woundsOf } from '../engine/healing.js';
 import { createSafe, SAFE_SLOTS } from '../engine/safe.js';
 const safe = createSafe(defaultBackend());
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
@@ -385,6 +386,15 @@ function marketView() {
     ${d ? `<div class="card market-card-body">
       <div class="market-hero"><img src="${esc(heroLook(d).url ?? '')}" alt="" style="filter:${heroLook(d).filter ?? 'none'}"><div><h3>${esc(c.name)}</h3><p class="small muted">Level ${c.level} ${esc(c.race.name)} ${esc(c.cls.name)} · CHA ${c.scores.cha} (${c.mods.cha >= 0 ? '+' : ''}${c.mods.cha})</p></div></div>
       ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader', tab: state.market.tab ?? 'buy', shelf: state.market.shelf, smith: true, stock: martaStock(c.level, h?.rate ?? BASE_RATE) })}
+    </div>
+    <div class="card market-heal">
+      <h3>Rest and healing</h3>
+      <p class="small">${isHurt(d) ? `${esc(c.name)} is hurt: <b>${c.maxHp - Math.min(woundsOf(d), c.maxHp - 1)} / ${c.maxHp} HP</b>${Object.values(d.injuries ?? {}).some((v) => v > 0) ? ', with injuries' : ''}.` : `${esc(c.name)} is whole: ${c.maxHp} / ${c.maxHp} HP.`}</p>
+      <div class="row wrap">
+        <button class="btn small" data-tr="heal-inn" ${isHurt(d) ? '' : 'disabled'}>🛏 The Golden Perch: a bed for the night (${esc(formatCoins(healCost(d, 'inn')))})</button>
+        <button class="btn small" data-tr="heal-healer" ${isHurt(d) ? '' : 'disabled'}>✚ Sister Wynn, healer: mend now (${esc(formatCoins(healCost(d, 'healer')))}, 2 sp per HP)</button>
+      </div>
+      <p class="small muted">Both mend every wound and injury. The healer is cheaper for small wounds, the inn for deep ones.</p>
     </div>` : '<p class="muted">Make or adopt a hero first.</p>'}
   </section>`;
 }
@@ -427,6 +437,12 @@ root.addEventListener('click', async (e) => {
   const rate = state.market.haggles[id]?.rate ?? BASE_RATE;
   if (el.dataset.tr === 'trade-tab') { state.market.tab = el.dataset.tab; render(); return; }
   if (el.dataset.tr === 'trade-shelf') { state.market.shelf = el.dataset.shelf; render(); return; }
+  if (el.dataset.tr === 'heal-inn' || el.dataset.tr === 'heal-healer') {
+    const r = healInTown(d, el.dataset.tr === 'heal-inn' ? 'inn' : 'healer');
+    if (!r.ok) { notify(r.message, 'bad'); return; }
+    keep(heroApi.save(d)); notify(`${r.message} (${formatCoins(r.cost)})`, 'ok');
+    render(); return;
+  }
   if (el.dataset.tr === 'trade-repair') {
     const r = repair(d, el.dataset.uid || null);
     if (!r.ok) { notify(r.message, 'bad'); return; }
@@ -456,6 +472,12 @@ root.addEventListener('click', async (e) => {
   }
   render();
 });
+
+/** The deepest floor reached and the bosses slain (dungeon-view.js noteRecord). */
+function delveRecordHtml() {
+  let r = {}; try { r = JSON.parse(localStorage.getItem('rpg.delve.best') ?? '{}'); } catch { /* storage blocked */ }
+  return `<p class="small"><b>10 floors</b>, deeper is deadlier and richer; a boss waits on the last.${r.deepest ? ` Deepest reached: <b>floor ${r.deepest}</b>${r.bosses ? ` · bosses slain: <b>${r.bosses}</b>` : ''}.` : ''}</p>`;
+}
 
 function adventuresView() {
   return `
@@ -489,7 +511,7 @@ function adventuresView() {
             <p>${esc(a.blurb)}</p>
             <p class="muted small">Levels ${esc(a.levels)} · ${esc(a.length)}</p>
             ${a.story ? `<button class="btn small primary" data-action="start-story" data-id="${esc(a.story)}">${savedRun(a.story) ? 'Continue the tale' : 'Begin the tale'}</button>`
-    : playable ? `<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
+    : playable ? `${delveRecordHtml()}<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
           </article>`;
   }).join('')}
       </div>

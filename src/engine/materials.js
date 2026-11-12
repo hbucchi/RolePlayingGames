@@ -75,6 +75,7 @@ export function metalOf(inst, def) {
   if (!isMetal(def)) return null;
   if (inst?.material && METALS[inst.material]) return inst.material;
   if (/mithral/.test(def.id)) return 'mithral';
+  if (/^silvered-/.test(def.id)) return 'silver';
   if (/iron/.test(def.id)) return 'iron';
   return DEFAULT_METAL;
 }

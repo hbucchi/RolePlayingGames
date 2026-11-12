@@ -515,7 +515,7 @@ export function installPanels(ctx) {
   function nearbyThings() {
     if (!s.hero || !s.features) return [];
     const list = [];
-    if (ctx.onExit()) list.push(ctx.place ? { kind: 'stairs', id: 'down', label: 'Leave for the world map', glyph: '🗺' } : { kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' });
+    if (ctx.onExit()) list.push(ctx.place ? { kind: 'stairs', id: 'down', label: 'Leave for the world map', glyph: '🗺' } : (s.map?.boss ? { kind: 'stairs', id: 'down', label: 'Climb out to the daylight', glyph: '⬆' } : { kind: 'stairs', id: 'down', label: `Take the stairs down to depth ${s.depth + 1}`, glyph: '⬇' }));
     for (const m of s.monsters) if (m.dead && m.loot && (m.loot.coins || m.loot.items.length) && cellsOf(m.pos, m.size ?? 1).some((c) => ctx.adjacent(c))) list.push({ kind: 'corpse', id: m.id, label: `Search the ${m.name.toLowerCase()}'s body`, glyph: '💰' });
     for (const c of s.features.chests) if (ctx.adjacent(c) && !(c.opened && !c.loot?.coins && !c.loot?.items.length)) list.push({ kind: 'chest', id: c.id, label: c.locked ? 'Locked chest' : c.opened ? 'Open chest' : 'Chest', glyph: c.locked ? '🔒' : '🧰' });
     for (const f of [s.features.totem, s.features.camp].filter(Boolean)) if (!f.used && ctx.adjacent(f)) list.push({ kind: f === s.features.totem ? 'totem' : 'camp', id: f === s.features.totem ? 'totem' : 'camp', label: f === s.features.totem ? 'Mana totem' : 'Sleep by the fire', glyph: f === s.features.totem ? '💎' : '🔥' });

@@ -61,3 +61,13 @@ test('xp rates: dungeons teach little, the campaign most; campaign foes are vete
   assert.equal(v.maxHp, Math.round(g.maxHp * 1.3));
   assert.equal(v.weapons[0].toHit, g.weapons[0].toHit + 1);
 });
+
+test('healing in town: the inn mends all for 1 gp, the healer 2 sp per hit point', async () => {
+  const { healInTown, healCost } = await import('../src/engine/healing.js');
+  const d = { coins: 500, wounds: 3, injuries: { 'left-arm': 4 } };
+  assert.equal(healCost(d, 'healer'), 60); assert.equal(healCost(d, 'inn'), 100);
+  const r = healInTown(d, 'healer');
+  assert.ok(r.ok); assert.equal(d.coins, 440); assert.equal(d.wounds, 0); assert.deepEqual(d.injuries, {});
+  assert.equal(healInTown(d, 'inn').ok, false, 'nothing to mend');
+  assert.equal(healInTown({ coins: 10, wounds: 9 }, 'inn').ok, false, 'not enough coin');
+});

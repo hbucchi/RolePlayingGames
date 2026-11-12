@@ -1194,3 +1194,5 @@ html { -webkit-tap-highlight-color: transparent; }
 .safe-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
 .safe-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
 .safe-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.market-heal { display: grid; gap: 8px; padding: 14px 18px; margin-top: 12px; }
+.market-heal h3 { margin: 0; }

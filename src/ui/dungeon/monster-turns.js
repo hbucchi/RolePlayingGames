@@ -139,8 +139,38 @@ export function installMonsterTurns(ctx) {
     return spots[0].path.length - 1;
   }
 
+  /**
+   * Legendary actions (combat.js legendaryOf): a boss gets ONE extra move a round, taken at the
+   * end of a hero's turn: a tail swipe at someone in reach, or a buffet of wings when it would
+   * catch two or more. (In 5e it is three; one keeps a boss fight hard but winnable.)
+   */
+  async function legendaryActions() {
+    for (const m of s.monsters) {
+      if (!m.legendary || m.legUsed || m.dead || m.side || !m.aware || m.calm || ctx.helpless?.(m) || m.cond?.petrified) continue;
+      const heroes = [...ctx.partyAlive(), ...ctx.allies()];
+      let pick = null;
+      for (const o of m.legendary.options) {
+        if (o.power) {
+          const near = heroes.filter((h) => ctx.edist(h, m) <= (o.power.size ?? 1) + 1);
+          if (!near.length) continue;
+          const caught = creaturesIn(powerCells(m, o.power, near[0]), m).filter((e) => heroes.includes(e)).length;
+          if (caught >= 2 && (!pick || pick.score < caught * 10)) pick = { o, target: near[0], score: caught * 10 };
+        } else {
+          const t = heroes.filter((h) => ctx.edist(h, m) <= (o.weapon.reach ?? 1)).sort((a, b) => a.hp - b.hp)[0];
+          if (t && (!pick || pick.score < 5)) pick = { o, target: t, score: 5 };
+        }
+      }
+      if (!pick) continue;
+      m.legUsed = true;
+      ctx.log(`${m.name} takes a legendary action: ${pick.o.name}!`, 'warn');
+      if (pick.o.weapon) await ctx.doAttack(m, pick.target, pick.o.weapon);
+      else await castPower(m, pick.o.power, pick.target);
+      if (ctx.partyDown()) return;
+    }
+  }
+
   async function monsterTurn(m, target = s.hero, { moveOnly = false } = {}) {
-    m.reaction = true; m.burnedThisTurn = false;
+    m.reaction = true; m.burnedThisTurn = false; m.legUsed = false;
     ctx.banner(`${m.name}'s turn`);
     await startOfMonsterTurn(m);
     if (m.dead) return true;
@@ -490,5 +520,5 @@ export function installMonsterTurns(ctx) {
     }
   }
 
-  return { runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves };
+  return { legendaryActions, runMonsterTurns, monsterTurn, styleOf, syncGround, addGround, saveOf, hurt, riderOn, heroEndOfTurnSaves, inBounds, creaturesIn, avgDice, powerCells, choosePower, castPower, turnBody, startOfMonsterTurn, allyTurn, tickAllyTime, endAlliance, joinParty, endOfTurnSaves };
 }

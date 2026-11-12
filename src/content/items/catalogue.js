@@ -78,6 +78,13 @@ weapon('morningstar', 'Morningstar', 'martial', '1d8', 'piercing', 15 * GP, 4);
 weapon('rapier', 'Rapier', 'martial', '1d8', 'piercing', 25 * GP, 2, ['finesse']);
 weapon('scimitar', 'Scimitar', 'martial', '1d6', 'slashing', 25 * GP, 3, ['finesse', 'light'], { desc: 'A curved, notched blade of goblin make. Crude, but sharp.' });
 weapon('shortsword', 'Short sword', 'martial', '1d6', 'piercing', 10 * GP, 2, ['finesse', 'light'], { desc: 'A short, leaf-shaped blade, ideal for small hands and quick work.' });
+// Silvered blades (materials.js 'silver', worth 4x): they bite creatures that shrug off plain steel
+// (werewolves, many devils and spirits) and burn the undead and fiends for an extra 1d6 radiant.
+// Sold by every trader, so a party can prepare before such foes turn up (levels 3-5).
+weapon('silvered-dagger', 'Silvered dagger', 'simple', '1d4', 'piercing', 2 * GP, 1, ['finesse', 'light', 'thrown 20/60'], { desc: 'A dagger with a silvered edge. Werewolves and restless dead fear it.', icon: icon('dagger') });
+weapon('silvered-shortsword', 'Silvered short sword', 'martial', '1d6', 'piercing', 10 * GP, 2, ['finesse', 'light'], { desc: 'A short blade washed in silver: it bites what plain steel cannot.', icon: icon('shortsword') });
+weapon('silvered-longsword', 'Silvered longsword', 'martial', '1d8', 'slashing', 15 * GP, 3, ['versatile 1d10'], { desc: 'A longsword with a silvered edge, for hunters of werewolves and wights.', icon: icon('longsword') });
+weapon('silvered-rapier', 'Silvered rapier', 'martial', '1d8', 'piercing', 25 * GP, 2, ['finesse'], { desc: 'A duellist\'s blade, silvered: elegant, and deadly to the cursed.', icon: icon('rapier') });
 weapon('long-knife', 'Long knife', 'martial', '1d6', 'piercing', 8 * GP, 2, ['finesse', 'light'], { desc: 'A long hunting knife of the northern rangers, worn at the hip.' });
 weapon('war-pick', 'War pick', 'martial', '1d8', 'piercing', 5 * GP, 2);
 weapon('warhammer', 'Warhammer', 'martial', '1d8', 'bludgeoning', 15 * GP, 2, ['versatile 1d10']);

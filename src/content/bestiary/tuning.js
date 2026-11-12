@@ -26,6 +26,10 @@ export const TUNING = {
   'shambling-mound': { hp: 0.8 },
   chuul: { hp: 0.8 },
   centaur: { hp: 0.85 },
+  // Westlands foes
+  'orc-captain': { hp: 0.85, multi: 'Makes two attacks: one with its heavy scimitar and one with its whip.', why: 'three attacks behind mail and a shield, at CR 4' },
+  'stone-troll': { hp: 0.75, why: '95 HP that plain weapons barely dent, at CR 5' },
+  'dread-sovereign-of-the-hooded-riders': { hp: 0.8, damage: 0.75, why: 'plate, a shield, two heavy blows and a book of killing spells' },
 };
 
 const scaleDice = (dice, f) => String(dice).replace(/^(\d+)d/, (_, n) => `${Math.max(1, Math.round(Number(n) * f))}d`);

@@ -11,7 +11,7 @@ import { skillXp, freshResources, monsterSave, sneakAttackDice, concentrationDC 
 import { chebyshev, escapeBonus } from '../../engine/combat.js';
 import { cellKey, reachableSquares } from '../../engine/movement.js';
 import { blockDistance } from '../../engine/size.js';
-import { rollChestLoot } from '../../engine/loot.js';
+import { rollChestLoot, rollMagicItem } from '../../engine/loot.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { skillCheck, forceDc, NOISE } from '../../engine/features.js';
 import { lineOfSight } from '../../engine/vision.js';
@@ -259,7 +259,14 @@ export function installActions(ctx) {
     if (c.locked) { ctx.banner('The chest is locked.'); return; }
     if (!c.opened) {
       c.opened = true;
-      c.loot ??= rollChestLoot(s.def.level ?? 1); // a campaign chest holds what was put in it
+      // A campaign chest holds what was put in it; a deeper floor's chests are richer (depths.js),
+      // and the boss's hoard richer still: three chests' worth, with sure magic.
+      if (!c.loot) {
+        const lv = (s.lootLevel ?? s.def.level ?? 1) + (c.hoard ? 3 : 0);
+        c.loot = rollChestLoot(lv);
+        if (c.hoard) { for (let i = 0; i < 2; i++) { const more = rollChestLoot(lv); c.loot.items.push(...more.items); c.loot.coins += more.coins; } c.loot.items.push(rollMagicItem(lv)); }
+        c.loot.coins = Math.round(c.loot.coins * (s.coinMult ?? 1));
+      }
       // The key to an iron door somewhere in this dungeon (features.js: one key, one door).
       if (c.keyFor && !c.loot.items.some((it) => it.door === c.keyFor)) c.loot.items.unshift(makeItem('iron-key', 1, { door: c.keyFor, label: doorName(c.keyFor) }));
       play('chest-open', { volume: 0.9 });

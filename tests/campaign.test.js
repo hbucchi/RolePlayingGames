@@ -63,6 +63,6 @@ test('shops and paid services check the purse', () => {
   const c = CAMPAIGNS[0]; const run = newRun(c);
   const poor = npcView(c, run, 'maudie', { coins: 10 }).options.find((o) => o.label.startsWith('Rent'));
   assert.equal(poor.why, 'not enough coin');
-  const r = npcChoose(c, run, 'maudie', poor.i, { coins: 100 });
-  assert.deepEqual(r.effects, [{ coins: -50 }, { rest: true }]); // a night's sleep: hit points and mana
+  const r = npcChoose(c, run, 'maudie', poor.i, { coins: 150 });
+  assert.deepEqual(r.effects, [{ coins: -100 }, { heal: true }, { rest: true }]); // a night's sleep: wounds and mana
 });
