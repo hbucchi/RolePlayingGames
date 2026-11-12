@@ -1322,10 +1322,35 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     bannerTimer = setTimeout(() => el.classList.remove('show'), 1800);
   }
 
+  /**
+   * A caption that rises and fades over a square (Tibia-style). `text` may have two lines
+   * ("Piercing dmg\n4 left leg"): a small label and the amount. It lives on the effects layer
+   * (.dg-fx), which redraws never touch, so it plays once, smoothly; captions on the same square
+   * stack (a bite and two claws).
+   */
   function float(pos, text, kind, big = false) {
-    const f = { x: pos.x, y: pos.y, text, kind, big, id: Math.random() };
-    s.floats.push(f);
-    setTimeout(() => { s.floats = s.floats.filter((x) => x !== f); drawOverlay(); }, reduceMotion ? 600 : 1300);
+    const fx = $('.dg-fx'); if (!fx) return;
+    const stack = s.floats.filter((x) => x.x === pos.x && x.y === pos.y).length;
+    const f = { x: pos.x, y: pos.y }; s.floats.push(f);
+    const sz = S(); const x = (pos.x + 0.5) * sz; const y = (pos.y - 0.62 * stack) * sz;
+    const ns = 'http://www.w3.org/2000/svg';
+    const el = document.createElementNS(ns, 'text');
+    const [a, b] = String(text).split('\n');
+    el.setAttribute('class', `dg-float ${b === undefined ? '' : 'cap2'} ${kind ?? ''} ${big ? 'big' : ''}`);
+    el.setAttribute('x', x); el.setAttribute('y', b === undefined ? y : y - sz * 0.32);
+    const span = (cls, str, dy) => { const t = document.createElementNS(ns, 'tspan'); if (cls) t.setAttribute('class', cls); t.setAttribute('x', x); if (dy) t.setAttribute('dy', dy); t.textContent = str; return t; };
+    if (b === undefined) el.textContent = a; else el.append(span('cap', a), span('', b, '1.05em'));
+    fx.append(el);
+    const ms = reduceMotion ? 900 : 1700;
+    const done = () => { el.remove(); s.floats = s.floats.filter((q) => q !== f); };
+    if (reduceMotion || !el.animate) { setTimeout(done, ms); return; }
+    // Pop in, hold and drift up at full strength, then rise away as it fades.
+    el.animate([
+      { transform: 'translateY(10px) scale(.85)', opacity: 0, easing: 'cubic-bezier(.2,.8,.3,1.2)' },
+      { transform: 'translateY(0) scale(1)', opacity: 1, offset: 0.12, easing: 'ease-out' },
+      { transform: `translateY(${-sz * 0.3}px)`, opacity: 1, offset: 0.7, easing: 'ease-in' },
+      { transform: `translateY(${-sz * 0.7}px)`, opacity: 0 },
+    ], { duration: ms, fill: 'forwards' }).onfinish = done;
   }
 
 

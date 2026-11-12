@@ -452,7 +452,7 @@ export function installRender(ctx) {
       out += `<rect x="${(s.hero.pos.x - r) * sz}" y="${(s.hero.pos.y - r) * sz}" width="${(2 * r + 1) * sz}" height="${(2 * r + 1) * sz}" class="dg-range"/>`;
     }
     // Floating numbers
-    for (const f of s.floats) out += `<text x="${(f.x + 0.5) * sz}" y="${f.y * sz}" class="dg-float ${f.kind} ${f.big ? 'big' : ''}">${esc(f.text)}</text>`;
+    // Floating captions live on the effects layer (dungeon-view.js float), not here.
     // Change only what differs from the last drawing: nothing flickers, tokens keep their glide.
     morphInto(overlay, out);
     glide();

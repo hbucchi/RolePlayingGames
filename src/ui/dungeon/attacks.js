@@ -386,7 +386,11 @@ export function installAttacks(ctx) {
       dmg = Math.max(0, dmg);
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
       line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'}${where}! ${dmg} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
-      ctx.float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);
+      // A Tibia-style caption: what kind of blow, and how much where ("Piercing dmg / 4 left leg").
+      const kinds = [...(main > 0 ? [weapon.type] : []), ...Object.keys(extraByType).filter((k) => extraByType[k] > 0)];
+      const label = `${r.crit ? 'Critical! ' : ''}${kinds.length ? `${kinds[0][0].toUpperCase()}${kinds[0].slice(1)}${kinds.length > 1 ? ` + ${kinds.slice(1).join(' + ')}` : ''} dmg` : 'Hit'}`;
+      const spot = target.lastHit && main > 0 ? ` ${partOf(target.bodyMap ?? 'humanoid', target.lastHit.part)?.name.toLowerCase() ?? ''}` : '';
+      ctx.float(target.pos, `${label}\n${dmg}${spot}`, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120, volume: 0.85 });

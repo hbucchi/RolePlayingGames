@@ -250,7 +250,7 @@ select { width: auto; min-width: 72px; margin: 0; padding: 4px 8px; }
 .dice-log li.fumble strong { color: var(--bad); }
 
 /* Toast */
-.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 18px; border-radius: 99px; background: var(--ink); color: var(--bg); box-shadow: var(--shadow); z-index: 20; max-width: calc(100vw - 32px); }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 18px; border-radius: 10px; line-height: 1.35; animation: toastIn .35s cubic-bezier(.2, .8, .2, 1); background: var(--ink); color: var(--bg); box-shadow: var(--shadow); z-index: 20; max-width: calc(100vw - 32px); }
 .toast.bad { background: var(--bad); color: #fff; }
 /* In the wizard the nav bar is the sticky element; keep the dice log in the flow. */
 .step-body .dice-log { position: static; }
@@ -279,8 +279,8 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .dg-overlay, .dg-fx { pointer-events: none; }
 .dg-fx circle { transform-box: fill-box; transform-origin: center; }
 .dg-help { margin: 6px 2px; }
-.dg-banner { position: fixed; z-index: 24; left: 50%; top: calc(var(--hdr, 60px) + 14px); max-width: calc(100vw - 32px); text-align: center; transform: translate(-50%, -8px); opacity: 0; pointer-events: none; padding: 6px 16px; border-radius: 99px; background: var(--ink); color: var(--bg); font-weight: 600; transition: opacity .2s, transform .2s; }
-.dg-banner.show { opacity: .95; transform: translate(-50%, 0); }
+.dg-banner { position: fixed; z-index: 24; left: 50%; top: calc(var(--hdr, 60px) + 14px); width: max-content; max-width: min(560px, calc(100vw - 32px)); text-align: center; line-height: 1.35; transform: translate(-50%, -10px); opacity: 0; pointer-events: none; padding: 8px 18px; border-radius: 8px; border: 1px solid rgb(255 255 255 / .12); background: rgb(30 23 17 / .92); color: #f6ecd8; font-weight: 600; box-shadow: 0 6px 20px rgb(0 0 0 / .35); transition: opacity .35s ease, transform .45s cubic-bezier(.2, .8, .2, 1); }
+.dg-banner.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* map overlay */
 .fog-dark { fill: #050407; }
@@ -327,10 +327,9 @@ main:has(.dungeon-host) { max-width: 1480px; }
 @keyframes shake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-6px, 2px); } 40%, 60% { transform: translate(6px, -1px); } }
 @media (prefers-reduced-motion: reduce) { .dg-viewport.shake, .tk-selring { animation: none; } }
 .tk-dead { fill: #c9b9a0; font: 700 34px Georgia, serif; text-anchor: middle; opacity: .65; }
-.dg-float { font: 700 30px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #000; stroke-width: 6px; animation: floatUp 1.3s ease-out forwards; }
+.dg-float { font: 700 30px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #000; stroke-width: 8px; stroke-linejoin: round; transform-box: fill-box; transform-origin: center; }
 .dg-float.good { fill: #ffd166; } .dg-float.bad { fill: #ff6b4f; } .dg-float.muted { fill: #ddd; }
 .dg-float.big { font-size: 44px; }
-@keyframes floatUp { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-40px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .dg-float { animation: none; } }
 
 /* side panel */
@@ -1220,3 +1219,10 @@ html { -webkit-tap-highlight-color: transparent; }
 .ws-result.superior b { color: var(--gold); }
 .ws-result.fail b, .ws-result.botch b { color: var(--bad); }
 @media (max-width: 640px) { .ws-recipe { grid-template-columns: auto minmax(0, 1fr); } .ws-how { grid-column: 1 / -1; } .ws-recipe > .btn { grid-column: 1 / -1; } }
+
+@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* Damage captions (Tibia-style): a small label line and the amount with the part hit, rising and fading. */
+.dg-float.cap2 { font-size: 30px; stroke-width: 8px; }
+.dg-float .cap { font-size: 19px; font-weight: 700; letter-spacing: .4px; }
+.dg-float.big .cap { font-size: 22px; }
