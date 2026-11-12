@@ -113,11 +113,16 @@ export function affinityOf(stat) {
     mundane: pi ? 'immune' : pr ? 'resist' : null, silverGets: /silvered/i.test(pi ?? pr ?? ''),
   };
 }
-/** How much of a damage type a creature takes: 0 (immune), 0.5, 1 or 2 (vulnerable). */
+/**
+ * How much of a damage type a creature takes: 0 (immune), 0.5 (resistant), 1, or 2 (vulnerable).
+ * Plain (non-magic, non-silver) weapons against a creature that shrugs them off are softened
+ * from 5e: "resistant" takes x0.75 and "immune" x0.5, because its natural armour already
+ * absorbs part of each blow, and a party without magic weapons must still be able to win.
+ */
 export function typeFactor(def, type, { magic = false, silver = false } = {}) {
   const a = def?.affinity; if (!a || !type) return 1;
   if (a.immune.includes(type)) return 0;
-  if (isPhysical(type) && a.mundane && !magic && !(silver && a.silverGets)) return a.mundane === 'immune' ? 0 : 0.5;
+  if (isPhysical(type) && a.mundane && !magic && !(silver && a.silverGets)) return a.mundane === 'immune' ? 0.5 : 0.75;
   if (a.resist.includes(type)) return 0.5;
   if (a.vulnerable.includes(type)) return 2;
   return 1;
@@ -213,8 +218,10 @@ export function monsterDefence(stat) {
   }
   // Worn armour hinders monsters too; natural armour is part of the body and does not.
   const hinder = wornDef ? armour.hinder : 0;
-  const evasion = 10 + dex - hinder;
-  const canParry = map === 'humanoid' && (stat.scores?.int ?? 0) >= 5 && (stat.actions ?? []).some((a) => a.attack && ['mw', 'mrw'].includes(a.attack.kind) && MADE_WEAPON.test(a.name));
+  // The same floor as a hero's: heavy armour never takes Evasion below 8.
+  const evasion = Math.max(Math.min(8, 10 + dex), 10 + dex - hinder);
+  // Parrying is a trained fighter's skill (INT 8+): a troll swinging a club just swings.
+  const canParry = map === 'humanoid' && (stat.scores?.int ?? 0) >= 8 && (stat.actions ?? []).some((a) => a.attack && ['mw', 'mrw'].includes(a.attack.kind) && MADE_WEAPON.test(a.name));
   const shield = hasShield ? shieldBlock(pb) : 0;
   const parry = canParry ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));

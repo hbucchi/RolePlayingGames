@@ -10,7 +10,7 @@
  */
 import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
-import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
+import { monsterPowers, freshMonsterUses, parseAura, parseAreaAction } from './monster-magic.js';
 import { lineOfSight, coverBetween, rangedCover, COVER_AC } from './vision.js';
 import { monsterDefence, blockChanceVs, landChance } from './defence.js';
 import { footprintOf, cellsOf, blockDistance, centerOf, dims, orientFor } from './size.js';
@@ -284,8 +284,33 @@ export function attacksThisTurn(m, chosen) {
   return Array.from({ length: multi.count }, () => chosen);
 }
 
+/**
+ * Legendary actions (dragons, liches, the tarrasque...): a few extra moves taken between other
+ * creatures' turns, `count` points a round, each action costing 1-3. We play the ones that
+ * strike or blast: "Makes one tail attack" becomes that weapon; a save-or-suffer burst
+ * ("Each creature within 10 feet must succeed on a DC 22 Dexterity saving throw...") becomes an
+ * area power. Moving, detecting and teleporting are left out.
+ * @returns {{ count, options: [{ name, cost, weapon? , power? }] } | null}
+ */
+export function legendaryOf(stat, weapons) {
+  const leg = stat.legendary;
+  if (!leg?.actions?.length) return null;
+  const options = [];
+  for (const a of leg.actions) {
+    const cost = a.cost ?? Number((/Costs (\d)/.exec(a.name) ?? [])[1] ?? 1);
+    const name = a.name.replace(/\s*\(.*\)$/, '');
+    const said = /makes? (?:one|a) (.+?) (?:attack|strike)|attack with its ([\w -]+?)(?: or|\.|$)|(unarmed strike)/i.exec(a.text ?? '');
+    const phrase = stem(said ? (said[1] ?? said[2] ?? said[3]) : name);
+    const weapon = said && (weapons.find((w) => phrase.includes(stem(w.name))) ?? weapons.find((w) => stem(w.name).split(' ').some((x) => x.length > 2 && phrase.includes(x))));
+    if (weapon) { options.push({ name, cost, weapon }); continue; }
+    const power = parseAreaAction({ ...a, name });
+    if (power) options.push({ name, cost, power: { ...power, perDay: null, recharge: null, legendary: true } });
+  }
+  return options.length ? { count: leg.count ?? 3, options } : null;
+}
+
 export function createMonster(stat, id, pos, facing = 4) {
-  const weapons = stat.actions.filter((a) => a.attack).map(weaponFromMonsterAction);
+  const weapons = stat.actions.filter((a) => a.attack?.damage?.length).map(weaponFromMonsterAction); // a grapple with no damage (Smother) is not a weapon
   return {
     id, statId: stat.id, name: stat.name, pos, facing,
     // Evasion (10 + DEX) is what attacks must beat; the rest of the stat block's AC is armour (defence.js).
@@ -296,6 +321,7 @@ export function createMonster(stat, id, pos, facing = 4) {
     flyby: stat.traits.some((t) => /Flyby/.test(t.name)),
     size: orientFor(footprintOf(stat), facing),
     cowardly: stat.traits.some((t) => /Cowardly/.test(t.name)),
+    legendary: legendaryOf(stat, weapons),
     ...(() => { const powers = monsterPowers(stat); return { powers, uses: freshMonsterUses(stat, powers), aura: parseAura(stat.traits), style: fightingStyle(stat, powers) }; })(),
   };
 }

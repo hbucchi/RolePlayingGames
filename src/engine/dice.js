@@ -78,6 +78,8 @@ export function parseNotation(notation) {
  * @returns {{notation:string, rolls:number[], keptIndices:number[], droppedIndices:number[], modifier:number, total:number}}
  */
 export function roll(notation, rng = cryptoRandomInt) {
+  // A flat amount ("1": a cat's claws) needs no dice.
+  if (/^\s*\d+\s*$/.test(String(notation))) { const n = Number(notation); return { notation: String(notation), rolls: [], keptIndices: [], droppedIndices: [], modifier: n, total: n }; }
   const { count, sides, keepMode, keep, modifier } = parseNotation(notation);
   const rolls = rollDice(count, sides, rng);
   const order = rolls.map((_, i) => i);

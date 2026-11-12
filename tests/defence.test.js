@@ -76,7 +76,9 @@ test('monsters: worn armour from the stat block, natural armour all over, parry 
   const dragon = monsterDefence(BESTIARY_BY_ID['adult-red-dragon']);
   assert.equal(typeFactor(dragon, 'fire'), 0, 'red dragons are immune to fire');
   const balor = monsterDefence(BESTIARY_BY_ID.balor);
-  assert.equal(typeFactor(balor, 'slashing'), 0.5, 'mundane blades only half hurt a balor');
+  assert.equal(typeFactor(balor, 'slashing'), 0.75, 'mundane blades hurt a balor less (its hide is natural armour too)');
+  assert.equal(typeFactor(monsterDefence(BESTIARY_BY_ID.werewolf), 'slashing'), 0.5, '"immune" to plain weapons: half, so a young party can still win');
+  assert.equal(monsterDefence(BESTIARY_BY_ID['stone-troll']).block, 0, 'a troll with a club does not parry');
   assert.equal(typeFactor(balor, 'slashing', { magic: true }), 1);
   assert.equal(typeFactor(monsterDefence(BESTIARY_BY_ID.skeleton), 'bludgeoning'), 2, 'skeletons shatter');
 });
@@ -100,15 +102,15 @@ test('hit location: each part owns a stretch of the d100', () => {
 test('local injuries: part health, multipliers to total HP, crippled parts', async () => {
   const { applyHit, partMax, injuryPenalties, healParts, isCrippled } = await import('../src/engine/injury.js');
   const e = { maxHp: 30, hp: 30 };
-  assert.equal(partMax(30, 'neck'), 11); assert.equal(partMax(30, 'chest'), 18); assert.equal(partMax(30, 'left-leg'), 15);
-  assert.equal(partMax(9, 'left-hand'), 4, 'never below 4');
+  assert.equal(partMax(30, 'neck'), 18); assert.equal(partMax(30, 'chest'), 27); assert.equal(partMax(30, 'left-leg'), 26);
+  assert.equal(partMax(9, 'left-hand'), 6, 'never below 6');
   // 4 damage to the neck: the neck takes 4, total HP takes 8 (x2).
-  let r = applyHit(e, 'neck', 4); assert.equal(r.total, 8); assert.equal(r.partLeft, 7);
+  let r = applyHit(e, 'neck', 4); assert.equal(r.total, 8); assert.equal(r.partLeft, 14);
   r = applyHit(e, 'head', 4); assert.equal(r.total, 6, 'head x1.5');
   r = applyHit(e, 'left-hand', 4); assert.equal(r.total, 2, 'hand x0.5');
   assert.equal(applyHit(e, 'chest', 0).total, 0, 'nothing through, nothing lost');
   // Cripple the neck: bleeding.
-  r = applyHit(e, 'neck', 7); assert.equal(r.crippledNow, true); assert.equal(injuryPenalties(e).bleeding, true);
+  r = applyHit(e, 'neck', 14); assert.equal(r.crippledNow, true); assert.equal(injuryPenalties(e).bleeding, true);
   // A lame leg costs 2 squares; a crippled weapon arm gives disadvantage.
   applyHit(e, 'right-leg', 99); applyHit(e, 'right-arm', 99);
   const p = injuryPenalties(e);
@@ -147,4 +149,17 @@ test('body maps: four-legged beasts and spiders', async () => {
   assert.equal(bodyMapOf(BESTIARY_BY_ID.goblin), 'humanoid');
   assert.equal(strikeAt(100, 'quadruped').part, 'head'); assert.equal(strikeAt(1, 'arachnid').part, 'leg-1');
   assert.equal(monsterDefence(BESTIARY_BY_ID.wolf).map, 'quadruped');
+});
+
+test('legendary actions: a dragon\'s tail and wing buffet, the tarrasque\'s claw and chomp', async () => {
+  const { BESTIARY_BY_ID } = await import('../src/content/bestiary/index.js');
+  const { createMonster } = await import('../src/engine/combat.js');
+  const dragon = createMonster(BESTIARY_BY_ID['adult-red-dragon'], 'd', { x: 0, y: 0 });
+  assert.equal(dragon.legendary.count, 3);
+  assert.deepEqual(dragon.legendary.options.map((o) => [o.name, o.cost]), [['Tail Attack', 1], ['Wing Attack', 2]]);
+  assert.equal(dragon.legendary.options[0].weapon.name, 'Tail');
+  assert.equal(dragon.legendary.options[1].power.save, 'dex');
+  const t = createMonster(BESTIARY_BY_ID.tarrasque, 't', { x: 0, y: 0 });
+  assert.deepEqual(t.legendary.options.map((o) => o.weapon?.name), ['Claw', 'Bite']);
+  assert.equal(createMonster(BESTIARY_BY_ID.goblin, 'g', { x: 0, y: 0 }).legendary, null);
 });

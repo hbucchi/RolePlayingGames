@@ -59,3 +59,8 @@ test('4d6 drop lowest averages about 12.24', () => {
   for (let i = 0; i < n; i++) sum += rollAbilityScore(rng).total;
   assert.ok(Math.abs(sum / n - 12.24) < 0.06, `mean ${sum / n}`);
 });
+
+test('a flat amount rolls as itself (a cat\'s claws do 1)', () => {
+  assert.equal(roll('1').total, 1);
+  assert.equal(roll('3').total, 3);
+});

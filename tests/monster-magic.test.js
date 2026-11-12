@@ -47,3 +47,12 @@ test('magic ground: ice and rubble double the cost of a square for a while', () 
   assert.equal(terrainCost(map, 3, 4), 2);
   assert.equal(terrainCost(map, 1, 1), 1);
 });
+
+test('a gaze or word at one creature is a single-target save, not a blast', async () => {
+  const { BESTIARY_BY_ID } = await import('../src/content/bestiary/index.js');
+  const { parseAreaAction } = await import('../src/engine/monster-magic.js');
+  const word = parseAreaAction(BESTIARY_BY_ID['dread-sovereign-of-the-hooded-riders'].actions.find((a) => a.name.startsWith('Word of Breaking')));
+  assert.equal(word.kind, 'save'); assert.equal(word.range, 12); assert.equal(word.dice, '8d8');
+  const breath = parseAreaAction(BESTIARY_BY_ID['adult-red-dragon'].actions.find((a) => a.name.startsWith('Fire Breath')));
+  assert.equal(breath.kind, 'area'); assert.equal(breath.shape, 'cone');
+});

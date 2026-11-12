@@ -25,16 +25,16 @@
 import { BODY_MAPS, partOf } from './body.js';
 
 const HUMANOID_RULES = {
-  head: { hp: 0.4, mult: 1.5, crippled: 'dazed' },
-  neck: { hp: 0.35, mult: 2, crippled: 'bleeding' },
-  chest: { hp: 0.6, mult: 1, crippled: 'bleeding' },
-  abdomen: { hp: 0.5, mult: 1, crippled: 'bleeding' },
-  'right-arm': { hp: 0.45, mult: 0.75, crippled: 'weapon arm' },
-  'left-arm': { hp: 0.45, mult: 0.75, crippled: 'shield arm' },
-  'right-hand': { hp: 0.35, mult: 0.5, crippled: 'weapon arm' },
-  'left-hand': { hp: 0.35, mult: 0.5, crippled: 'shield arm' },
-  'right-leg': { hp: 0.5, mult: 0.75, crippled: 'lame', lame: 2 },
-  'left-leg': { hp: 0.5, mult: 0.75, crippled: 'lame', lame: 2 },
+  head: { hp: 0.75, mult: 1.5, crippled: 'dazed' },
+  neck: { hp: 0.6, mult: 2, crippled: 'bleeding' },
+  chest: { hp: 0.9, mult: 1, crippled: 'bleeding' },
+  abdomen: { hp: 0.8, mult: 1, crippled: 'bleeding' },
+  'right-arm': { hp: 0.8, mult: 0.75, crippled: 'weapon arm' },
+  'left-arm': { hp: 0.8, mult: 0.75, crippled: 'shield arm' },
+  'right-hand': { hp: 0.6, mult: 0.5, crippled: 'weapon arm' },
+  'left-hand': { hp: 0.6, mult: 0.5, crippled: 'shield arm' },
+  'right-leg': { hp: 0.85, mult: 0.75, crippled: 'lame', lame: 2 },
+  'left-leg': { hp: 0.85, mult: 0.75, crippled: 'lame', lame: 2 },
 };
 /** Per body map (body.js): a part's share of max HP, its multiplier to total HP, what crippling does. */
 export const RULES_BY_MAP = {
@@ -69,9 +69,12 @@ export const CRIPPLED_TEXT = {
   docked: 'tail crippled: no other effect',
 };
 
-/** A part's health: its share of the creature's maximum HP (at least 2). */
-/** At least 4: a level-1 hero's hand should not break at the first scratch. */
-export const PART_MIN = 4;
+/**
+ * A part's health: its share of the creature's maximum HP, at least 6. The shares are high (a
+ * leg has 85% of the body's HP) so that crippling is a real but occasional blow: about one part
+ * in a level-1 fight with goblins, more against big hitters like an ogre (tools/sim).
+ */
+export const PART_MIN = 6;
 export const partMax = (maxHp, part, e = null) => Math.max(PART_MIN, Math.round(maxHp * ruleOf(e, part).hp));
 /** Damage a part has taken so far. */
 export const partDamage = (e, part) => e.parts?.[part] ?? 0;

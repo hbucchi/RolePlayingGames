@@ -237,7 +237,7 @@ export const westlandsFoes = [
     saves: { str: 11, con: 8, wis: 4 }, skills: { athletics: 11, intimidation: 3 }, senses: { darkvision: 120 }, languages: `Common, Giant, ${darkTongue}`, cr: '9',
     traits: [act('Sun-Defiant', 'It doesn\'t turn to stone in sunlight. While in bright sunlight, it has disadvantage on Wisdom (Perception) checks.'),
       act('War-Trained', 'Has advantage on opportunity attacks.'), act('Siege Monster', 'Deals double damage to objects and structures.')],
-    actions: [multi('Makes three attacks: two with its great blade and one with its shield.'),
+    actions: [multi('Makes two attacks: one with its great blade and one with its shield.'),
       mw('Great Blade', 11, 10, '3d10+7 slashing'),
       mw('Shield Bash', 11, 5, '2d6+7 bludgeoning', 'If the target is Large or smaller, it must succeed on a DC 19 Strength saving throw or be knocked prone.')],
     reactions: [act('Shield Wall', 'Adds 3 to its AC against one attack that would hit it, as long as it is wielding its shield.')],

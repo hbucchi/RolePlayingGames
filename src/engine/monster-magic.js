@@ -67,8 +67,11 @@ export function parseAreaAction(action) {
   let shape = null; let size = 0;
   const cone = /(\d+)-foot cone/.exec(text); const line = /(\d+)-foot line/.exec(text);
   const within = /within (\d+) (?:feet|ft)/.exec(text);
-  if (cone) { shape = 'cone'; size = Number(cone[1]) / 5; } else if (line) { shape = 'line'; size = Number(line[1]) / 5; } else if (within) { shape = 'around'; size = Math.min(12, Number(within[1]) / 5); }
-  if (!shape) return null;
+  // "One creature within 60 feet", "at one target within 60 feet": a gaze or a word at one
+  // target, not a blast around the caster.
+  const single = !cone && !line && /(?:^|targets |at )one (?:creature|target)\b/i.test(text);
+  if (cone) { shape = 'cone'; size = Number(cone[1]) / 5; } else if (line) { shape = 'line'; size = Number(line[1]) / 5; } else if (within && !single) { shape = 'around'; size = Math.min(12, Number(within[1]) / 5); }
+  if (!shape && !single) return null;
   const dmg = /\d+ \((\d+d\d+(?: [+-] \d+)?)\) (\w+) damage/.exec(text);
   const rider = /frightened/.test(text) ? 'flee' : /restrained/.test(text) ? 'restrain' : /prone/.test(text) ? 'prone' : null;
   if (!dmg && !rider) return null;
@@ -77,10 +80,10 @@ export function parseAreaAction(action) {
   const type = dmg ? dmg[2] : 'none';
   return {
     id: action.name.toLowerCase().replace(/[^a-z]+/g, '-').replace(/-+$/, ''),
-    name: action.name.replace(/\s*\(.*\)$/, ''), kind: 'area', shape, size,
+    name: action.name.replace(/\s*\(.*\)$/, ''), kind: single ? 'save' : 'area', shape, size, range: single && within ? Number(within[1]) / 5 : undefined,
     save: ABIL[save[2].toLowerCase()], dc: Number(save[1]), dice: dmg ? dmg[1].replace(/ /g, '') : null, type,
     half: /half as much/.test(text), rider,
-    linger: dmg && shape !== 'around' ? LINGER_FOR_TYPE[type] ?? null : null, lingerRounds: 2,
+    linger: dmg && shape && shape !== 'around' ? LINGER_FOR_TYPE[type] ?? null : null, lingerRounds: 2,
     recharge: recharge ? Number(recharge[1]) : null,
     // A pure scare (Frightful Presence) works once on a crowd; after that they are used to it.
     perDay: perDay ? Number(perDay[1]) : (!dmg && !recharge ? 1 : null), breath: /breath/i.test(action.name),

@@ -55,6 +55,7 @@ export const slugify = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/
 
 /** Average of a dice expression, the way stat blocks print it: floor(N * (S + 1) / 2) + M. */
 export function averageRoll(notation) {
+  if (/^\s*\d+\s*$/.test(String(notation))) return Number(notation);
   const { count, sides, modifier } = parseNotation(notation);
   return Math.floor((count * (sides + 1)) / 2) + modifier;
 }
