@@ -5,6 +5,7 @@
 import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/catalogue.js';
 import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor, loadLimits, bagUsed, BAG_SLOTS } from '../engine/items.js';
 import { kg, kilos, metricText } from '../engine/units.js';
+import { ARMOURS } from '../engine/defence.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -41,8 +42,13 @@ function statLine(inst) {
     const w = def.weapon;
     return `${w.damage}${b ? `+${b}` : ''} ${w.type}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
   }
-  if (def.armor) return `AC ${def.armor.base + b}${def.armor.type === 'light' ? ' + DEX' : def.armor.type === 'medium' ? ' + DEX (max 2)' : ''} · ${def.armor.type}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
-  if (def.cat === 'shield') return `+${(def.acBonus ?? 2) + b} AC`;
+  if (def.armor) {
+    const a = ARMOURS[def.id];
+    const pts = a ? Object.values(a.cover).reduce((x, y) => x + y, 0) : 0;
+    const cond = inst.condition ?? 100;
+    return `Absorbs ${a ? Math.min(60, a.absorb + 5 * b) : '?'}% · covers ${pts}/100 · condition ${cond}% · ${def.armor.type}${def.armor.type === 'medium' ? ' (DEX max +2)' : def.armor.type === 'heavy' ? ' (no DEX to Evasion)' : ''}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
+  }
+  if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b ? ` + ${5 * b}%` : ''}`;
   if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;
   if (def.charges) return `${inst.charges ?? def.charges} picks left`;
   return '';

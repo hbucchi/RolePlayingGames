@@ -7,8 +7,8 @@ import { cellsOf } from '../../engine/size.js';
 import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
-import { absorbed } from '../../engine/defence.js';
-import { hitLocation, BODY_BY_ID } from '../../engine/body.js';
+import { absorbed, strike, wearArmour } from '../../engine/defence.js';
+import { BODY_BY_ID } from '../../engine/body.js';
 import { rollDie } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
@@ -334,13 +334,20 @@ export function installAttacks(ctx) {
         const x = ctx.hitExtras(target, weapon, opts, ranged, r.crit);
         dmg += x.total; bits.push(...x.text);
       }
-      // Where it lands, and what the armour there absorbs (spells pass through armour).
-      const part = hitLocation(rollDie(100));
-      const pct = weapon.spell ? 0 : (target.defence?.armour?.[part] ?? 0);
+      // Where it lands (d100 on the body strip), and whether it meets armour or finds a gap.
+      // Spells pass through armour.
+      const roll100 = rollDie(100);
+      const at = strike(target.defence, roll100);
+      const pct = weapon.spell ? 0 : at.pct;
       const raw = dmg; dmg = absorbed(dmg, pct);
-      target.lastHit = { part, raw, dealt: dmg, pct };
-      const where = `to the ${BODY_BY_ID[part].name.toLowerCase()}`;
-      if (pct && raw !== dmg) bits.push(`${target.defence.armourName ?? 'armour'} absorbs ${pct}%: ${raw} → ${dmg}`);
+      target.lastHit = { part: at.part, roll: roll100, covered: at.covered, raw, dealt: dmg, pct };
+      const armour = target.defence?.armour;
+      const where = `to the ${BODY_BY_ID[at.part].name.toLowerCase()} (d100 ${roll100})`;
+      if (pct) {
+        bits.push(`${armour.name} absorbs ${pct}%: ${raw} → ${dmg}`);
+        const cond = wearArmour(armour, r.crit);
+        if (target === s.hero) ctx.wearHeroArmour?.(armour.uid, cond);
+      } else if (!weapon.spell && armour && (armour.cover[at.part] ?? 0) > 0) bits.push(`through a gap in the ${armour.name.toLowerCase()}`);
       if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
         dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
       }

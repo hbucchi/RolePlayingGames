@@ -13,25 +13,32 @@
 import { equippedIn, itemDef, itemName, JEWEL_SLOTS } from './items.js';
 
 export const BODY_PARTS = [
-  { id: 'head', name: 'Head', weight: 10, x: 0.496, y: 0.09 },
-  { id: 'neck', name: 'Neck', weight: 3, x: 0.496, y: 0.19 },
-  { id: 'chest', name: 'Chest', weight: 22, x: 0.496, y: 0.27 },
-  { id: 'abdomen', name: 'Abdomen', weight: 15, x: 0.496, y: 0.4 },
-  { id: 'right-arm', name: 'Right arm', weight: 12, x: 0.29, y: 0.38 },
   { id: 'left-arm', name: 'Left arm', weight: 12, x: 0.71, y: 0.38 },
-  { id: 'right-hand', name: 'Right hand', weight: 4, x: 0.2, y: 0.54 },
+  { id: 'right-arm', name: 'Right arm', weight: 12, x: 0.29, y: 0.38 },
   { id: 'left-hand', name: 'Left hand', weight: 4, x: 0.8, y: 0.54 },
-  { id: 'right-leg', name: 'Right leg', weight: 9, x: 0.41, y: 0.72 },
+  { id: 'right-hand', name: 'Right hand', weight: 4, x: 0.2, y: 0.54 },
   { id: 'left-leg', name: 'Left leg', weight: 9, x: 0.59, y: 0.72 },
+  { id: 'right-leg', name: 'Right leg', weight: 9, x: 0.41, y: 0.72 },
+  { id: 'abdomen', name: 'Abdomen', weight: 15, x: 0.496, y: 0.4 },
+  { id: 'chest', name: 'Chest', weight: 22, x: 0.496, y: 0.27 },
+  { id: 'neck', name: 'Neck', weight: 3, x: 0.496, y: 0.19 },
+  { id: 'head', name: 'Head', weight: 10, x: 0.496, y: 0.09 },
 ];
+// Each part owns a stretch of the d100: left arm 1-12, right arm 13-24, ... head 91-100.
+{ let n = 0; for (const p of BODY_PARTS) { p.from = n + 1; p.to = n + p.weight; n = p.to; } }
 export const BODY_BY_ID = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
 
-/** Pick the part a blow lands on from a d100 roll (1-100). */
-export function hitLocation(d100) {
-  let sum = 0;
-  for (const p of BODY_PARTS) { sum += p.weight; if (d100 <= sum) return p.id; }
-  return BODY_PARTS[BODY_PARTS.length - 1].id;
+/**
+ * Where a d100 roll (1-100) lands: the part, and how far into that part's stretch it is
+ * (1 = the part's first point). Armour covers a number of points from the start of each stretch,
+ * so `offset` <= coverage means the blow meets the armour; beyond it, it finds a gap.
+ */
+export function strikeAt(d100) {
+  const p = BODY_PARTS.find((x) => d100 >= x.from && d100 <= x.to) ?? BODY_PARTS[BODY_PARTS.length - 1];
+  return { part: p.id, offset: d100 - p.from + 1 };
 }
+/** Pick the part a blow lands on from a d100 roll (1-100). */
+export const hitLocation = (d100) => strikeAt(d100).part;
 
 /** Which parts armour covers: light protects the trunk, medium the arms too, heavy almost everything. */
 const ARMOUR_COVERS = {

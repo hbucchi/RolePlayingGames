@@ -11,64 +11,89 @@
  *        parry    5% + 5% x proficiency bonus     (15% at level 1)
  *      at most 50%. Only a shield stops arrows and bolts; nothing blocks a spell; and you cannot
  *      block what you do not see coming (from behind, unaware, helpless) or a critical hit.
- *   3. Absorb (armour, where it lands). Roll d100 for the body part hit (body.js). The armour
- *      over that part takes a share of the damage: 40% armour turns a 10-point blow into 6.
+ *   3. Absorb (armour, where it lands). Roll d100. The body is one strip of 100 points, a stretch
+ *      per part (body.js: left arm 1-12, right arm 13-24, ... head 91-100). Armour has
+ *        absorption  the share of damage it takes where it covers (chain mail 40%)
+ *        coverage    how many points of each part's stretch it covers, from the start
+ *                    (a leather jerkin covers 4 of the left arm's 12: rolls 1-4)
+ *        condition   0-100%; worn armour absorbs less: absorption x condition
+ *      A roll inside the covered points meets the armour; a roll beyond them lands on the same
+ *      part through a gap, at full damage. Each blow the armour takes wears it by 1% (3% on a
+ *      critical hit).
  *
  * The chance that an attack does damage, with p = chance to beat Evasion, c = chance of a
  * natural 20 (0.05, or 0.0975 with advantage) and b = block chance:
  *   P(lands) = c + (p - c) x (1 - b)       (a critical hit cannot be blocked)
+ * and the chance a blow that lands meets armour is (points covered) / 100.
  *
  * Monsters: Evasion = 10 + DEX modifier. The rest of their Armour Class becomes armour: worn
- * armour named in the stat block covers what that armour covers; natural armour (hide, scales,
- * shell) covers the whole body at 6% per point of AC above 10 + DEX, at most 60%.
+ * armour named in the stat block (with its own coverage); natural armour (hide, scales, shell)
+ * covers every point of the body, absorbing 6% per point of AC above 10 + DEX (at most 60%).
  */
 import { itemDef } from './items.js';
-import { BODY_PARTS } from './body.js';
+import { BODY_PARTS, BODY_BY_ID, strikeAt } from './body.js';
 
-/** Damage absorbed by each armour, in percent. Each +1 of enchantment adds 5%. */
-export const ARMOUR_ABSORB = {
-  padded: 10, leather: 10, 'studded-leather': 15, 'hide-armour': 20,
-  'chain-shirt': 25, 'scale-mail': 30, breastplate: 30, 'half-plate': 40, 'mithral-shirt': 30,
-  'ring-mail': 30, 'chain-mail': 40, splint: 45, plate: 55,
+/**
+ * Every armour: absorption (%) and coverage (points of each part's stretch). Parts not listed are
+ * bare. For scale, the stretches are: arms 12 each, hands 4, legs 9, abdomen 15, chest 22,
+ * neck 3, head 10.
+ */
+export const ARMOURS = {
+  padded: { absorb: 10, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  leather: { absorb: 10, cover: { chest: 18, abdomen: 10, 'left-arm': 4, 'right-arm': 4 } },
+  'studded-leather': { absorb: 15, cover: { chest: 20, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'hide-armour': { absorb: 20, cover: { chest: 20, abdomen: 13, 'left-arm': 8, 'right-arm': 8, 'left-leg': 3, 'right-leg': 3 } },
+  'chain-shirt': { absorb: 25, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'mithral-shirt': { absorb: 30, cover: { chest: 22, abdomen: 12, 'left-arm': 6, 'right-arm': 6 } },
+  'scale-mail': { absorb: 30, cover: { chest: 22, abdomen: 14, 'left-arm': 9, 'right-arm': 9, 'left-leg': 4, 'right-leg': 4 } },
+  breastplate: { absorb: 30, cover: { chest: 22, abdomen: 10 } },
+  'half-plate': { absorb: 40, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 5, 'right-leg': 5 } },
+  'ring-mail': { absorb: 30, cover: { chest: 22, abdomen: 14, 'left-arm': 10, 'right-arm': 10, 'left-leg': 6, 'right-leg': 6, neck: 1 } },
+  'chain-mail': { absorb: 40, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 7, 'right-leg': 7, neck: 2 } },
+  splint: { absorb: 45, cover: { chest: 22, abdomen: 15, 'left-arm': 11, 'right-arm': 11, 'left-leg': 8, 'right-leg': 8, neck: 2 } },
+  plate: { absorb: 55, cover: { chest: 22, abdomen: 15, 'left-arm': 12, 'right-arm': 12, 'left-hand': 3, 'right-hand': 3, 'left-leg': 9, 'right-leg': 9, neck: 3, head: 8 } },
 };
+export const ARMOUR_ABSORB = Object.fromEntries(Object.entries(ARMOURS).map(([k, v]) => [k, v.absorb]));
 export const MAX_ABSORB = 60;
 export const MAX_BLOCK = 50;
-
-/** Which parts armour covers: light the trunk, medium the arms too, heavy almost everything; plate has a helm. */
-export const ARMOUR_COVERS = {
-  light: ['chest', 'abdomen'],
-  medium: ['chest', 'abdomen', 'right-arm', 'left-arm'],
-  heavy: ['chest', 'abdomen', 'right-arm', 'left-arm', 'right-leg', 'left-leg', 'neck'],
-};
-const coversOf = (id, type) => (id === 'plate' ? [...ARMOUR_COVERS.heavy, 'head'] : ARMOUR_COVERS[type] ?? ARMOUR_COVERS.light);
+const FULL = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p.weight])); // natural armour: every point
 
 export const shieldBlock = (pb, trained = true) => Math.min(MAX_BLOCK, 15 + (trained ? 5 * pb : 0));
 export const parryBlock = (pb) => Math.min(MAX_BLOCK, 5 + 5 * pb);
-
-const allParts = (pct) => Object.fromEntries(BODY_PARTS.map((p) => [p.id, pct]));
-const partsOf = (ids, pct) => Object.fromEntries(BODY_PARTS.map((p) => [p.id, ids.includes(p.id) ? pct : 0]));
 const dexFor = (dex, type) => (type === 'heavy' ? 0 : type === 'medium' ? Math.min(2, dex) : dex);
+
+/** The absorption armour gives at its condition (0-100%). */
+export const effectiveAbsorb = (absorb, condition = 100) => Math.round(absorb * Math.max(0, Math.min(100, condition)) / 100);
+
+/**
+ * One worn piece: { name, absorb, condition, pct (absorb at that condition), cover, uid }.
+ * `cover` maps part id -> points covered (never more than the part's stretch).
+ */
+function piece({ name, absorb, cover, condition = 100, uid = null }) {
+  const c = Object.fromEntries(Object.entries(cover).map(([k, v]) => [k, Math.min(v, BODY_BY_ID[k]?.weight ?? 0)]));
+  return { name, absorb, condition, pct: effectiveAbsorb(absorb, condition), cover: c, uid };
+}
 
 /**
  * A hero's defence from what they wear and wield.
- * @returns {{ evasion, block, blockWith: 'shield'|'parry'|null, armour: {partId: pct}, armourName }}
+ * @returns {{ evasion, block, blockWith: 'shield'|'parry'|null, armour: piece|null }}
  */
 export function heroDefence(gear, { dex = 0, pb = 2, shieldTrained = true, weaponTrained = () => true, magicEvasion = 0 } = {}) {
   const eq = (slot) => (gear.inventory ?? []).find((x) => x.uid === gear.equipped?.[slot]) ?? null;
   const bodyInst = eq('body'); const body = itemDef(bodyInst);
   const type = body?.armor?.type ?? null;
   const evasion = 10 + dexFor(dex, type) + magicEvasion;
-  let armour = allParts(0); let armourName = null;
+  let armour = null;
   if (body?.armor) {
-    const pct = Math.min(MAX_ABSORB, (ARMOUR_ABSORB[body.id] ?? Math.max(5, 5 + 6 * (body.armor.base - 10))) + 5 * (bodyInst.bonus ?? 0));
-    armour = partsOf(coversOf(body.id, type), pct); armourName = body.name;
+    const a = ARMOURS[body.id] ?? { absorb: Math.max(5, 5 + 6 * (body.armor.base - 10)), cover: ARMOURS.leather.cover };
+    armour = piece({ name: body.name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (bodyInst.bonus ?? 0)), cover: a.cover, condition: bodyInst.condition ?? 100, uid: bodyInst.uid });
   }
   const offInst = eq('offHand'); const off = itemDef(offInst);
   const mainInst = eq('mainHand'); const main = itemDef(mainInst);
   const shield = off?.cat === 'shield' ? shieldBlock(pb, shieldTrained) + 5 * (offInst.bonus ?? 0) : 0;
   const parry = main?.weapon && !main.weapon.ranged && weaponTrained(main) ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
-  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, armour, armourName };
+  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, armour };
 }
 
 /** Armour named in a stat block ("leather armor, shield", "natural armor"). */
@@ -91,22 +116,43 @@ export function monsterDefence(stat) {
   const wornDef = worn ? itemDef({ id: worn }) : null;
   const type = wornDef?.armor?.type ?? null;
   const evasion = 10 + dexFor(dex, type);
-  let armour; let armourName;
+  let armour = null;
   if (wornDef) {
-    armour = partsOf(coversOf(worn, type), ARMOUR_ABSORB[worn]); armourName = wornDef.name;
+    armour = piece({ name: wornDef.name, ...ARMOURS[worn] });
   } else {
     const pts = Math.max(0, (stat.ac ?? 10) - 10 - dex - (hasShield ? 2 : 0));
-    const pct = Math.min(MAX_ABSORB, 6 * pts);
+    const absorb = Math.min(MAX_ABSORB, 6 * pts);
     // Natural armour, or something odd in the stat block ("robes of warding"): named in its own words.
     const own = text.split(',')[0].trim();
-    armour = allParts(pct); armourName = pct ? (!own || /natural/i.test(own) ? 'natural armour' : own[0].toUpperCase() + own.slice(1)) : null;
+    if (absorb) armour = piece({ name: !own || /natural/i.test(own) ? 'natural armour' : own[0].toUpperCase() + own.slice(1), absorb, cover: FULL });
   }
   const canParry = (stat.scores?.int ?? 0) >= 5 && (stat.actions ?? []).some((a) => a.attack && ['mw', 'mrw'].includes(a.attack.kind) && MADE_WEAPON.test(a.name));
   const shield = hasShield ? shieldBlock(pb) : 0;
   const parry = canParry ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
-  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, armour, armourName };
+  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, armour };
 }
+
+/**
+ * Where a d100 lands on this defender, and whether it meets armour there.
+ * @returns {{ part, offset, covered: boolean, pct: number }}  pct = absorption that applies (0 in a gap)
+ */
+export function strike(def, d100) {
+  const { part, offset } = strikeAt(d100);
+  const covered = !!def?.armour && offset <= (def.armour.cover[part] ?? 0);
+  return { part, offset, covered, pct: covered ? def.armour.pct : 0 };
+}
+
+/** Wear armour by one blow (1%, or 3% for a critical hit); returns the new condition. */
+export function wearArmour(armour, crit = false) {
+  if (!armour) return null;
+  armour.condition = Math.max(0, armour.condition - (crit ? 3 : 1));
+  armour.pct = effectiveAbsorb(armour.absorb, armour.condition);
+  return armour.condition;
+}
+
+/** Points of the body (out of 100) that this armour covers. */
+export const coverage = (armour) => (armour ? Object.values(armour.cover).reduce((a, b) => a + b, 0) : 0);
 
 /**
  * Can this blow be blocked, and how likely is it? (0..1)
@@ -119,7 +165,7 @@ export function blockChanceVs(def, { ranged = false, spell = false, unseen = fal
   return def.block / 100;
 }
 
-/** Damage after armour on the part struck: at least 1 point gets through. */
+/** Damage after armour: at least 1 point gets through. */
 export function absorbed(damage, pct) {
   if (!pct || damage <= 0) return damage;
   return Math.max(1, Math.round(damage * (1 - pct / 100)));
@@ -131,11 +177,10 @@ export function landChance(hitP, block, mode = 'normal') {
   return Math.max(0, Math.min(1, crit + Math.max(0, hitP - crit) * (1 - block)));
 }
 
-/** "Chain mail 40% (trunk, arms, legs, neck)" style summary of where armour protects. */
+/** "Coat of mail: absorbs 40% (condition 97%), covers 77 of 100 points" */
 export function armourSummary(def) {
-  const covered = BODY_PARTS.filter((p) => def.armour[p.id] > 0);
-  if (!covered.length) return 'No armour';
-  const pcts = [...new Set(covered.map((p) => def.armour[p.id]))];
-  const where = covered.length === BODY_PARTS.length ? 'whole body' : covered.map((p) => p.name.toLowerCase()).join(', ');
-  return `${def.armourName ?? 'Armour'} ${pcts.join('/')}% (${where})`;
+  const a = def?.armour;
+  if (!a) return 'No armour';
+  const n = coverage(a);
+  return `${a.name}: absorbs ${a.pct}%${a.condition < 100 ? ` (condition ${a.condition}%)` : ''}, covers ${n === 100 ? 'the whole body' : `${n} of 100 points`}`;
 }

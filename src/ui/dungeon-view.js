@@ -192,6 +192,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     burnIn: { get: () => burnIn },
     canAttack: { get: () => canAttack },
     strikeStep: { get: () => strikeStep },
+    wearHeroArmour: { get: () => wearHeroArmour },
     canSee: { get: () => canSee },
     checkCombatOver: { get: () => checkCombatOver },
     checkText: { get: () => checkText },
@@ -1063,6 +1064,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
    * An adventure is over (a dungeon floor cleared or left by the stairs, a story battle won, a
    * campaign place cleared): traders count these to refresh their rare goods. Once per floor.
    */
+  /** A blow worn into the active hero's armour: kept on the item (its condition, 0-100%). */
+  function wearHeroArmour(uid, condition) {
+    const inst = s.draft?.inventory.find((x) => x.uid === uid);
+    if (inst && condition !== null) inst.condition = condition;
+  }
+
   /** Save every hero (their wounds above all), e.g. when a fight ends or the party moves on. */
   function saveParty() {
     if (practice || !s.members?.length || s.mode === 'defeat') return; // a lost fight is retried from the last save

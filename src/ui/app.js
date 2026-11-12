@@ -39,6 +39,7 @@ import { heroLook, resolveAppearance, PORTRAITS, PORTRAIT_VARIANTS, portraitUrl,
 import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
 import { m as mtr } from '../engine/units.js';
+import { coverage } from '../engine/defence.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -778,7 +779,7 @@ function sheetHtml(c, look) {
         </div>
       </header>
       <section class="vitals">
-        ${[['Evasion', c.ac], ['Block', `${c.defence?.block ?? 0}%`], ['Armour', c.defence?.armourName ? `${Math.max(...Object.values(c.defence.armour))}%` : '—'], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
+        ${[['Evasion', c.ac], ['Block', `${c.defence?.block ?? 0}%`], ['Armour', c.defence?.armour ? `${c.defence.armour.pct}% · ${coverage(c.defence.armour)}/100` : '—'], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
     ['Proficiency', fmt(c.proficiencyBonus)], ['Passive Perception', c.passivePerception], ['Hit Die', `1d${c.hitDie}`]]
     .map(([k, v]) => `<div class="vital"><span class="v">${v}</span><span class="k">${k}</span></div>`).join('')}
       </section>
