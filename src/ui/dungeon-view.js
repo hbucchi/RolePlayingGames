@@ -32,6 +32,7 @@ import { placeFeatures, populateDungeon } from '../engine/features.js';
 import { furnishDungeon } from '../engine/props.js';
 import { sellItem, haggleRate, whyUnsellable, BASE_RATE } from '../engine/trade.js';
 import { stockFor, buyItem, period as shopPeriod } from '../engine/shop.js';
+import { repair } from '../engine/smith.js';
 import { adventures, countAdventure, rareBought, markRareBought } from './shop-state.js';
 import { terrainCost } from '../engine/terrain.js';
 import { GOODS } from './trade-view.js';
@@ -1698,6 +1699,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'trade-shelf': s.tradeShelf = el.dataset.shelf; redraw(); break;
       case 'trade-buy': traderBuy(el.dataset.id); break;
       case 'trade-buy-rare': traderBuy(null, true); break;
+      case 'trade-repair': {
+        const r = repair(s.draft, el.dataset.uid || null);
+        if (!r.ok) { banner(r.message); break; }
+        play('sword-hit', { volume: 0.4 });
+        log(`${s.hero.name} has ${r.mended.join(', ')} mended for ${formatCoins(r.cost)}.`, 'loot');
+        persist(); refreshHero(); redraw(); break;
+      }
       case 'story-continue': onOutcome?.(s.mode === 'victory'); break;
       case 'cast': if (s.target?.kind === 'creature') { s.target = null; $('.dg-pop').hidden = true; } useMagic(el.dataset.id); break;
       case 'end-conc': { const n = findMagic(s.res.concentration)?.name; endConcentration(); log(`${s.hero.name} lets ${n} end.`, 'info'); redraw(); break; }

@@ -112,6 +112,21 @@ armor('ring-mail', 'Ring mail', 'heavy', 14, 30 * GP, 40, { stealthDis: true });
 armor('chain-mail', 'Coat of mail', 'heavy', 16, 75 * GP, 55, { stealthDis: true, str: 13, desc: 'A long hauberk of riveted rings. Heavy armour: AC 16, no DEX bonus; needs STR 13.' });
 armor('splint', 'Splint armour', 'heavy', 17, 200 * GP, 60, { stealthDis: true, str: 15 });
 armor('plate', 'Plate armour', 'heavy', 18, 1500 * GP, 65, { stealthDis: true, str: 15 });
+// Armour pieces: each covers its own part of the body and layers with body armour (defence.js
+// ARMOURS has their absorption and coverage). type: light pieces of leather, heavy of steel.
+const piece = (id, name, slot, type, value, weight, desc) => add({ id, name, cat: 'armor', slot, weight, value, glyph: '🛡', armor: { type, piece: true }, desc });
+piece('leather-cap', 'Leather cap', 'head', 'light', 1 * GP, 1, 'A boiled-leather cap. Better than a bare head.');
+piece('iron-helm', 'Iron helm', 'head', 'heavy', 10 * GP, 4, 'A round iron helm with a nasal guard. Most of the head, but not the face.');
+piece('mail-coif', 'Mail coif', 'head', 'heavy', 15 * GP, 5, 'A hood of mail that falls over the neck and shoulders.');
+piece('great-helm', 'Great helm', 'head', 'heavy', 30 * GP, 8, 'A closed steel helm with eye slits: the whole head, at the cost of a narrow view.');
+piece('steel-gorget', 'Steel gorget', 'throat', 'heavy', 15 * GP, 2, 'A steel collar that guards the throat, the most dangerous place to be struck.');
+piece('leather-vambraces', 'Leather vambraces', 'arms', 'light', 2 * GP, 1, 'Hardened leather guards for the forearms.');
+piece('steel-vambraces', 'Steel vambraces', 'arms', 'heavy', 20 * GP, 4, 'Steel plates strapped over the forearms and elbows.');
+piece('leather-gloves', 'Leather gloves', 'hands', 'light', 1 * GP, 0.5, 'Thick riding gloves.');
+piece('gauntlets', 'Steel gauntlets', 'hands', 'heavy', 15 * GP, 3, 'Articulated steel gauntlets: fingers that can still grip a sword.');
+piece('leather-leggings', 'Leather leggings', 'legs', 'light', 3 * GP, 3, 'Boiled-leather guards for thighs and shins.');
+piece('mail-chausses', 'Mail chausses', 'legs', 'heavy', 25 * GP, 10, 'Leggings of mail, laced to the belt.');
+piece('steel-greaves', 'Steel greaves', 'legs', 'heavy', 30 * GP, 8, 'Steel shin and thigh plates with knee cops.');
 add({ id: 'shield', name: 'Round shield', cat: 'shield', slot: 'offHand', weight: 6, value: 10 * GP, glyph: '⛉', acBonus: 2, desc: 'A round shield of lime-wood with an iron boss. +2 AC while carried.' });
 
 // Clothing and cloaks

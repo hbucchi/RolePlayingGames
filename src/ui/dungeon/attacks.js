@@ -7,7 +7,7 @@ import { cellsOf } from '../../engine/size.js';
 import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
-import { absorbed, strike, wearArmour } from '../../engine/defence.js';
+import { absorbed, strike, wearArmour, partCover } from '../../engine/defence.js';
 import { BODY_BY_ID } from '../../engine/body.js';
 import { rollDie } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
@@ -341,13 +341,11 @@ export function installAttacks(ctx) {
       const pct = weapon.spell ? 0 : at.pct;
       const raw = dmg; dmg = absorbed(dmg, pct);
       target.lastHit = { part: at.part, roll: roll100, covered: at.covered, raw, dealt: dmg, pct };
-      const armour = target.defence?.armour;
       const where = `to the ${BODY_BY_ID[at.part].name.toLowerCase()} (d100 ${roll100})`;
       if (pct) {
-        bits.push(`${armour.name} absorbs ${pct}%: ${raw} → ${dmg}`);
-        const cond = wearArmour(armour, r.crit);
-        if (target === s.hero) ctx.wearHeroArmour?.(armour.uid, cond);
-      } else if (!weapon.spell && armour && (armour.cover[at.part] ?? 0) > 0) bits.push(`through a gap in the ${armour.name.toLowerCase()}`);
+        bits.push(`${at.pieces.map((p) => p.name.toLowerCase()).join(' + ')} absorb${at.pieces.length > 1 ? '' : 's'} ${pct}%: ${raw} → ${dmg}`);
+        for (const p of at.pieces) { const cond = wearArmour(p, r.crit); if (target === s.hero) ctx.wearHeroArmour?.(p.uid, cond); }
+      } else if (!weapon.spell && partCover(target.defence, at.part) > 0) bits.push('through a gap in the armour');
       if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
         dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
       }

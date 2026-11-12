@@ -906,6 +906,42 @@
   },
   "hide-armour": {
    "icon": "a rough armour coat of thick furred animal hide"
+  },
+  "leather-cap": {
+   "icon": "a simple boiled-leather skullcap"
+  },
+  "iron-helm": {
+   "icon": "a round iron helm with a nasal guard"
+  },
+  "mail-coif": {
+   "icon": "a hood of chain mail"
+  },
+  "great-helm": {
+   "icon": "a closed steel great helm with narrow eye slits"
+  },
+  "steel-gorget": {
+   "icon": "a curved steel gorget collar"
+  },
+  "leather-vambraces": {
+   "icon": "a pair of hardened leather forearm guards"
+  },
+  "steel-vambraces": {
+   "icon": "a pair of steel forearm guards with elbow plates"
+  },
+  "leather-gloves": {
+   "icon": "a pair of thick brown leather gloves"
+  },
+  "gauntlets": {
+   "icon": "a pair of articulated steel gauntlets"
+  },
+  "leather-leggings": {
+   "icon": "a pair of boiled-leather leg guards for thighs and shins"
+  },
+  "mail-chausses": {
+   "icon": "a pair of chain mail leggings"
+  },
+  "steel-greaves": {
+   "icon": "a pair of steel greaves with knee guards"
   }
  },
  "sheets": [
@@ -1635,6 +1671,27 @@
     "glimmer-blade"
    ],
    "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game inventory items, each object alone and centered in its own equal cell with empty space around it, three-quarter view, dark brown-black textured background in every cell, warm candle light, rich realistic painted detail, no text, no labels, no borders, no hands, no people. Row 1, left to right: a lump of rock glittering with silver veins; a lump of heavy rock threaded with gold veins; a small lump of shining pale silver-blue metal ore; a pale ash wood log. Row 2, left to right: a red-hearted yew wood log; a white close-grained holly wood log; a dense black wood log; a silver-barked log with a few golden leaves. Row 3, left to right: a folded shimmering grey-green cloak with a leaf-shaped brooch; a shirt of tiny shining silver rings; an ancient short sword etched with red-gold runes; an elegant elven longsword glowing faintly blue."
+  },
+  {
+   "kind": "icon",
+   "name": "i11",
+   "cols": 4,
+   "rows": 3,
+   "keys": [
+    "leather-cap",
+    "iron-helm",
+    "mail-coif",
+    "great-helm",
+    "steel-gorget",
+    "leather-vambraces",
+    "steel-vambraces",
+    "leather-gloves",
+    "gauntlets",
+    "leather-leggings",
+    "mail-chausses",
+    "steel-greaves"
+   ],
+   "prompt": "A 4 by 3 grid of 12 separate painted fantasy role-playing-game inventory items, each object alone and centered in its own equal cell with empty space around it, three-quarter view, dark brown-black textured background in every cell, warm candle light, rich realistic painted detail, no text, no labels, no borders, no hands, no people. Row 1, left to right: a simple boiled-leather skullcap; a round iron helm with a nasal guard; a hood of chain mail; a closed steel great helm with narrow eye slits. Row 2, left to right: a curved steel gorget collar; a pair of hardened leather forearm guards; a pair of steel forearm guards with elbow plates; a pair of thick brown leather gloves. Row 3, left to right: a pair of articulated steel gauntlets; a pair of boiled-leather leg guards for thighs and shins; a pair of chain mail leggings; a pair of steel greaves with knee guards."
   }
  ]
 }

@@ -4,7 +4,7 @@
  * worn over it and its state; the groundwork for local injuries).
  */
 import { manaHtml } from '../mana-view.js';
-import { absorbed } from '../../engine/defence.js';
+import { partCover } from '../../engine/defence.js';
 import { bodyReport, BODY_PARTS, BODY_BY_ID } from '../../engine/body.js';
 import { conditionLabels } from '../../engine/combat.js';
 import { XP_FOR_LEVEL } from '../../engine/progression.js';
@@ -56,9 +56,9 @@ export function installCharacters(ctx) {
   }
 
   function bodyHtml(m) {
-    const armour = m.hero?.defence?.armour ?? null;
-    const coverAt = (part) => armour?.cover?.[part] ?? 0;
-    const armourAt = (part) => (coverAt(part) ? armour.pct : 0);
+    const def = m.hero?.defence ?? null;
+    const coverAt = (part) => partCover(def, part);
+    const onPart = (part) => (def?.pieces ?? []).filter((p) => (p.cover[part] ?? 0) > 0);
     const rep = bodyReport(m.draft ?? { inventory: [], equipped: {} }, m.hero?.injuries ?? {});
     const sel = rep[s.charPart] ?? rep.chest;
     const dots = BODY_PARTS.map((p) => {
@@ -73,12 +73,12 @@ export function installCharacters(ctx) {
         <p class="small"><b>${esc(sel.state)}</b></p>
         <p class="small muted">A blow that lands strikes here ${sel.weight}% of the time.</p>
         <p class="small">On the d100 this part is <b>${BODY_BY_ID[sel.id].from}–${BODY_BY_ID[sel.id].to}</b>.</p>
-        <p class="small">${coverAt(sel.id)
-    ? `<b>${esc(armour.name)}</b> covers <b>${BODY_BY_ID[sel.id].from}–${BODY_BY_ID[sel.id].from + coverAt(sel.id) - 1}</b> (${coverAt(sel.id)} of ${sel.weight} points) and absorbs <b>${armour.pct}%</b>${armour.condition < 100 ? ` (condition ${armour.condition}%)` : ''}: a 10-point blow there does ${absorbed(10, armour.pct)}.${coverAt(sel.id) < sel.weight ? ` Rolls ${BODY_BY_ID[sel.id].from + coverAt(sel.id)}–${BODY_BY_ID[sel.id].to} find a gap.` : ''}`
-    : '<b>Bare</b>: nothing between this and a blade.'}</p>
+        ${coverAt(sel.id) ? `<ul class="plain small">${onPart(sel.id).map((p) => { const b = BODY_BY_ID[sel.id]; return `<li><b>${esc(p.name)}</b> covers <b>${b.from}–${b.from + p.cover[sel.id] - 1}</b> (${p.cover[sel.id]} of ${sel.weight} points), absorbs <b>${p.pct}%</b>${p.condition < 100 ? ` (condition ${p.condition}%)` : ''}</li>`; }).join('')}</ul>
+        <p class="small muted">Where pieces overlap, both absorb (40% and 40% let 36% through).${coverAt(sel.id) < sel.weight ? ` Rolls ${BODY_BY_ID[sel.id].from + coverAt(sel.id)}–${BODY_BY_ID[sel.id].to} find a gap.` : ''}</p>`
+    : '<p class="small"><b>Bare</b>: nothing between this and a blade.</p>'}
         <h5>Worn here</h5>
         ${sel.worn.length ? `<ul class="plain small">${sel.worn.map((w) => `<li>${w.kind === 'armour' ? '🛡' : w.kind === 'shield' ? '⛉' : w.kind === 'jewel' ? '💍' : w.kind === 'cloak' ? '🧥' : '✋'} ${esc(w.label)}</li>`).join('')}</ul>` : '<p class="small muted">Nothing: this part is bare.</p>'}
-        <table class="bp-table small"><tbody>${BODY_PARTS.map((p) => `<tr class="${sel.id === p.id ? 'sel' : ''}"><td><button class="linkish" data-dg="char-part" data-part="${p.id}">${esc(p.name)}</button></td><td>${esc(rep[p.id].state)}</td><td class="muted">${p.from}–${p.to}</td><td>${coverAt(p.id) ? `<b>${coverAt(p.id)}/${p.weight}</b> · ${armour.pct}%` : '—'}</td><td class="muted">${rep[p.id].worn.length ? esc(rep[p.id].worn.map((w) => w.label.replace(/ \(.*\)$/, '')).join(', ')) : 'bare'}</td></tr>`).join('')}</tbody></table>
+        <table class="bp-table small"><tbody>${BODY_PARTS.map((p) => `<tr class="${sel.id === p.id ? 'sel' : ''}"><td><button class="linkish" data-dg="char-part" data-part="${p.id}">${esc(p.name)}</button></td><td>${esc(rep[p.id].state)}</td><td class="muted">${p.from}–${p.to}</td><td>${coverAt(p.id) ? `<b>${coverAt(p.id)}/${p.weight}</b> · ${onPart(p.id).map((x) => `${x.pct}%`).join(' + ')}` : '—'}</td><td class="muted">${rep[p.id].worn.length ? esc(rep[p.id].worn.map((w) => w.label.replace(/ \(.*\)$/, '')).join(', ')) : 'bare'}</td></tr>`).join('')}</tbody></table>
       </div>
     </div>`;
   }

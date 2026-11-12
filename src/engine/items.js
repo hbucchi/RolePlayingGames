@@ -12,8 +12,11 @@ import { kg } from './units.js';
 /** Arms and armour: the paper doll's first tab. */
 export const SLOTS = [
   { id: 'mainHand', name: 'Main hand' }, { id: 'offHand', name: 'Off hand' }, { id: 'ranged', name: 'Ranged' },
-  { id: 'body', name: 'Armour' }, { id: 'cloak', name: 'Cloak' },
+  { id: 'head', name: 'Helm' }, { id: 'throat', name: 'Gorget' }, { id: 'body', name: 'Armour' },
+  { id: 'arms', name: 'Vambraces' }, { id: 'hands', name: 'Gloves' }, { id: 'legs', name: 'Leg armour' }, { id: 'cloak', name: 'Cloak' },
 ];
+/** Armour is worn in pieces: each slot protects its own part of the body (engine/defence.js). */
+export const ARMOUR_SLOTS = ['head', 'throat', 'body', 'arms', 'hands', 'legs'];
 /** Jewellery: the second tab. One necklace, a bracelet on each wrist, and a ring on each finger and thumb. */
 const FINGERS = ['thumb', 'index finger', 'middle finger', 'ring finger', 'little finger'];
 export const JEWEL_SLOTS = [
@@ -332,7 +335,7 @@ export function startingGear(cls, bg) {
   }
   const gear = { inventory, equipped: {} };
   const first = (pred) => inventory.find((x) => pred(itemDef(x)));
-  const body = first((d) => d.cat === 'armor'); if (body) gear.equipped.body = body.uid;
+  const body = first((d) => d.cat === 'armor' && d.slot === 'body'); if (body) gear.equipped.body = body.uid;
   const melee = first((d) => d.cat === 'weapon' && !d.weapon.ranged); if (melee) gear.equipped.mainHand = melee.uid;
   const ranged = first((d) => d.cat === 'weapon' && d.weapon.ranged); if (ranged) gear.equipped.ranged = ranged.uid;
   const shield = first((d) => d.cat === 'shield');

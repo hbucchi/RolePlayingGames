@@ -40,6 +40,7 @@ import { play, isMuted, setMuted } from './audio.js';
 import * as music from './music.js';
 import { m as mtr } from '../engine/units.js';
 import { coverage } from '../engine/defence.js';
+import { repair } from '../engine/smith.js';
 
 const setting = getSetting(DEFAULT_SETTING_ID);
 const roster = createRoster();
@@ -361,11 +362,11 @@ function marketView() {
   const h = state.market.haggles[id];
   return `<section class="market">
     <div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="home">← Adventures</button><h1 class="arena-title">The Trading Post</h1>
-      <p class="muted small">Buy gear and sell loot between adventures.</p></div>
+      <p class="muted small">Buy gear, sell loot and have armour mended at the forge between adventures.</p></div>
     <div class="chips market-heroes">${heroes.map((x) => `<button class="chip ${x.id === id ? 'sel' : ''}" data-action="market-hero" data-id="${esc(x.id)}" aria-pressed="${x.id === id}">${esc(x.label.split(',')[0])}</button>`).join('')}</div>
     ${d ? `<div class="card market-card-body">
       <div class="market-hero"><img src="${esc(heroLook(d).url ?? '')}" alt="" style="filter:${heroLook(d).filter ?? 'none'}"><div><h3>${esc(c.name)}</h3><p class="small muted">Level ${c.level} ${esc(c.race.name)} ${esc(c.cls.name)} · CHA ${c.scores.cha} (${c.mods.cha >= 0 ? '+' : ''}${c.mods.cha})</p></div></div>
-      ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader', tab: state.market.tab ?? 'buy', shelf: state.market.shelf, stock: martaStock(c.level, h?.rate ?? BASE_RATE) })}
+      ${tradeHtml({ gear: d, rate: h?.rate ?? BASE_RATE, haggle: h ?? null, persuasion, heroName: c.name, attr: 'data-tr', trader: 'Marta the trader', tab: state.market.tab ?? 'buy', shelf: state.market.shelf, smith: true, stock: martaStock(c.level, h?.rate ?? BASE_RATE) })}
     </div>` : '<p class="muted">Make or adopt a hero first.</p>'}
   </section>`;
 }
@@ -408,6 +409,12 @@ root.addEventListener('click', async (e) => {
   const rate = state.market.haggles[id]?.rate ?? BASE_RATE;
   if (el.dataset.tr === 'trade-tab') { state.market.tab = el.dataset.tab; render(); return; }
   if (el.dataset.tr === 'trade-shelf') { state.market.shelf = el.dataset.shelf; render(); return; }
+  if (el.dataset.tr === 'trade-repair') {
+    const r = repair(d, el.dataset.uid || null);
+    if (!r.ok) { notify(r.message, 'bad'); return; }
+    keep(heroApi.save(d)); notify(`Mended ${r.mended.join(', ')} for ${formatCoins(r.cost)}.`, 'ok');
+    render(); return;
+  }
   if (el.dataset.tr === 'trade-buy' || el.dataset.tr === 'trade-buy-rare') {
     const stock = martaStock(c.level, rate);
     const rare = el.dataset.tr === 'trade-buy-rare';
@@ -779,7 +786,7 @@ function sheetHtml(c, look) {
         </div>
       </header>
       <section class="vitals">
-        ${[['Evasion', c.ac], ['Block', `${c.defence?.block ?? 0}%`], ['Armour', c.defence?.armour ? `${c.defence.armour.pct}% · ${coverage(c.defence.armour)}/100` : '—'], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
+        ${[['Evasion', c.ac], ['Block', `${c.defence?.block ?? 0}%`], ['Armour', c.defence?.pieces?.length ? `${coverage(c.defence)}/100 covered` : '—'], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
     ['Proficiency', fmt(c.proficiencyBonus)], ['Passive Perception', c.passivePerception], ['Hit Die', `1d${c.hitDie}`]]
     .map(([k, v]) => `<div class="vital"><span class="v">${v}</span><span class="k">${k}</span></div>`).join('')}
       </section>

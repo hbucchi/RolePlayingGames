@@ -78,7 +78,7 @@ export function npcView(c, run, npcId, wallet = {}) {
     .filter((o) => holds(o.if, run) && !(o.once && run.flags.includes(o.once)))
     .map((o) => ({ i: o.i, label: o.label, price: o.price ?? 0,
       why: o.needItem && !wallet.has?.(o.needItem) ? 'you do not have it' : o.price && (wallet.coins ?? 0) < o.price ? 'not enough coin' : '' }));
-  return { name: npc.name, stat: npc.stat, greet, options, shop: npc.shop ?? [] };
+  return { name: npc.name, stat: npc.stat, greet, options, shop: npc.shop ?? [], repair: !!npc.repair };
 }
 
 /**

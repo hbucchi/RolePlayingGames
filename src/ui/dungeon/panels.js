@@ -5,7 +5,7 @@
  */
 import { manaHtml } from '../mana-view.js';
 import { manaCost } from '../../engine/magic.js';
-import { tradeHtml } from '../trade-view.js';
+import { tradeHtml, repairHtml } from '../trade-view.js';
 import { morphInto } from '../morph.js';
 import { FACINGS, facingAngle, woundState, escapeBonus, canWrestle, BOUND_TEXT, conditionLabels, attackOptions, chebyshev, covers } from '../../engine/combat.js';
 import { coinsHtml, lootHtml, inventoryHtml } from '../inventory-view.js';
@@ -395,6 +395,7 @@ export function installPanels(ctx) {
       <p class="npc-say">${esc(said)}</p>
       ${!near ? '<p class="small muted">Walk up to them to talk.</p>' : `
       ${v.options.length ? `<div class="npc-options">${v.options.map((o) => `<button class="btn npc-opt" data-dg="npc-opt" data-i="${o.i}" ${o.why ? `title="${esc(o.why)}"` : ''}>${esc(o.label)}${o.why ? ` <small>(${esc(o.why)})</small>` : ''}</button>`).join('')}</div>` : ''}
+      ${v.repair ? `<h4>Repairs</h4>${repairHtml({ gear: s.draft, attr: 'data-dg', smithName: m.name })}` : ''}
       ${shop.length ? `<h4>For sale</h4><ul class="shop">${shop.map(({ id, def }) => `<li><span>${def.glyph ?? '•'} ${esc(def.name)}</span><span class="muted small">${esc(formatCoinsShort(def.value))}</span>
         <button class="btn small" data-dg="npc-buy" data-id="${esc(id)}" ${(s.draft?.coins ?? 0) < def.value ? 'disabled title="Not enough coin"' : ''}>Buy</button></li>`).join('')}</ul>` : ''}
       ${shop.length ? `<h4>Sell</h4>${sellSection(m)}` : `<div class="small muted npc-purse">Purse (${esc(s.hero.name)}): ${coinsHtml(s.draft?.coins ?? 0)}</div>`}`}

@@ -11,10 +11,12 @@
  *   ${attr}="trade-shelf" data-shelf             show one shelf of goods (weapons, armour...)
  *   ${attr}="trade-buy" data-id                  buy a standard item (engine/shop.js)
  *   ${attr}="trade-buy-rare"                     buy this period's rare magic item
+ *   ${attr}="trade-repair" data-uid              mend one piece of armour (no uid: everything)
  */
 import { itemName, itemRarity, formatCoins } from '../engine/items.js';
 import { ITEMS_BY_ID, CATEGORY_LABEL, RARITY_LABEL } from '../content/items/catalogue.js';
 import { sellable, BASE_RATE } from '../engine/trade.js';
+import { repairable, conditionOf } from '../engine/smith.js';
 import { itemIcon, fmtValue } from './inventory-view.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -25,13 +27,15 @@ export const GOODS = new Set(['gem', 'trinket', 'resource']);
 /**
  * @param o { gear, rate, haggle: {text, rate} | null, persuasion, heroName, attr, trader }
  */
-export function tradeHtml({ gear, rate = BASE_RATE, haggle = null, persuasion = 0, heroName = 'You', attr = 'data-dg', trader = 'The trader', tab = 'buy', stock = null, shelf = 'weapon' }) {
-  const tabs = stock ? `<div class="chips trade-tabs" role="tablist">
-      <button class="chip ${tab === 'buy' ? 'sel' : ''}" ${attr}="trade-tab" data-tab="buy" aria-pressed="${tab === 'buy'}">🛒 Buy</button>
+export function tradeHtml({ gear, rate = BASE_RATE, haggle = null, persuasion = 0, heroName = 'You', attr = 'data-dg', trader = 'The trader', tab = 'buy', stock = null, shelf = 'weapon', smith = false }) {
+  const tabs = stock || smith ? `<div class="chips trade-tabs" role="tablist">
+      ${stock ? `<button class="chip ${tab === 'buy' ? 'sel' : ''}" ${attr}="trade-tab" data-tab="buy" aria-pressed="${tab === 'buy'}">🛒 Buy</button>` : ''}
       <button class="chip ${tab === 'sell' ? 'sel' : ''}" ${attr}="trade-tab" data-tab="sell" aria-pressed="${tab === 'sell'}">💰 Sell</button>
+      ${smith ? `<button class="chip ${tab === 'repair' ? 'sel' : ''}" ${attr}="trade-tab" data-tab="repair" aria-pressed="${tab === 'repair'}">🔨 Repair</button>` : ''}
     </div>` : '';
   const haggleBtn = `<button class="btn small" ${attr}="trade-haggle" ${haggle ? 'disabled' : ''} title="Charisma (Persuasion) check: every point over 10 adds 1% when you sell and takes 1% off when you buy (up to 25%). Once per visit.">🗣 ${haggle ? 'Haggled' : `Haggle (Persuasion ${signed(persuasion)})`}</button>`;
   const purse = `<p class="small muted trade-purse">${esc(heroName)}'s purse: <b>${esc(formatCoins(gear.coins ?? 0))}</b></p>`;
+  if (smith && tab === 'repair') return `<div class="trade">${tabs}${repairHtml({ gear, attr })}${purse}</div>`;
   if (stock && tab === 'buy') return `<div class="trade">${tabs}${buyHtml({ gear, rate, haggle, attr, trader, stock, haggleBtn, shelf })}${purse}</div>`;
   const list = sellable(gear, rate).sort((a, b) => (!!a.why - !!b.why) || b.all - a.all);
   const goods = list.filter((x) => !x.why && GOODS.has(ITEMS_BY_ID[x.inst.id]?.cat));
@@ -93,4 +97,20 @@ function buyHtml({ gear, rate, haggle, attr, trader, stock, haggleBtn, shelf }) 
     ${rare}
     <div class="trade-shelves">${shelves}</div>
     ${later}`;
+}
+
+/**
+ * The smith's work: every worn piece of armour with its condition and the price to make it whole
+ * (engine/smith.js: price new x damage x 1/2).
+ */
+export function repairHtml({ gear, attr = 'data-dg', smithName = 'The smith' }) {
+  const list = repairable(gear);
+  const total = list.reduce((n, x) => n + x.cost, 0);
+  if (!list.length) return `<p class="small muted">${esc(smithName)} looks over your gear: nothing needs mending.</p>`;
+  return `<p class="small"><b>${esc(smithName)}</b> mends armour for half the price of what was lost.</p>
+    <button class="btn small primary" ${attr}="trade-repair" ${(gear.coins ?? 0) < total ? 'disabled' : ''}>Mend everything for ${esc(fmtValue(total))}</button>
+    <ul class="trade-list">${list.map(({ inst, cost }) => `<li>${itemIcon(inst, 'sm')}
+      <span class="trade-name">${esc(itemName(inst))} <small class="${conditionOf(inst) < 50 ? 'bad' : 'muted'}">condition ${conditionOf(inst)}%</small></span>
+      <span class="trade-price">${esc(fmtValue(cost))}</span>
+      <span class="trade-btns"><button class="btn small" ${attr}="trade-repair" data-uid="${esc(inst.uid)}" ${(gear.coins ?? 0) < cost ? 'disabled title="Not enough coin"' : ''}>Repair</button></span></li>`).join('')}</ul>`;
 }

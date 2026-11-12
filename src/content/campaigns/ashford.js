@@ -127,8 +127,9 @@ export const ashford = {
         } },
         H: { on: 'cobbles', facing: 2, npc: {
           id: 'hedda', name: 'Hedda the smith', stat: 'commoner',
-          greet: [{ say: 'Steel for sale. Good steel. I don\'t haggle and I don\'t do refunds.' }],
-          shop: ['longsword', 'shortsword', 'spear', 'handaxe', 'javelin', 'mace', 'shield', 'leather', 'chain-shirt', 'scale-mail'],
+          greet: [{ say: 'Steel for sale, and dents beaten out. Good steel. I don\'t haggle and I don\'t do refunds.' }],
+          shop: ['longsword', 'shortsword', 'spear', 'handaxe', 'javelin', 'mace', 'shield', 'leather', 'chain-shirt', 'scale-mail', 'leather-cap', 'iron-helm', 'leather-gloves', 'leather-vambraces', 'leather-leggings'],
+          repair: true, // she mends armour (engine/smith.js)
         } },
         P: { on: 'cobbles', facing: 4, npc: {
           id: 'osric', name: 'Osric the peddler', stat: 'commoner',

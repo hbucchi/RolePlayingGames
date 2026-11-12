@@ -266,7 +266,7 @@ export function deriveCharacter(draft, setting) {
     weaponTrained: (def) => weaponProficient(def, cls?.weaponProficiencies ?? []),
   });
   const ac = defence.evasion;
-  if (defence.hinder) g.notes.push(`${defence.armour.name} hinders you: −${defence.hinder} Evasion${defence.moveLost ? `, −${defence.moveLost * 1.5} m movement` : ''}.`);
+  if (defence.hinder) g.notes.push(`Your armour hinders you: −${defence.hinder} Evasion${defence.moveLost ? `, −${defence.moveLost * 1.5} m movement` : ''}.`);
   // Encumbrance (items.js): above STR x 10 lb you are burdened (speed -10 ft); STR x 15 lb is the
   // most you can carry (more is only possible with gear from before the limit: speed -20 ft).
   const load = carriedWeight(gear.inventory, gear.coins ?? draft.coins ?? 0);

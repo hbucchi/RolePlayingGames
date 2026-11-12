@@ -24,7 +24,8 @@ test('heroes: Evasion from DEX minus armour hindrance, block from shield or trai
   assert.equal(heroDefence(kit('plate'), { dex: 0 }).hinder, 5); assert.equal(heroDefence(kit('plate'), { dex: 0 }).moveLost, 2);
   assert.equal(heroDefence(kit('leather'), { dex: 0 }).hinder, 0, 'leather does not hinder');
   assert.equal(heroDefence(kit('mithral-shirt'), { dex: 3 }).evasion, 13, 'mithral does not hinder'); assert.equal(heavy.block, shieldBlock(2)); assert.equal(heavy.blockWith, 'shield');
-  assert.equal(heroDefence(kit('plate'), { dex: 0 }).armour.cover.head, 8, 'plate has a helm (8 of the head\'s 10 points)');
+  assert.equal(heroDefence(kit('plate'), { dex: 0 }).armour.cover.head, undefined, 'the helm is a separate piece');
+  assert.equal(heroDefence(kit('plate', 'great-helm'), { dex: 0 }).pieces.length, 2);
   assert.equal(heroDefence(kit('scale-mail'), { dex: 4 }).evasion, 12, '10 + 4 - hindrance 2');
   assert.equal(heroDefence(kit('leather', 'longsword'), { dex: 0, weaponTrained: () => false }).block, 0, 'no parry with an untrained weapon');
   assert.equal(heroDefence(kit('leather'), { dex: 1, magicEvasion: 1 }).evasion, 12, 'a ring of protection adds to Evasion');
@@ -33,11 +34,24 @@ test('heroes: Evasion from DEX minus armour hindrance, block from shield or trai
 test('the d100 strip: a roll inside the covered points meets armour, beyond them finds a gap', () => {
   // Left arm is 1-12; a leather jerkin covers 4 of it (rolls 1-4).
   const d = heroDefence(kit('leather'), { dex: 0 });
-  assert.deepEqual(strike(d, 3), { part: 'left-arm', offset: 3, covered: true, pct: 10 });
-  assert.deepEqual(strike(d, 7), { part: 'left-arm', offset: 7, covered: false, pct: 0 }, 'a 7 lands on the left arm, in the gap');
+  const s3 = strike(d, 3); assert.equal(s3.part, 'left-arm'); assert.equal(s3.offset, 3); assert.equal(s3.covered, true); assert.equal(s3.pct, 10);
+  const s7 = strike(d, 7); assert.equal(s7.part, 'left-arm'); assert.equal(s7.covered, false, 'a 7 lands on the left arm, in the gap'); assert.equal(s7.pct, 0);
   assert.equal(strike(d, 95).part, 'head'); assert.equal(strike(d, 95).covered, false);
   assert.equal(coverage(d.armour), 18 + 10 + 4 + 4);
-  assert.equal(coverage(heroDefence(kit('plate'), { dex: 0 }).armour), 96);
+  assert.equal(coverage(heroDefence(kit('plate'), { dex: 0 }).armour), 82);
+  assert.equal(coverage(heroDefence(kit('plate', 'great-helm', 'gauntlets'), { dex: 0 })), 100, 'plate, a great helm and gauntlets cover every point');
+});
+
+test('layers: pieces on the same part multiply; head, neck, hands get their own pieces', () => {
+  const d = heroDefence(kit('chain-mail', 'steel-vambraces', 'iron-helm', 'steel-gorget'), { dex: 0 });
+  // Left arm 1-12: mail covers 1-11, vambraces 1-8. A 5 meets both: 1 - 0.6 x 0.6 = 64%.
+  assert.equal(strike(d, 5).pct, 64); assert.equal(strike(d, 5).pieces.length, 2);
+  assert.equal(strike(d, 10).pct, 40, 'beyond the vambraces only the mail');
+  assert.equal(strike(d, 12).pct, 0, 'the last point of the arm is a gap');
+  assert.equal(strike(d, 92).pct, 35, 'the helm covers the head: 91-97');
+  assert.equal(strike(d, 99).covered, false, 'the face is open');
+  assert.equal(strike(d, 89).pct, 100 - Math.round(100 * 0.6 * 0.55), 'mail and gorget on the neck');
+  assert.ok(d.hinder >= 4, 'more pieces, more hindrance');
 });
 
 test('condition: worn armour absorbs less, and each blow wears it', () => {
