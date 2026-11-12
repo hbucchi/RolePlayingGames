@@ -69,7 +69,7 @@ function statLine(inst) {
  * @param gear  { inventory, equipped, coins }
  * @param o     { str, selected, filter, editable, combat }
  */
-export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory', doll: dollTab = 'arms' } = {}) {
+export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all', editable = true, combat = false, title = 'Inventory', doll: dollTab = 'arms', safe = null } = {}) {
   const weight = carriedWeight(gear.inventory, gear.coins ?? 0);
   const cap = carryCapacity(str);
   const { burdened } = loadLimits(str);
@@ -131,6 +131,7 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
         ${offOk && slotFor(sel, 'offHand') ? `<button class="btn small" data-inv="equip" data-slot="offHand" data-uid="${esc(sel.uid)}">Off hand</button>` : ''}
         ${eq ? `<button class="btn small" data-inv="unequip" data-uid="${esc(sel.uid)}" ${armourLocked ? 'disabled title="Taking off armour takes minutes: not during a fight."' : ''}>Unequip</button>` : ''}
         ${def.use ? `<button class="btn small primary" data-inv="use" data-uid="${esc(sel.uid)}">${def.use.kind === 'bandage' ? 'Bandage wounds' : def.use.kind === 'light' ? 'Raise the light' : 'Use'}${combat ? ' (action)' : ''}</button>` : ''}
+        ${safe && !eq ? `<button class="btn small" data-inv="to-safe" data-uid="${esc(sel.uid)}">Put in the safe</button>` : ''}
         <button class="btn small danger ghost" data-inv="drop" data-uid="${esc(sel.uid)}">Drop</button>
       </div>` : ''}`;
   }
@@ -154,6 +155,16 @@ export function inventoryHtml(gear, { str = 10, selected = null, filter = 'all',
       </div>
       <div class="inv-detail" aria-live="polite">${detail}</div>
     </div>
+    ${safe ? safeHtml(safe) : ''}
+  </div>`;
+}
+
+/** The company's safe in town (engine/safe.js): what is in it, to take back into the bag. */
+function safeHtml({ items, slots }) {
+  return `<div class="inv-safe">
+    <h4>🔒 The safe <span class="muted small">${items.length} / ${slots} slots · shared by the whole company</span></h4>
+    ${items.length ? `<div class="inv-grid safe-grid">${items.map((x) => `<button class="inv-tile" data-inv="from-safe" data-uid="${esc(x.uid)}" title="Take ${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` ×${x.qty}` : ''} into the bag">${itemIcon(x)}</button>`).join('')}</div>
+      <p class="small muted">Click something to take it into this hero's bag.</p>` : '<p class="small muted">Empty. Loot carried out of a dungeon can be stored here when you leave, or from the bag with “Put in the safe”.</p>'}
   </div>`;
 }
 

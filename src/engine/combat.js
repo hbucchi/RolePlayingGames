@@ -309,6 +309,19 @@ export function legendaryOf(stat, weapons) {
   return options.length ? { count: leg.count ?? 3, options } : null;
 }
 
+/**
+ * The campaign's foes are veterans: a third more hit points and +1 to hit. Campaign places are
+ * few and hand-made, so each fight there should be a real test (and pays 1.5x the XP,
+ * progression.js XP_RATE), unlike the endless generated dungeons.
+ */
+export const VETERAN = { hp: 1.3, toHit: 1 };
+export function makeVeteran(m) {
+  m.maxHp = m.hp = Math.round(m.maxHp * VETERAN.hp);
+  m.weapons = m.weapons.map((w) => ({ ...w, toHit: w.toHit + VETERAN.toHit }));
+  m.veteran = true;
+  return m;
+}
+
 export function createMonster(stat, id, pos, facing = 4) {
   const weapons = stat.actions.filter((a) => a.attack?.damage?.length).map(weaponFromMonsterAction); // a grapple with no damage (Smother) is not a weapon
   return {

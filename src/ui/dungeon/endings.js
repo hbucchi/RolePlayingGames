@@ -13,6 +13,8 @@ export function installEndings(ctx) {
 
   function showEnd(kind) {
     s.mode = kind;
+    // Defeat undoes the floor: every hero is back as they came in (engine/delve.js).
+    s.lost = kind === 'defeat' ? ctx.loseDelve() : [];
     if (kind === 'victory') ctx.finishAdventure();
     setMood('dungeon');
     stinger(kind === 'victory' ? 'victory' : 'defeat');
@@ -46,7 +48,7 @@ export function installEndings(ctx) {
   function defeatCard() {
     const names = ctx.party().map((h) => h.name);
     return `<div class="dg-endcard"><h2>${esc(names.length > 1 ? 'The party has fallen' : `${names[0]} has fallen`)}</h2>
-      <p>The dark claims another hero... but legends are stubborn. ${ctx.place ? 'Your experience and the loot you carried are kept.' : arena ? 'It was only practice.' : 'Your experience and the loot you carried out are kept.'}</p>
+      <p>The dark claims another hero... but legends are stubborn. ${arena && !ctx.place ? 'It was only practice.' : ctx.keepsCheckpoint ? `Everything won ${ctx.place ? 'here' : 'since the last stairs'} is lost: the experience, the loot and the coins. Back to how ${esc(names.length > 1 ? 'the party' : names[0])} stood ${ctx.place ? 'on arriving' : 'at the last way down'}.` : 'The tale goes on.'}</p>
       <p class="small muted">Look over the battlefield to see how it ended: the map stays exactly as it was, and the battle log tells the story blow by blow.</p>
       ${defeatButtons()}</div>`;
   }

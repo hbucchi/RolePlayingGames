@@ -21,7 +21,7 @@ import { renderArenaSVG } from '../engine/arena-render.js';
 import { cellsOf, blockDistance, dims, spanOf, centerOf } from '../engine/size.js';
 import { reachableSquares, speedToSquares, cellKey } from '../engine/movement.js';
 import { makeOpacity, visibleSquares, revealFrom, inFieldOfView, lineOfSight, blockingCells } from '../engine/vision.js';
-import { facingToward, rotateFacing, chebyshev, weaponFromHeroAttack, rollInitiative, createMonster, entityDistance, covers, reachOf, immobile } from '../engine/combat.js';
+import { facingToward, rotateFacing, chebyshev, weaponFromHeroAttack, rollInitiative, createMonster, makeVeteran, entityDistance, covers, reachOf, immobile } from '../engine/combat.js';
 import { BESTIARY_BY_ID } from '../content/bestiary/index.js';
 import { monsterPortrait } from '../content/media.js';
 import { play, preload, SOUND_KEYS } from './audio.js';
@@ -52,6 +52,10 @@ import { installActions } from './dungeon/actions.js';
 import { installMagic } from './dungeon/magic.js';
 import { installPanels } from './dungeon/panels.js';
 import { injuryPenalties } from '../engine/injury.js';
+import { createDelveStore } from '../engine/delve.js';
+import { createSafe, SAFE_SLOTS } from '../engine/safe.js';
+import { defaultBackend } from '../engine/storage.js';
+import { XP_RATE } from '../engine/progression.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -84,6 +88,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   // can be talked to, and the way out leads back to the world map. A plain arena bout is practice.
   const place = arena?.location ?? null;
   const practice = !!arena && !place;
+  // Gains are only kept at an exit (engine/delve.js); story battles and practice bouts aside.
+  const delve = createDelveStore(defaultBackend());
+  const safe = createSafe(defaultBackend());
+  const keepsCheckpoint = !practice && !onOutcome;
+  // Experience: generated dungeons can be played again and again, so they teach little;
+  // the campaign is where heroes grow (progression.js XP_RATE).
+  const xpRate = practice ? 0 : place ? XP_RATE.campaign : onOutcome ? XP_RATE.story : XP_RATE.dungeon;
   const s = {
     seed: initialSeed, map: null, grid: true, revealAll: !!arena && arena.reveal !== false, rule: 'standard', zoom: 0.5,
     partyIds: arena ? arena.heroes.map((h) => h.id) : heroes.slice(0, 1).map((h) => h.id), members: [], active: 0,
@@ -188,6 +199,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     arena: { get: () => arena },
     awardPartyXp: { get: () => awardPartyXp },
     awardXp: { get: () => awardXp },
+    loseDelve: { get: () => loseDelve },
+    keepsCheckpoint: { get: () => keepsCheckpoint },
     banner: { get: () => banner },
     bleed: { get: () => bleed },
     boltFor: { get: () => boltFor },
@@ -387,7 +400,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
-    if (!s.draft || practice) return; // arena bouts are practice: nothing is saved
+    if (!s.draft || practice || s.mode === 'defeat') return; // arena bouts are practice; a lost floor is undone
     // Damage taken, kept on the hero until a potion or spell mends it (a fallen hero keeps 1 HP).
     if (s.hero && s.hero.isHero) { s.draft.wounds = Math.max(0, s.hero.maxHp - Math.max(1, s.hero.hp)); s.draft.injuries = { ...(s.hero.parts ?? {}) }; }
     const saved = api.save(s.draft);
@@ -397,6 +410,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       if (h) { h.id = saved.id; h.label = h.label.replace(' (ready-made)', ''); }
       if (box) { box.value = saved.id; box.parentElement.lastChild.textContent = ` ${h?.label ?? saved.name}`; }
       s.partyIds = s.partyIds.map((x) => (x === s.draft.id ? saved.id : x));
+      delve.rename(s.draft.id, saved.id);
       log(`${saved.name} joins your company, so their loot and experience are kept.`, 'info');
     }
     s.draft = saved ?? s.draft;
@@ -436,6 +450,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
    * wounds and the running tally come along; everything else on the new floor is fresh.
    */
   function resetDelve(carry = null) {
+    // Starting over (a new dungeon, trying again, another party) while gains are not yet safe:
+    // the heroes go back to how they came in.
+    if (!carry && keepsCheckpoint && delve.active()) loseDelve();
     s.monsters = [];
     if (arena) {
       loadParty(arena.carry ?? null, arena.heroes.map((h) => ({ ...h.pos })));
@@ -453,6 +470,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         if (f.side === 'ally') { m.side = 'ally'; m.permanent = true; }
         if (f.side === 'bound-captive') { m.side = 'captive'; m.aware = false; m.cond = { bound: { to: nextToWall(m.pos, m.size) ? 'wall' : 'floor', dc: 13 } }; }
         if (f.side === 'bound-enemy') m.cond = { bound: { to: nextToWall(m.pos, m.size) ? 'wall' : 'floor', dc: 13 } };
+        if (place && !f.side) makeVeteran(m); // the campaign's foes are hardened (combat.js VETERAN)
         return m;
       }).filter(Boolean);
     } else {
@@ -485,6 +503,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.mode = 'explore'; s.order = []; s.round = 0; s.busy = false; s.exitSeen = false; s.adventureCounted = false;
     $('.dg-endscreen').hidden = true; $('.dg-inv').hidden = true; $('.dg-pop').hidden = true; $('.dg-reviewbar').hidden = true; s.captiveRun = null;
     setMood(place ? (place.music ?? 'dungeon') : arena ? 'combat' : 'dungeon');
+    if (!carry && keepsCheckpoint) delve.begin(place ? 'place' : 'dungeon', memberDrafts(), place ? arena.name : `dungeon #${s.seed}`);
     startHeroTurn();
     const names = party().map((h) => h.name).join(', ') || 'Your hero';
     if (place) {
@@ -968,6 +987,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function leavePlace() {
     if (!place) { saveParty(); onLeave?.(); return; }
     if (s.mode === 'combat') { banner('You cannot leave while foes are on you.'); return; }
+    if (s.mode !== 'defeat') { keepGains(); delve.end(); } // out of the place: what you carry is yours
     saveActive();
     for (let i = 0; i < s.members.length; i++) { activate(i); persist(); }
     onLeave?.({
@@ -995,7 +1015,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       }
       if (e.heal) { for (const h of party()) { h.hp = h.maxHp; h.parts = {}; } play('spell-heal', { volume: 0.7 }); log('A healing prayer washes over the party: every wound is mended.', 'heal'); saveActive(); saveParty(); }
       if (e.rest) { saveActive(); replenishParty(e.rest === true ? 'The party sleeps soundly. Rest brings back mana, but wounds stay until a potion or a spell mends them.' : e.rest); }
-      if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${e.xp} XP.`, 'good'); }
+      if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${Math.round(e.xp * xpRate)} XP.`, 'good'); }
     }
     persist();
   }
@@ -1088,6 +1108,23 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (inst && condition !== null) inst.condition = condition;
   }
 
+  /** Every hero's saved choices and gear, as they stand now. */
+  function memberDrafts() { saveActive(); return s.members.map((m, i) => (i === s.active ? s.draft : m.draft)).filter(Boolean); }
+  /** An exit reached: what the party carries now is theirs to keep (engine/delve.js). */
+  function keepGains() {
+    if (!keepsCheckpoint) return;
+    saveActive(); saveParty();
+    const back = s.active; const list = [];
+    for (let i = 0; i < s.members.length; i++) { activate(i); list.push(structuredClone(s.draft)); }
+    activate(back);
+    delve.commit(list);
+  }
+  /** Defeat, or walking away: every hero back to the checkpoint; the floor's gains are lost. */
+  function loseDelve() {
+    if (!keepsCheckpoint || !delve.active()) return [];
+    return delve.restore((d) => api.restore?.(d));
+  }
+
   /** Save every hero (their wounds above all), e.g. when a fight ends or the party moves on. */
   function saveParty() {
     if (practice || !s.members?.length || s.mode === 'defeat') return; // a lost fight is retried from the last save
@@ -1125,10 +1162,67 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     persist(); refreshHero(); redraw();
   }
 
+  /**
+   * At the stairs: go deeper (what you carry is safe so far, and the next floor is harder and
+   * richer), or leave the dungeon, put the loot in the safe in town, and start again from depth 1.
+   */
+  function atStairs() {
+    if (!onExit() || s.busy) return;
+    if (place) { leavePlace(); return; }
+    if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
+    keepGains();
+    const el = $('.dg-endscreen'); el.hidden = false;
+    el.innerHTML = `<div class="dg-endcard"><h2>The way down</h2>
+      <p>Stone steps lead into the dark, to depth ${s.depth + 1}. What the party carries is safe now: experience, loot and coins are kept even if you fall further down.</p>
+      <p class="small">Go deeper for richer floors (and worse foes), or climb out: store your loot in the safe in town and start again from depth 1.</p>
+      <p class="small muted">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items.</p>
+      <div class="row wrap"><button class="btn primary" data-dg="go-deeper">Go down to depth ${s.depth + 1}</button>
+      <button class="btn" data-dg="leave-dungeon">Leave the dungeon</button>
+      <button class="btn ghost" data-dg="close-end">Not yet</button></div></div>`;
+  }
+
+  /** Leaving the dungeon: a strongbox in town (engine/safe.js), then back to the start. */
+  function showSafe(msg = '') {
+    keepGains();
+    const el = $('.dg-endscreen'); el.hidden = false;
+    saveActive();
+    const rows = s.members.map((m, i) => {
+      const d = i === s.active ? s.draft : m.draft; if (!d) return '';
+      const loot = (d.inventory ?? []).filter((x) => !isEquipped(d, x.uid));
+      return `<div class="safe-hero"><h4>${esc(m.hero.name)} <span class="muted small">${bagUsed(d)}/${BAG_SLOTS} in the bag</span></h4>
+        ${loot.length ? `<ul class="safe-list">${loot.map((x) => `<li><span>${esc(itemName(x))}${(x.qty ?? 1) > 1 ? ` × ${x.qty}` : ''}</span><button class="btn small" data-dg="safe-store" data-m="${i}" data-uid="${esc(x.uid)}">Store</button></li>`).join('')}</ul>` : '<p class="small muted">Nothing in the bag but what is worn.</p>'}
+        ${loot.length ? `<button class="btn small" data-dg="safe-store-all" data-m="${i}">Store all</button>` : ''}</div>`;
+    }).join('');
+    el.innerHTML = `<div class="dg-endcard safe-card"><h2>The safe</h2>
+      <p>Out in the daylight. A strongbox in town keeps what you do not want to carry: ${safe.used()} of ${SAFE_SLOTS} slots used. Worn and wielded things stay on the heroes; coins stay in their purses.</p>
+      ${msg ? `<p class="small warn">${esc(msg)}</p>` : ''}
+      <div class="safe-heroes">${rows}</div>
+      <div class="row wrap"><button class="btn primary" data-dg="leave-done">Back to town</button></div>
+      <p class="small muted">The next time you enter, you start again from depth 1.</p></div>`;
+  }
+  function safeStore(memberIdx, uid) {
+    const back = s.active; activate(memberIdx);
+    const ids = uid ? [uid] : (s.draft.inventory ?? []).filter((x) => !isEquipped(s.draft, x.uid)).map((x) => x.uid);
+    let msg = '';
+    for (const u of ids) { const r = safe.store(s.draft, u); if (!r.ok) { msg = r.message; break; } }
+    persist(); refreshHero();
+    activate(back);
+    keepGains();
+    play('coins', { volume: 0.5 });
+    showSafe(msg);
+  }
+  function leaveDungeon() {
+    keepGains(); delve.end();
+    s.depth = 1;
+    log('The party climbs out into the daylight.', 'good');
+    if (onLeave) onLeave(); else { $('.dg-endscreen').hidden = true; newDungeon(1 + Math.floor(Math.random() * 99999)); }
+  }
+
   function descend() {
     if (!onExit() || s.busy) return;
     if (place) { leavePlace(); return; }
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
+    $('.dg-endscreen').hidden = true;
     const bonus = 25 * s.depth * (s.def?.level ?? 1);
     finishAdventure();
     saveActive(); saveParty();
@@ -1142,7 +1236,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const next = ((s.seed * 7919 + s.depth * 104729) % 99991) + 1;
     s.depth += 1;
     newDungeon(next, carry);
-    log(`New depth reached: +${bonus} XP for finding the way down.`, 'good');
+    log(`New depth reached: +${Math.round(bonus * xpRate)} XP for finding the way down.`, 'good');
     awardPartyXp(bonus);
     banner(`Depth ${s.depth}`);
     redraw();
@@ -1160,7 +1254,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.delve.kills++;
     const n = m.loot.items.length + (m.loot.coins ? 1 : 0);
     if (practice) { m.loot = { coins: 0, items: [] }; log(`${m.name} falls!`, 'good'); awardPartyXp(stat.xp, m.pos); return; }
-    log(`${m.name} falls! +${stat.xp} XP.${n ? ' It carried something: click the body to search it.' : ''}`, 'good');
+    log(`${m.name} falls! +${Math.round(stat.xp * xpRate)} XP.${n ? ' It carried something: click the body to search it.' : ''}`, 'good');
     awardPartyXp(stat.xp, m.pos);
   }
 
@@ -1168,16 +1262,18 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function awardPartyXp(xp, pos) {
     if (practice) { if (xp) float(pos ?? s.hero.pos, 'practice', 'muted'); return; }
     const alivePeople = s.members.map((m, i) => i).filter((i) => s.members[i].hero.hp > 0 || s.members[i].hero === s.hero);
-    if (alivePeople.length <= 1) { awardXp(xp, pos); return; }
-    const share = Math.floor(xp / alivePeople.length);
+    const total = Math.round(xp * xpRate);
+    if (alivePeople.length <= 1) { awardXp(total, pos, false, true); return; }
+    const share = Math.floor(total / alivePeople.length);
     const back = s.active;
-    for (const i of alivePeople) { activate(i); awardXp(share, s.hero.pos, true); }
+    for (const i of alivePeople) { activate(i); awardXp(share, s.hero.pos, true, true); }
     activate(back);
     s.delve.xp += share * alivePeople.length;
-    log(`${xp} XP shared by ${alivePeople.length}: ${share} each.`, 'info');
+    log(`${total} XP shared by ${alivePeople.length}: ${share} each.`, 'info');
   }
 
-  function awardXp(xp, pos, shared = false) {
+  function awardXp(xp, pos, shared = false, rated = false) {
+    if (!rated) xp = Math.round(xp * xpRate);
     if (!xp || !s.draft || practice) return;
     const r = api.gainXp(s.draft, xp);
     if (!shared) s.delve.xp += xp;
@@ -1542,7 +1638,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (down) { s.target = { kind: 'fallen-hero', id: down.id }; redraw(); return; }
     const k = cellKey(c.x, c.y);
     const known = s.revealAll || s.revealed.has(k);
-    if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { descend(); return; }
+    if (s.map.exit && c.x === s.map.exit.x && c.y === s.map.exit.y && onExit() && s.mode !== 'combat') { atStairs(); return; }
     // A body on the floor: ask whether to search it or just step onto the square
     // (bodies that were already emptied are simply walked over).
     const pile = corpsesAt(c.x, c.y);
@@ -1655,7 +1751,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'retry': resetDelve(); centerOn(s.hero.pos); break;
       case 'review': s.captiveRun = null; $('.dg-endscreen').hidden = true; $('.dg-reviewbar').hidden = false; fit(); break;
       case 'end-again': $('.dg-reviewbar').hidden = true; $('.dg-endscreen').hidden = false; if (onOutcome) { showEnd('defeat'); break; } { const mode = arena ? null : defeatMode(getSetting('defeat')); $('.dg-endscreen').innerHTML = defeatCard(); if (mode) mode(ctx); } break;
-      case 'close-end': $('.dg-endscreen').hidden = true; s.mode = 'explore'; redraw(); break;
+      case 'close-end': $('.dg-endscreen').hidden = true; if (s.mode !== 'combat') s.mode = 'explore'; redraw(); break;
+      case 'go-deeper': descend(); break;
+      case 'leave-dungeon': showSafe(); break;
+      case 'safe-store': safeStore(Number(el.dataset.m), el.dataset.uid); break;
+      case 'safe-store-all': safeStore(Number(el.dataset.m), null); break;
+      case 'leave-done': leaveDungeon(); break;
       case 'zoom-in': setZoom(s.zoom * 1.25); break;
       case 'zoom-out': setZoom(s.zoom / 1.25); break;
       case 'fit': fit(); break;
@@ -1731,7 +1832,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'camp-sleep': sleepAtCamp(); break;
       case 'bandage': bandage(); break;
       case 'search': search(); break;
-      case 'pick-target': if (el.dataset.kind === 'stairs') { descend(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
+      case 'pick-target': if (el.dataset.kind === 'stairs') { atStairs(); break; } s.selectedId = null; s.target = { kind: el.dataset.kind, id: el.dataset.id }; if (el.dataset.kind === 'chest') { const c = s.features.chests.find((x) => x.id === el.dataset.id); if (c && !c.locked && !c.opened) { openChest(c); break; } } redraw(); break;
       case 'close-loot': s.target = null; redraw(); break;
       case 'settings': toggleSettings(); break;
       case 'close-settings': toggleSettings(false); break;

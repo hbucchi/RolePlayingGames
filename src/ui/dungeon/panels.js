@@ -439,7 +439,7 @@ export function installPanels(ctx) {
   function foePanel(m) {
     const stat = BESTIARY_BY_ID[m.statId];
     const portrait = ctx.portraitOf(m);
-    const conds = conditionLabels(m);
+    const conds = m.veteran ? ['veteran: +30% HP, +1 to hit', ...conditionLabels(m)] : conditionLabels(m);
     const d = ctx.edist(s.hero, m);
     const combat = s.mode === 'combat';
     const health = s.knownHp.has(m.id) ? `${m.hp} / ${m.maxHp} HP` : woundState(m.hp, m.maxHp);

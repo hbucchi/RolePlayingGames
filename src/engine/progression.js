@@ -33,6 +33,13 @@ export const THRESHOLDS = [null,
 ];
 export const DIFFICULTY = ['easy', 'medium', 'hard', 'deadly'];
 
+/**
+ * How much of a foe's XP the heroes earn, by kind of adventure. Generated dungeons can be played
+ * as often as you like, so they teach little (a quarter); the campaign's places, fewer and
+ * harder, teach the most; story battles give the full amount.
+ */
+export const XP_RATE = { dungeon: 0.25, campaign: 1.5, story: 1 };
+
 export function crowdMultiplier(n) {
   if (n <= 1) return 1;
   if (n === 2) return 1.5;

@@ -22,7 +22,10 @@ import { ITEMS_BY_ID } from '../content/items/catalogue.js';
 import { inventoryHtml, coinsHtml } from './inventory-view.js';
 import { roll, rollAbilityScore, rollDie } from '../engine/dice.js';
 import { SKILLS } from '../engine/skills.js';
-import { createRoster, exportCharacter, importCharacter } from '../engine/storage.js';
+import { createRoster, exportCharacter, importCharacter, defaultBackend } from '../engine/storage.js';
+import { createDelveStore } from '../engine/delve.js';
+import { createSafe, SAFE_SLOTS } from '../engine/safe.js';
+const safe = createSafe(defaultBackend());
 import { DEFAULT_SETTING_ID, getSetting } from '../content/registry.js';
 import { mountDungeon } from './dungeon-view.js';
 import { mountArenaBuilder } from './arena-builder.js';
@@ -133,7 +136,21 @@ function focusKey(el) {
     .map((k) => `[data-${k}="${CSS.escape(el.dataset[k])}"]`).join('');
 }
 
+/**
+ * A delve left unfinished (the menu, closing the game, a crash): its gains were never made safe,
+ * so the heroes go back to how they went in (engine/delve.js).
+ */
+function undoUnfinishedDelve() {
+  if (['dungeon', 'campaign-place'].includes(state.view)) return;
+  const delve = createDelveStore(defaultBackend());
+  if (!delve.active()) return;
+  const where = delve.get()?.where;
+  const names = delve.restore((d) => roster.save(d));
+  if (names.length) setTimeout(() => toast(`${names.join(', ')} left ${where || 'the dungeon'} without reaching an exit: the loot and experience from there are lost.`), 0);
+}
+
 function render() {
+  undoUnfinishedDelve();
   const key = focusKey(document.activeElement);
   const views = {
     wizard: wizardView,
@@ -153,7 +170,7 @@ function render() {
   };
   renderInto((views[state.view] ?? homeView)());
   if (!['dungeon', 'arena-fight', 'story-fight', 'campaign-place'].includes(state.view)) music.setMood('menu');
-  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi });
+  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi, onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures' }); render(); toast('Back in town. Your loot is in the safe; the next delve starts at depth 1.'); } });
   if (state.view === 'arena') {
     mountArenaBuilder(root.querySelector('#arena-host'), {
       heroes: explorerHeroes(), setup: state.arenaSetup,
@@ -874,7 +891,7 @@ function sheetView() {
     ${source === 'roster' && pendingLevelUps(draft).length ? `<div class="lu-waiting" role="status"><span>✦ <b>Level-up choices are waiting</b> (level ${pendingLevelUps(draft).join(', ')}): improve your abilities or train a new skill.</span>
       <button class="btn primary" data-action="level-choices" data-id="${esc(draft.id)}">Choose now</button></div>` : ''}
     ${sheetHtml(c, heroLook(draft))}
-    ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, doll: state.inv.doll, title: 'Inventory' })}</section>`
+    ${source === 'roster' ? `<section class="panel sheet-inv">${xpBarHtml(c)}${inventoryHtml(draft, { str: c.scores.str, selected: state.inv.selected, filter: state.inv.filter, doll: state.inv.doll, title: 'Inventory', safe: { items: safe.items(), slots: SAFE_SLOTS } })}</section>`
     : `<section class="panel"><h3>Starting gear</h3><ul class="plain">${c.equipment.map((e) => `<li>${esc(e.name)}${e.qty > 1 ? ` ×${e.qty}` : ''}${e.equipped ? ' <span class="tag">equipped</span>' : ''}</li>`).join('')}</ul></section>`}
     ${diceTray()}`;
 }
@@ -922,6 +939,8 @@ const heroApi = {
   },
   derive: dungeonStats,
   gainXp,
+  /** Put a hero back exactly as saved at a checkpoint (engine/delve.js). */
+  restore: (d) => roster.save(d),
   /** The level-up pop-up: choices for the new level and what changed. Resolves when OK is clicked. */
   levelUp: (d, from, to) => levelUpDialog({ draft: d, setting: settingFor(d), from, to }),
   /** Save progress. A ready-made hero is adopted into the company the first time. */
@@ -1271,6 +1290,12 @@ root.addEventListener('click', (e) => {
       if (d.injuries) { const e = { parts: d.injuries }; healParts(e, r.total); d.injuries = e.parts; }
       notify(`${itemName(inst)}: ${use.dice} = ${r.total}. Regained ${got} HP${d.wounds ? ` (still ${d.wounds} down)` : ' (whole again)'}.`, 'ok');
       break;
+    }
+    case 'to-safe': { const r = safe.store(d, uid); if (!r.ok) { notify(r.message, 'bad'); return; } state.inv.selected = null; notify(`${itemName(inst)} is in the safe.`, 'ok'); break; }
+    case 'from-safe': {
+      const it = safe.items().find((x) => x.uid === uid);
+      const r = safe.take(d, uid, Infinity, deriveCharacter(d, settingFor(d)).scores.str);
+      notify(r.ok ? `${itemName(it)} taken from the safe.` : r.message, r.ok ? 'ok' : 'bad'); if (!r.ok) return; break;
     }
     case 'drop':
       if (state.inv.dropArm !== uid) { state.inv.dropArm = uid; notify(`Click Drop again to throw away the ${itemName(inst).toLowerCase()}.`); return; }

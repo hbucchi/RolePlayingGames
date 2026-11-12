@@ -1183,3 +1183,14 @@ html { -webkit-tap-highlight-color: transparent; }
   .trade-list.trade-shelf li { grid-template-columns: auto minmax(0, 1fr) auto auto; } .trade-list.trade-shelf .trade-btns { grid-column: auto; }
 }
 .hurt { color: var(--bad, #b3261e); font-weight: 700; }
+
+/* The safe (engine/safe.js): on the sheet, and when leaving a dungeon */
+.inv-safe { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 10px; }
+.inv-safe h4 { margin: 0 0 8px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.safe-grid { max-height: 260px; overflow-y: auto; }
+.safe-card { max-width: 640px; max-height: 86vh; overflow-y: auto; }
+.safe-heroes { display: grid; gap: 10px; margin: 8px 0 12px; }
+.safe-hero h4 { margin: 0 0 4px; }
+.safe-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.safe-list li { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-width: 0; }
+.safe-list li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
