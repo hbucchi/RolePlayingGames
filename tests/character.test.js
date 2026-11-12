@@ -45,8 +45,13 @@ test('dwarf warrior derives the right numbers', () => {
   assert.equal(c.mods.con, 3);
   // HP = d10 max (10) + CON 3 + Dwarven Toughness 1
   assert.equal(c.maxHp, 14);
-  // Coat of mail 16 (heavy, no DEX) + shield 2
-  assert.equal(c.ac, 18);
+  // Defence (defence.js): heavy armour lets no DEX count, so Evasion is 10; the shield blocks
+  // 15% + 5% x proficiency 2 = 25%; the coat of mail absorbs 40% wherever it covers.
+  assert.equal(c.ac, 10);
+  assert.equal(c.defence.evasion, 10);
+  assert.equal(c.defence.block, 25); assert.equal(c.defence.blockWith, 'shield');
+  assert.equal(c.defence.armour.chest, 40); assert.equal(c.defence.armour['left-leg'], 40);
+  assert.equal(c.defence.armour.head, 0, 'a coat of mail has no helm');
   const athletics = c.skills.find((s) => s.id === 'athletics');
   assert.equal(athletics.proficient, true);
   assert.equal(athletics.source, 'background');

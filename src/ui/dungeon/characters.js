@@ -4,6 +4,7 @@
  * worn over it and its state; the groundwork for local injuries).
  */
 import { manaHtml } from '../mana-view.js';
+import { absorbed } from '../../engine/defence.js';
 import { bodyReport, BODY_PARTS } from '../../engine/body.js';
 import { conditionLabels } from '../../engine/combat.js';
 import { XP_FOR_LEVEL } from '../../engine/progression.js';
@@ -31,7 +32,8 @@ export function installCharacters(ctx) {
       </div>
       <div class="ch-stats">
         <div><b>${Math.max(0, h.hp)}/${h.maxHp}</b><span>Hit points</span><span class="mini-hp"><span style="width:${Math.max(0, h.hp / h.maxHp) * 100}%"></span></span></div>
-        <div><b>${h.ac}</b><span>Armour class</span></div>
+        <div><b>${h.ac}</b><span>Evasion</span></div>
+        <div><b>${h.defence?.block ?? 0}%</b><span>Block (${h.defence?.blockWith ?? 'none'})</span></div>
         <div><b>${h.speed}</b><span>Squares per move</span></div>
         <div><b>${signed(d.initiative ?? h.dexMod ?? 0)}</b><span>Initiative</span></div>
         <div><b>${d.passivePerception ?? '—'}</b><span>Passive Perception</span></div>
@@ -54,6 +56,7 @@ export function installCharacters(ctx) {
   }
 
   function bodyHtml(m) {
+    const armourAt = (part) => m.hero?.defence?.armour?.[part] ?? 0;
     const rep = bodyReport(m.draft ?? { inventory: [], equipped: {} }, m.hero?.injuries ?? {});
     const sel = rep[s.charPart] ?? rep.chest;
     const dots = BODY_PARTS.map((p) => {
@@ -67,9 +70,10 @@ export function installCharacters(ctx) {
         <h4>${esc(sel.name)}</h4>
         <p class="small"><b>${esc(sel.state)}</b></p>
         <p class="small muted">A blow that lands strikes here ${sel.weight}% of the time.</p>
+        <p class="small"><b>Armour here: ${armourAt(sel.id)}%</b> <span class="muted">${armourAt(sel.id) ? `(a 10-point blow does ${absorbed(10, armourAt(sel.id))})` : '(nothing between this and a blade)'}</span></p>
         <h5>Worn here</h5>
         ${sel.worn.length ? `<ul class="plain small">${sel.worn.map((w) => `<li>${w.kind === 'armour' ? '🛡' : w.kind === 'shield' ? '⛉' : w.kind === 'jewel' ? '💍' : w.kind === 'cloak' ? '🧥' : '✋'} ${esc(w.label)}</li>`).join('')}</ul>` : '<p class="small muted">Nothing: this part is bare.</p>'}
-        <table class="bp-table small"><tbody>${BODY_PARTS.map((p) => `<tr class="${sel.id === p.id ? 'sel' : ''}"><td><button class="linkish" data-dg="char-part" data-part="${p.id}">${esc(p.name)}</button></td><td>${esc(rep[p.id].state)}</td><td class="muted">${rep[p.id].worn.length ? esc(rep[p.id].worn.map((w) => w.label.replace(/ \(.*\)$/, '')).join(', ')) : 'bare'}</td></tr>`).join('')}</tbody></table>
+        <table class="bp-table small"><tbody>${BODY_PARTS.map((p) => `<tr class="${sel.id === p.id ? 'sel' : ''}"><td><button class="linkish" data-dg="char-part" data-part="${p.id}">${esc(p.name)}</button></td><td>${esc(rep[p.id].state)}</td><td><b>${armourAt(p.id)}%</b></td><td class="muted">${rep[p.id].worn.length ? esc(rep[p.id].worn.map((w) => w.label.replace(/ \(.*\)$/, '')).join(', ')) : 'bare'}</td></tr>`).join('')}</tbody></table>
       </div>
     </div>`;
   }

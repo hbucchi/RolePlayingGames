@@ -266,11 +266,11 @@ export function gearStats(gear, { mods, scores, pb, weaponProfs, armorProfs }) {
     ac += (off.acBonus ?? 2) + (offInst.bonus ?? 0);
     if (!armorProficient(off, armorProfs)) notes.push('You are not trained with shields.');
   }
-  let hpBonus = 0; const skillBonus = {}; let saveBonus = 0;
+  let hpBonus = 0; const skillBonus = {}; let saveBonus = 0; let magicAc = 0;
   for (const slot of ['cloak', ...JEWEL_SLOTS.map((j) => j.id), 'ring']) {
     const d = itemDef(eq(slot));
     if (!d) continue;
-    ac += d.acBonus ?? 0;
+    ac += d.acBonus ?? 0; magicAc += d.acBonus ?? 0;
     hpBonus += d.hpBonus ?? 0;
     saveBonus += d.saveBonus ?? 0;
     for (const [k, v] of Object.entries(d.skillBonus ?? {})) skillBonus[k] = (skillBonus[k] ?? 0) + v;
@@ -307,7 +307,7 @@ export function gearStats(gear, { mods, scores, pb, weaponProfs, armorProfs }) {
     // Unarmed strike: 1 + STR modifier bludgeoning, always proficient.
     attacks.push({ uid: null, slot: 'unarmed', name: 'Unarmed strike', ability: 'str', proficient: true, toHit: mods.str + pb, damage: `${Math.max(1, 1 + mods.str)}`, damageType: 'bludgeoning', properties: [], ammo: null, magic: false });
   }
-  return { ac, attacks, notes: [...new Set(notes)], hpBonus, skillBonus, saveBonus, speedPenalty: body?.armor?.str && scores.str < body.armor.str ? 10 : 0 };
+  return { ac, magicAc, attacks, notes: [...new Set(notes)], hpBonus, skillBonus, saveBonus, speedPenalty: body?.armor?.str && scores.str < body.armor.str ? 10 : 0 };
 }
 
 // ---------------------------------------------------------------------------

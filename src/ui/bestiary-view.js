@@ -4,6 +4,7 @@ import { CREATURE_TYPES, filterMonsters, sensesText } from '../engine/monsters.j
 import { BESTIARY } from '../content/bestiary/index.js';
 import { monsterPortrait, portraitTint } from '../content/media.js';
 import { metricText } from '../engine/units.js';
+import { monsterDefence, armourSummary } from '../engine/defence.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -120,6 +121,7 @@ export function monsterView(m) {
         <p class="sb-meta">${esc(m.size)} ${esc(m.type)}${m.subtype ? ` (${esc(m.subtype)})` : ''}, ${esc(m.alignment)}</p>
         <div class="sb-rule"></div>
         <p><b>Armor Class</b> ${m.ac}${m.armor ? ` (${esc(m.armor)})` : ''}</p>
+        ${(() => { const d = monsterDefence(m); return `<p class="small"><b>In our game</b> Evasion ${d.evasion} · ${d.block ? `blocks ${d.block}% (${d.blockWith === 'shield' ? 'shield' : 'parry'})` : 'cannot block'} · ${esc(armourSummary(d))}</p>`; })()}
         <p><b>Hit Points</b> ${m.hp}${m.hitDice ? ` (${esc(m.hitDice.replace(/([+-])/, ' $1 '))})` : ''}
           ${m.hitDice ? `<button class="roll-chip" data-action="damage" data-label="${esc(`${m.name} hit points`)}" data-notation="${esc(m.hitDice)}" title="Roll hit points">🎲</button>` : ''}</p>
         <p><b>Speed</b> ${esc(metricText(m.speedText))}</p>

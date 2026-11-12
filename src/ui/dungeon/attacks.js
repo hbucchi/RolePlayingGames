@@ -7,6 +7,9 @@ import { cellsOf } from '../../engine/size.js';
 import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
+import { absorbed } from '../../engine/defence.js';
+import { hitLocation, BODY_BY_ID } from '../../engine/body.js';
+import { rollDie } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
@@ -310,36 +313,51 @@ export function installAttacks(ctx) {
     // Watch the dice land before the result is told (the Dice setting decides whose rolls).
     if (diceWanted(!!attacker.isHero)) {
       const kept = r.d20s.indexOf(r.d20);
-      const groups = [{ dice: r.d20s.map((v, i) => ({ sides: 20, value: v, dropped: r.d20s.length > 1 && i !== kept })), caption: `${signed(w.toHit)} vs AC ${opts.ac}${opts.mode !== 'normal' ? ` (${opts.mode})` : ''}` }];
+      const groups = [{ dice: r.d20s.map((v, i) => ({ sides: 20, value: v, dropped: r.d20s.length > 1 && i !== kept })), caption: `${signed(w.toHit)} vs Evasion ${opts.ac}${opts.mode !== 'normal' ? ` (${opts.mode})` : ''}` }];
       if (r.hit && r.damageRoll?.rolls?.length) groups.push({ dice: diceOf(w.damage, r.damageRoll.rolls), caption: `${r.damage} ${weapon.type}` });
-      await rollDice({ groups, label: `${who} → ${whom}`, verdict: r.hit ? (r.crit ? 'Critical hit!' : 'Hit!') : r.d20 === 1 ? 'Natural 1!' : 'Miss', verdictKind: r.hit ? 'good' : 'bad', parent: viewport.parentElement, fast: !attacker.isHero });
+      await rollDice({ groups, label: `${who} → ${whom}`, verdict: r.hit ? (r.crit ? 'Critical hit!' : 'Past their guard') : r.d20 === 1 ? 'Natural 1!' : 'Dodged', verdictKind: r.hit ? 'good' : 'bad', parent: viewport.parentElement, fast: !attacker.isHero });
     }
     const dice = r.d20s.length > 1 ? `d20 (${r.d20s.join(', ')} → ${r.d20})` : `d20 (${r.d20})`;
-    const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2 AC' : opts.cover === 'three-quarters' ? 'three-quarters cover +5 AC' : null].filter(Boolean);
+    const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2' : opts.cover === 'three-quarters' ? 'three-quarters cover +5' : null].filter(Boolean);
     const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));
-    let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs AC ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
-    if (r.hit) {
+    let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs Evasion ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
+    // Past Evasion: the defender may still block it (shield, or a parry with a trained weapon).
+    const blocked = r.hit && !r.crit && (opts.block ?? 0) > 0 && Math.random() < opts.block;
+    if (blocked) {
+      const def = target.defence;
+      line += ` It would land, but ${whom} ${def?.blockWith === 'shield' ? 'catches it on the shield' : 'parries it'}! (${Math.round(opts.block * 100)}% block)`;
+      ctx.float(target.pos, def?.blockWith === 'shield' ? 'blocked' : 'parried', 'muted');
+      play('sword-hit', { volume: 0.35 });
+    } else if (r.hit) {
       let dmg = r.damage; const bits = [];
       if (attacker === s.hero) {
         const x = ctx.hitExtras(target, weapon, opts, ranged, r.crit);
         dmg += x.total; bits.push(...x.text);
       }
+      // Where it lands, and what the armour there absorbs (spells pass through armour).
+      const part = hitLocation(rollDie(100));
+      const pct = weapon.spell ? 0 : (target.defence?.armour?.[part] ?? 0);
+      const raw = dmg; dmg = absorbed(dmg, pct);
+      target.lastHit = { part, raw, dealt: dmg, pct };
+      const where = `to the ${BODY_BY_ID[part].name.toLowerCase()}`;
+      if (pct && raw !== dmg) bits.push(`${target.defence.armourName ?? 'armour'} absorbs ${pct}%: ${raw} → ${dmg}`);
       if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
         dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
       }
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
-      line += ` ${r.crit ? 'CRITICAL HIT! ' : 'Hit! '}${dmg} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
+      line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'} ${where}! ${dmg} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
       ctx.float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) play(cry(target, 'hurt'), { delay: 120, volume: 0.85 });
       flashHit(target);
     } else {
-      line += r.d20 === 1 ? ' Natural 1: a clumsy miss.' : ' Miss.';
+      line += r.d20 === 1 ? ' Natural 1: a clumsy miss.' : ` ${whom} dodges it.`;
       ctx.float(target.pos, 'miss', 'muted');
       if (!ranged) play('swing-miss', { volume: 0.7 });
     }
-    ctx.log(line, target === s.hero ? (r.hit ? 'bad' : 'info') : (r.hit ? 'good' : 'info'));
+    const landed = r.hit && !blocked;
+    ctx.log(line, target === s.hero ? (landed ? 'bad' : 'info') : (landed ? 'good' : 'info'));
     if (target !== s.hero && target.hp <= 0) {
       target.dead = true;
       play(cry(target, 'death'), { delay: 150 });

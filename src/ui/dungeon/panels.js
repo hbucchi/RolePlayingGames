@@ -25,6 +25,7 @@ import { xpProgress } from '../../engine/progression.js';
 import { settingsControls } from '../settings.js';
 import { monsterPortrait } from '../../content/media.js';
 import { m as mtr, metricText } from '../../engine/units.js';
+import { armourSummary } from '../../engine/defence.js';
 
 export function installPanels(ctx) {
   const { $, esc, host, pct, s, signed } = ctx;
@@ -52,7 +53,7 @@ export function installPanels(ctx) {
       ${s.res?.maxMana ? `<div class="hc-mana">${manaHtml(s.res.mana, s.res.maxMana)}</div>` : ''}
       <div class="hc-stat"><span>Movement</span><b>${combat ? `${s.moveLeft} of ${total} squares (${mtr(s.moveLeft * ft)})` : `${h.speed} squares per move`}</b></div>
       ${combat ? `<div class="hc-bar move"><span style="width:${total ? (s.moveLeft / total) * 100 : 0}%"></span></div>` : ''}
-      <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">AC ${h.ac}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
+      <div class="hc-row"><span class="pip ${ctx.canAttack() && !s.actionUsed ? 'on' : s.attacksLeft > 0 ? 'half' : ''}">Action${s.attacksLeft > 0 ? ` (${s.attacksLeft} attack${s.attacksLeft > 1 ? 's' : ''} left)` : ''}</span><span class="pip ${!s.bonusUsed ? 'on' : ''}">Bonus</span><span class="pip ${h.reaction ? 'on' : ''}">Reaction</span><span class="muted small">Evasion ${h.ac}${h.defence?.block ? ` · block ${h.defence.block}%` : ''}${h.tempHp ? ` · +${h.tempHp} temp HP` : ''}</span></div>
       ${xpBar()}
       <div class="hc-purse">${coinsHtml(s.draft?.coins ?? 0)}</div>
 
@@ -109,7 +110,7 @@ export function installPanels(ctx) {
         <b>${esc(it.name)}</b><span class="muted">${esc(cost)} · ${ctx.timeLabel[it.time] ?? 'action'}${it.range > 1 ? ` · reach ${it.range}` : it.range === 1 ? ' · touch' : ''}${it.concentration ? ' · C' : ''}</span></button>`;
     };
     const slots = r.maxMana ? `<div class="mana-row">${manaHtml(r.mana, r.maxMana)}</div>` : '';
-    const buffs = [s.res.concentration && `Concentrating: ${ctx.findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 AC', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
+    const buffs = [s.res.concentration && `Concentrating: ${ctx.findMagic(s.res.concentration)?.name}`, s.buffs.shield && 'Ward of Iron +5 Evasion', s.buffs.smite && 'Wrath ready', s.buffs.ensnare && 'Ensnaring Strike ready',
       s.buffs.inspiration && `Inspiration ${s.buffs.inspiration}`, s.buffs.deathward && 'Ward against Death', s.hero.tempHp && `${s.hero.tempHp} temp HP`].filter(Boolean);
     return `<h4>Spells &amp; abilities</h4>
       ${d.caster ? `<p class="small muted">Spell save DC <b>${d.caster.dc}</b> · spell attack <b>${signed(d.caster.attack)}</b> (${d.caster.ability.toUpperCase()})</p>` : ''}
@@ -200,7 +201,8 @@ export function installPanels(ctx) {
     }
     if (known(m, 'gear')) {
       const weapons = stat.actions.filter((a) => a.attack);
-      out += `<div class="reveal"><h4>Gear</h4><p><b>AC ${stat.ac}</b>${stat.armor ? ` (${esc(stat.armor)})` : ''}</p>
+      out += `<div class="reveal"><h4>Gear</h4><p><b>Evasion ${m.ac}</b>${m.defence?.block ? ` · <b>blocks ${m.defence.block}%</b> (${m.defence.blockWith === 'shield' ? 'shield' : 'parries'})` : ' · cannot block'}</p>
+        <p class="small">${esc(m.defence ? armourSummary(m.defence) : `AC ${stat.ac}`)}</p>
         <ul class="plain small">${weapons.map((a) => `<li><b>${esc(a.name)}</b>: ${formatModifier(a.attack.toHit)} to hit, ${esc(a.attack.damage.map((d) => `${d.dice} ${d.type}`).join(' + '))}${a.attack.range ? `, range ${metricText(`${a.attack.range} ft`)}` : ''}</li>`).join('')}</ul></div>`;
     }
     if (known(m, 'lore')) {
@@ -446,8 +448,8 @@ export function installPanels(ctx) {
       const far = w.melee && !w.ranged && d > (w.reach ?? 1);
       const why = !o ? (far ? `Out of reach: ${d} squares away, and a ${w.name.toLowerCase()} reaches ${w.reach ?? 1}. Close in first.` : ctx.whyNot(m))
         : !ctx.canAttack() ? 'You have already used your action this turn.' : s.busy ? 'Wait for your turn.' : '';
-      return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o && !blocked ? `${pct(o.chance)} to hit${o.mode !== 'normal' ? ` (${o.mode})` : ''}` : esc(why)}">
-        ${esc(w.name)}${o ? ` · ${pct(o.chance)}` : far ? ' <small>(too far)</small>' : ''}</button>`;
+      return `<button class="btn small ${o ? 'primary' : ''}" data-dg="attack-with" data-i="${i}" ${blocked ? 'disabled' : ''} title="${o && !blocked ? esc(`${pct(o.chance)} to get past its Evasion (${o.ac})${o.mode !== 'normal' ? `, ${o.mode}` : ''}${o.block ? `; it blocks ${pct(o.block)} of those (${m.defence?.blockWith === 'shield' ? 'shield' : 'parry'})` : o.unseen ? '; it cannot block this' : ''}: ${pct(o.land)} to land`) : esc(why)}">
+        ${esc(w.name)}${o ? ` · ${pct(o.land)}` : far ? ' <small>(too far)</small>' : ''}</button>`;
     }).join('');
     // Nothing can reach it from here, but a melee weapon could after a few steps: walk in and strike.
     const melee = s.hero.weapons.findIndex((w) => w.melee);

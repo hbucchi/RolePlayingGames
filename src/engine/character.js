@@ -11,7 +11,8 @@ import {
 import { SKILLS, SKILLS_BY_ID } from './skills.js';
 import { startingGear, gearStats, itemName, itemDef, equippedIn, tidyEquipped } from './items.js';
 import { XP_FOR_LEVEL, levelForXp, startingWealth, startingMagic } from './progression.js';
-import { addItem, makeItem, carriedWeight, carryCapacity, loadLimits, bagUsed, BAG_SLOTS } from './items.js';
+import { addItem, makeItem, carriedWeight, carryCapacity, loadLimits, bagUsed, BAG_SLOTS, armorProficient, weaponProficient } from './items.js';
+import { heroDefence } from './defence.js';
 import { magicFor, casterInfo, attacksPerAction, manaFor } from './magic.js';
 import { kg } from './units.js';
 
@@ -257,7 +258,14 @@ export function deriveCharacter(draft, setting) {
   const g = gearStats(gear, { mods, scores, pb, weaponProfs: cls?.weaponProficiencies ?? [], armorProfs: cls?.armorProficiencies ?? [] });
   for (const sk of skills) sk.bonus += g.skillBonus[sk.id] ?? 0;
   for (const st of savingThrows) st.bonus += g.saveBonus;
-  const ac = g.ac;
+  // Defence (defence.js): Evasion replaces Armour Class; shields and weapons block; armour absorbs.
+  const shieldInst = (gear.inventory ?? []).find((x) => x.uid === gear.equipped?.offHand);
+  const defence = heroDefence(gear, {
+    dex: mods.dex, pb, magicEvasion: g.magicAc,
+    shieldTrained: !shieldInst || armorProficient(itemDef(shieldInst), cls?.armorProficiencies ?? []),
+    weaponTrained: (def) => weaponProficient(def, cls?.weaponProficiencies ?? []),
+  });
+  const ac = defence.evasion;
   // Encumbrance (items.js): above STR x 10 lb you are burdened (speed -10 ft); STR x 15 lb is the
   // most you can carry (more is only possible with gear from before the limit: speed -20 ft).
   const load = carriedWeight(gear.inventory, gear.coins ?? draft.coins ?? 0);
@@ -293,7 +301,7 @@ export function deriveCharacter(draft, setting) {
     ac,
     initiative: mods.dex,
     speed: (race?.speed ?? 30) - g.speedPenalty - burden,
-    load, capacity, burdenedAt: limits.burdened, burden,
+    load, capacity, burdenedAt: limits.burdened, burden, defence,
     bag: { used: bagUsed(gear), slots: BAG_SLOTS },
     // Thieves' tools checks use DEX, plus proficiency if trained (burglars are).
     toolBonus: mods.dex + (cls?.toolProficiencies?.includes('thieves-tools') ? pb : 0),

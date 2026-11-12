@@ -12,6 +12,7 @@ import { roll, seededRng, cryptoRandomInt } from './dice.js';
 import { reachableSquares, cellKey } from './movement.js';
 import { monsterPowers, freshMonsterUses, parseAura } from './monster-magic.js';
 import { lineOfSight, coverBetween, rangedCover, COVER_AC } from './vision.js';
+import { monsterDefence, blockChanceVs, landChance } from './defence.js';
 import { footprintOf, cellsOf, blockDistance, centerOf, dims, orientFor } from './size.js';
 import { fightingStyle, COVER_RANK } from './tactics.js';
 
@@ -181,7 +182,11 @@ export function attackOptions({ attacker, target, weapon, opaque, occupied, enem
   if (a.restrained || a.bound) dis.push('cannot move freely');
   if (a.frightened) dis.push('frightened');
   const mode = rollMode(adv, dis);
-  return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance: hitChance(weapon.toHit, ac, mode) };
+  const chance = hitChance(weapon.toHit, ac, mode);
+  // Can the defender block it? Not from behind, unaware or helpless; only shields stop missiles; nothing stops a spell.
+  const unseen = adv.some((a) => /behind|unaware|helpless|stone|bound|restrained/.test(a));
+  const block = blockChanceVs(target.defence, { ranged: usingRanged, spell: !!weapon.spell, unseen });
+  return { dist, ac, cover, adv, dis, mode, ranged: usingRanged, chance, block, unseen, land: landChance(chance, block, mode) };
 }
 
 // ---------------------------------------------------------------------------
@@ -232,7 +237,8 @@ export function createMonster(stat, id, pos, facing = 4) {
   const weapons = stat.actions.filter((a) => a.attack).map(weaponFromMonsterAction);
   return {
     id, statId: stat.id, name: stat.name, pos, facing,
-    hp: stat.hp, maxHp: stat.hp, ac: stat.ac, dexMod: stat.mods.dex,
+    // Evasion (10 + DEX) is what attacks must beat; the rest of the stat block's AC is armour (defence.js).
+    hp: stat.hp, maxHp: stat.hp, ac: monsterDefence(stat).evasion, defence: monsterDefence(stat), dexMod: stat.mods.dex,
     speed: Math.floor(Math.max(stat.speed.walk ?? 30, stat.speed.fly ?? 0, stat.speed.climb ?? 0) / 5),
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),

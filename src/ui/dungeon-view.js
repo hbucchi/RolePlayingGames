@@ -347,7 +347,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const weapons = heroWeapons(h);
     s.hero = {
       id: `hero${i}`, isHero: true, name: h.name, pos, facing: 0,
-      hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
+      hp: h.maxHp, maxHp: h.maxHp, ac: h.ac, defence: h.defence, dexMod: h.dexMod, speed: speedToSquares(h.speed, s.map.feetPerCell),
       weapons, reaction: true, aware: true, tempHp: 0,
       look: h.look, voice: h.look?.voice ?? 'low', skills: h.skills ?? {}, race: h.race,
     };
@@ -403,7 +403,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     s.def = api.derive(s.draft);
     const d = s.def;
     Object.assign(s.hero, {
-      maxHp: d.maxHp, ac: d.ac, dexMod: d.dexMod, speed: speedToSquares(d.speed, s.map.feetPerCell),
+      maxHp: d.maxHp, ac: d.ac, defence: d.defence, dexMod: d.dexMod, speed: speedToSquares(d.speed, s.map.feetPerCell),
       weapons: heroWeapons(d), look: d.look, voice: d.look?.voice ?? 'low', skills: d.skills ?? {},
     });
     if (d.maxHp > prevMax) s.hero.hp += d.maxHp - prevMax;
@@ -1765,7 +1765,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   });
 
   // Developer hook for automated tests (only with ?debug in the address): end the fight in defeat.
-  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); }, state: () => s, wound(n) { for (const m of foes()) { s.hitFrom = { x: s.hero.pos.x + 0.5, y: s.hero.pos.y + 0.5 }; damageMonster(m, n); finishIfDead(m); } redraw(); } };
+  if (/[?&]debug\b/.test(location.search)) window.__dungeon = { attack(id) { const m = s.monsters.find((x) => x.id === id); if (m) return heroAttack(m); }, endTurn() { if (s.mode === 'combat') endHeroTurn?.(); }, forceDefeat() { for (const h of party()) h.hp = 0; redraw(); showEnd('defeat'); }, giveXp(n) { awardXp(n); redraw(); }, state: () => s, wound(n) { for (const m of foes()) { s.hitFrom = { x: s.hero.pos.x + 0.5, y: s.hero.pos.y + 0.5 }; damageMonster(m, n); finishIfDead(m); } redraw(); } };
 
   const onKey = (e) => {
     if (!host.isConnected) { window.removeEventListener('keydown', onKey); return; }

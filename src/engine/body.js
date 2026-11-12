@@ -51,7 +51,7 @@ export function bodyReport(gear, injuries = {}) {
   const out = Object.fromEntries(BODY_PARTS.map((p) => [p.id, { ...p, worn: [], injuries: injuries[p.id] ?? [] }]));
   const put = (part, label, kind) => out[part]?.worn.push({ label, kind });
   const body = equippedIn(gear, 'body'); const bd = itemDef(body);
-  if (bd?.armor) for (const part of ARMOUR_COVERS[bd.armor.type] ?? ARMOUR_COVERS.light) put(part, itemName(body), 'armour');
+  if (bd?.armor) for (const part of [...(ARMOUR_COVERS[bd.armor.type] ?? ARMOUR_COVERS.light), ...(bd.id === 'plate' ? ['head'] : [])]) put(part, itemName(body), 'armour');
   const off = equippedIn(gear, 'offHand'); const od = itemDef(off);
   if (od?.cat === 'shield') put('left-arm', itemName(off), 'shield');
   const main = equippedIn(gear, 'mainHand'); if (main) put('right-hand', itemName(main), 'held');

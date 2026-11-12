@@ -333,7 +333,7 @@ function heroCard(d, source) {
       </div>
       ${c.concept ? `<p class="concept">${esc(c.concept)}</p>` : ''}
       ${complete && d.inventory ? `<div class="card-xp">${xpBarHtml(c)}${coinsHtml(c.coins)}</div>` : ''}
-      ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd class="${d.wounds ? 'hurt' : ''}">${hpText(c, d)}</dd></div><div><dt>AC</dt><dd>${c.ac}</dd></div>
+      ${complete ? `<dl class="mini-stats"><div><dt>HP</dt><dd class="${d.wounds ? 'hurt' : ''}">${hpText(c, d)}</dd></div><div><dt>EVA</dt><dd>${c.ac}</dd></div>
         ${ABILITY_IDS.map((id) => `<div><dt>${ABILITIES[id].short}</dt><dd>${c.scores[id]}</dd></div>`).join('')}</dl>`
     : '<p class="warn">Incomplete</p>'}
       <div class="row wrap">
@@ -778,7 +778,7 @@ function sheetHtml(c, look) {
         </div>
       </header>
       <section class="vitals">
-        ${[['Armour Class', c.ac], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
+        ${[['Evasion', c.ac], ['Block', `${c.defence?.block ?? 0}%`], ['Armour', c.defence?.armourName ? `${Math.max(...Object.values(c.defence.armour))}%` : '—'], ['Hit Points', hpText(c, state.sheet?.draft ?? {})], ['Speed', mtr(c.speed)], ['Initiative', fmt(c.initiative)],
     ['Proficiency', fmt(c.proficiencyBonus)], ['Passive Perception', c.passivePerception], ['Hit Die', `1d${c.hitDie}`]]
     .map(([k, v]) => `<div class="vital"><span class="v">${v}</span><span class="k">${k}</span></div>`).join('')}
       </section>
@@ -888,7 +888,7 @@ function dungeonStats(d) {
   const c = deriveCharacter(d, settingFor(d));
   return {
     id: d.id, name: c.name, level: c.level, xp: c.xp, proficiencyBonus: c.proficiencyBonus,
-    speed: c.speed, ac: c.ac, maxHp: c.maxHp, dexMod: c.mods.dex, str: c.scores.str, attacks: c.attacks,
+    speed: c.speed, ac: c.ac, defence: c.defence, maxHp: c.maxHp, dexMod: c.mods.dex, str: c.scores.str, attacks: c.attacks,
     look: heroLook(d), skills: Object.fromEntries(c.skills.map((sk) => [sk.id, sk.bonus])),
     saves: Object.fromEntries(c.savingThrows.map((st) => [st.ability, st.bonus])),
     race: c.race?.id, languages: c.languages, wis: c.mods.wis, int: c.mods.int, toolBonus: c.toolBonus, gearNotes: c.gearNotes,
