@@ -16,6 +16,7 @@ import { monsterPowers } from '../../engine/monster-magic.js';
 import { reachableSquares } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { injuryPenalties } from '../../engine/injury.js';
+import { attacksThisTurn } from '../../engine/combat.js';
 import { afterResistance } from '../../engine/defence.js';
 
 export function installMonsterTurns(ctx) {
@@ -175,7 +176,11 @@ export function installMonsterTurns(ctx) {
         m.facing = facingToward(m.pos, target.pos);
         const w = step.weapon;
         const thrownNow = w.thrown && ctx.edist(m, target) > (w.reach ?? 1);
-        await ctx.doAttack(m, target, w);
+        // Multiattack (combat.js): a dragon's bite and two claws, a troll's three blows...
+        for (const aw of attacksThisTurn(m, w)) {
+          if (target.hp <= 0 || m.dead) break;
+          await ctx.doAttack(m, target, aw);
+        }
         // A thrown javelin is gone: a creature carries only a couple (rocks are everywhere).
         if (thrownNow && Number.isFinite(w.throws) && --w.throws === 0) ctx.log(`${m.name} has nothing left to throw (${w.name.toLowerCase()}).`, 'info');
         if (target.hp <= 0) return true;

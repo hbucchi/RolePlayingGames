@@ -87,8 +87,41 @@ export const moveSquaresLost = (hinder, str = 10) => Math.max(0, (hinder >= 4 ? 
 export const ARMOUR_ABSORB = Object.fromEntries(Object.entries(ARMOURS).map(([k, v]) => [k, v.absorb]));
 export const MAX_ABSORB = 60;
 export const MAX_BLOCK = 50;
-/** Natural armour covers every point of whatever body the creature has. */
-const fullCover = (map) => Object.fromEntries((BODY_MAPS[map] ?? BODY_PARTS).map((p) => [p.id, p.weight]));
+/**
+ * Natural armour (hide, scales, shell) covers the whole body except its weak spots: the soft
+ * throat and belly of a beast or dragon, the swollen abdomen of a spider. Points left bare:
+ */
+export const WEAK_SPOTS = {
+  humanoid: {},
+  quadruped: { neck: 3, abdomen: 4 },
+  arachnid: { abdomen: 8 },
+};
+const fullCover = (map) => Object.fromEntries((BODY_MAPS[map] ?? BODY_PARTS).map((p) => [p.id, Math.max(0, p.weight - (WEAK_SPOTS[map]?.[p.id] ?? 0))]));
+
+/**
+ * A creature's own nature against damage types, from its stat block: immune (no damage),
+ * resistant (half), vulnerable (double). "Bludgeoning, piercing, and slashing from nonmagical
+ * attacks" applies to physical blows from weapons without enchantment (silver gets past it when
+ * the stat block says "that aren't silvered").
+ */
+export function affinityOf(stat) {
+  const plain = (list) => (list ?? []).filter((x) => !/from nonmagical/i.test(x)).flatMap((x) => x.split(/,\s*(?:and\s+)?|\s+and\s+/)).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const phys = (list) => (list ?? []).find((x) => /from nonmagical/i.test(x)) ?? null;
+  const pr = phys(stat.resist); const pi = phys(stat.immune);
+  return {
+    immune: plain(stat.immune), resist: plain(stat.resist), vulnerable: plain(stat.vulnerable),
+    mundane: pi ? 'immune' : pr ? 'resist' : null, silverGets: /silvered/i.test(pi ?? pr ?? ''),
+  };
+}
+/** How much of a damage type a creature takes: 0 (immune), 0.5, 1 or 2 (vulnerable). */
+export function typeFactor(def, type, { magic = false, silver = false } = {}) {
+  const a = def?.affinity; if (!a || !type) return 1;
+  if (a.immune.includes(type)) return 0;
+  if (isPhysical(type) && a.mundane && !magic && !(silver && a.silverGets)) return a.mundane === 'immune' ? 0 : 0.5;
+  if (a.resist.includes(type)) return 0.5;
+  if (a.vulnerable.includes(type)) return 2;
+  return 1;
+}
 
 export const shieldBlock = (pb, trained = true) => Math.min(MAX_BLOCK, 15 + (trained ? 5 * pb : 0));
 export const parryBlock = (pb) => Math.min(MAX_BLOCK, 5 + 5 * pb);
@@ -136,7 +169,8 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
     raw += a.hinder === 0 ? 0 : rawHindrance(a.absorb, Object.values(a.cover).reduce((x, y) => x + y, 0)) * (METALS[metal]?.hinder ?? 1);
   }
   const hinder = Math.round(raw);
-  const evasion = 10 + dex - hinder + magicEvasion;
+  // However stiff the armour, it never takes Evasion below 8 (unless you were already clumsier).
+  const evasion = Math.max(Math.min(8, 10 + dex), 10 + dex - hinder) + magicEvasion;
   const offInst = eq('offHand'); const off = itemDef(offInst);
   const mainInst = eq('mainHand'); const main = itemDef(mainInst);
   const shield = off?.cat === 'shield' ? shieldBlock(pb, shieldTrained) + 5 * (offInst.bonus ?? 0) : 0;
@@ -184,7 +218,7 @@ export function monsterDefence(stat) {
   const shield = hasShield ? shieldBlock(pb) : 0;
   const parry = canParry ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
-  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces: armour ? [armour] : [], armour, hinder, moveLost: 0, map };
+  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces: armour ? [armour] : [], armour, hinder, moveLost: 0, map, affinity: affinityOf(stat) };
 }
 
 /** The pieces of armour that a blow at this part and offset meets. */
@@ -226,10 +260,11 @@ export function resistance(def, type) {
  * returned unchanged (it is dealt with where it lands); anything else is lessened by the armour's
  * overall resistance to that type.
  */
-export function afterResistance(def, amount, type) {
-  if (!(amount > 0) || !type || isPhysical(type)) return amount;
+export function afterResistance(def, amount, type, how = {}) {
+  if (!(amount > 0) || !type) return amount;
+  if (isPhysical(type)) return Math.round(amount * typeFactor(def, type, how));
   const res = resistance(def, type);
-  return res ? Math.round(amount * (1 - res / 100)) : amount;
+  return Math.round((res ? amount * (1 - res / 100) : amount) * typeFactor(def, type, how));
 }
 
 /** Wear armour by one blow (1%, or 3% for a critical hit); returns the new condition. */

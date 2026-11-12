@@ -240,12 +240,56 @@ export const canWrestle = (stat, heroSize = 'Medium') => (SIZE_RANK[stat.size] ?
 // Monsters
 // ---------------------------------------------------------------------------
 
+const COUNT = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, twice: 2 };
+const stem = (s) => s.toLowerCase().replace(/[^a-z ]/g, '').replace(/s\b/g, '').trim();
+
+/**
+ * Multiattack: what a creature swings in one turn, read from its stat block.
+ * "makes three attacks: one with its bite and two with its claws" -> [bite, claws, claws];
+ * "makes two greatclub attacks" -> [greatclub, greatclub]; "makes two melee attacks" -> the best
+ * melee weapon twice. Only the first sentence counts (alternatives after "Or" are ignored).
+ * @returns {{ count: number, names: string[] } | null}
+ */
+export function multiattackOf(stat) {
+  const a = (stat?.actions ?? []).find((x) => /multiattack/i.test(x.name));
+  if (!a) return null;
+  const text = a.text.replace(/^.*?\bIt then\b/i, '').split(/\.\s|, or |\. Or |\bAlternatively\b/)[0];
+  const total = COUNT[(/makes (one|two|three|four|five|six)/i.exec(text) ?? [])[1]?.toLowerCase()] ?? 2;
+  const names = [];
+  for (const m of text.matchAll(/(one|two|three|four|five|six)\s+(?:attacks?\s+)?with\s+(?:its|his|her|their)\s+([a-z' -]+?)(?=,| and |\.|$)/gi)) {
+    for (let i = 0; i < COUNT[m[1].toLowerCase()]; i++) names.push(m[2]);
+  }
+  if (!names.length) {
+    const named = /makes (?:one|two|three|four|five|six) ([a-z' -]+?) attacks/i.exec(text)?.[1]
+      ?? /attacks with (?:its|his|her|their) ([a-z' -]+)/i.exec(text)?.[1];
+    if (named && !/^(melee|ranged|weapon)$/i.test(named.trim())) for (let i = 0; i < total; i++) names.push(named);
+  }
+  return { count: Math.max(total, names.length), names };
+}
+
+/**
+ * The attacks a creature makes this turn with the weapon its plan chose: its whole Multiattack
+ * when that weapon is part of it (or it is a plain "two melee attacks"), else the one swing.
+ */
+export function attacksThisTurn(m, chosen) {
+  const multi = m.multi;
+  if (!multi) return [chosen];
+  const find = (name) => m.weapons.find((w) => stem(w.name).includes(stem(name)) || stem(name).includes(stem(w.name)));
+  if (multi.names.length) {
+    const list = multi.names.map(find).filter(Boolean);
+    const usable = list.filter((w) => w.melee === chosen.melee || (w.ranged && chosen.ranged));
+    if (usable.includes(chosen) || (usable.length && chosen.melee)) return usable.length ? usable : [chosen];
+    return [chosen];
+  }
+  return Array.from({ length: multi.count }, () => chosen);
+}
+
 export function createMonster(stat, id, pos, facing = 4) {
   const weapons = stat.actions.filter((a) => a.attack).map(weaponFromMonsterAction);
   return {
     id, statId: stat.id, name: stat.name, pos, facing,
     // Evasion (10 + DEX) is what attacks must beat; the rest of the stat block's AC is armour (defence.js).
-    hp: stat.hp, maxHp: stat.hp, ac: monsterDefence(stat).evasion, defence: monsterDefence(stat), bodyMap: bodyMapOf(stat), dexMod: stat.mods.dex,
+    hp: stat.hp, maxHp: stat.hp, ac: monsterDefence(stat).evasion, defence: monsterDefence(stat), bodyMap: bodyMapOf(stat), dexMod: stat.mods.dex, multi: multiattackOf(stat),
     speed: Math.floor(Math.max(stat.speed.walk ?? 30, stat.speed.fly ?? 0, stat.speed.climb ?? 0) / 5),
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),

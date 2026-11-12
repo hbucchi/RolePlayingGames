@@ -25,34 +25,34 @@
 import { BODY_MAPS, partOf } from './body.js';
 
 const HUMANOID_RULES = {
-  head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
-  neck: { hp: 0.2, mult: 2, crippled: 'bleeding' },
+  head: { hp: 0.4, mult: 1.5, crippled: 'dazed' },
+  neck: { hp: 0.35, mult: 2, crippled: 'bleeding' },
   chest: { hp: 0.6, mult: 1, crippled: 'bleeding' },
-  abdomen: { hp: 0.45, mult: 1, crippled: 'bleeding' },
-  'right-arm': { hp: 0.4, mult: 0.75, crippled: 'weapon arm' },
-  'left-arm': { hp: 0.4, mult: 0.75, crippled: 'shield arm' },
-  'right-hand': { hp: 0.2, mult: 0.5, crippled: 'weapon arm' },
-  'left-hand': { hp: 0.2, mult: 0.5, crippled: 'shield arm' },
-  'right-leg': { hp: 0.45, mult: 0.75, crippled: 'lame', lame: 2 },
-  'left-leg': { hp: 0.45, mult: 0.75, crippled: 'lame', lame: 2 },
+  abdomen: { hp: 0.5, mult: 1, crippled: 'bleeding' },
+  'right-arm': { hp: 0.45, mult: 0.75, crippled: 'weapon arm' },
+  'left-arm': { hp: 0.45, mult: 0.75, crippled: 'shield arm' },
+  'right-hand': { hp: 0.35, mult: 0.5, crippled: 'weapon arm' },
+  'left-hand': { hp: 0.35, mult: 0.5, crippled: 'shield arm' },
+  'right-leg': { hp: 0.5, mult: 0.75, crippled: 'lame', lame: 2 },
+  'left-leg': { hp: 0.5, mult: 0.75, crippled: 'lame', lame: 2 },
 };
 /** Per body map (body.js): a part's share of max HP, its multiplier to total HP, what crippling does. */
 export const RULES_BY_MAP = {
   humanoid: HUMANOID_RULES,
   quadruped: {
     head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
-    neck: { hp: 0.25, mult: 2, crippled: 'bleeding' },
+    neck: { hp: 0.35, mult: 2, crippled: 'bleeding' },
     chest: { hp: 0.6, mult: 1, crippled: 'bleeding' },
     abdomen: { hp: 0.45, mult: 1, crippled: 'bleeding' },
     hindquarters: { hp: 0.5, mult: 1, crippled: 'lame', lame: 1 },
-    tail: { hp: 0.15, mult: 0.5, crippled: 'docked' },
-    ...Object.fromEntries(['fore-left-leg', 'fore-right-leg', 'hind-left-leg', 'hind-right-leg'].map((id) => [id, { hp: 0.3, mult: 0.75, crippled: 'lame', lame: 1 }])),
+    tail: { hp: 0.25, mult: 0.5, crippled: 'docked' },
+    ...Object.fromEntries(['fore-left-leg', 'fore-right-leg', 'hind-left-leg', 'hind-right-leg'].map((id) => [id, { hp: 0.4, mult: 0.75, crippled: 'lame', lame: 1 }])),
   },
   arachnid: {
     head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
     cephalothorax: { hp: 0.6, mult: 1, crippled: 'bleeding' },
     abdomen: { hp: 0.5, mult: 1.25, crippled: 'bleeding' }, // soft and swollen
-    ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`leg-${n}`, { hp: 0.15, mult: 0.5, crippled: 'lame', lame: 1 }])),
+    ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`leg-${n}`, { hp: 0.25, mult: 0.5, crippled: 'lame', lame: 1 }])),
   },
 };
 /** Humanoid rules by part id (the heroes' bodies). */
@@ -70,7 +70,9 @@ export const CRIPPLED_TEXT = {
 };
 
 /** A part's health: its share of the creature's maximum HP (at least 2). */
-export const partMax = (maxHp, part, e = null) => Math.max(2, Math.round(maxHp * ruleOf(e, part).hp));
+/** At least 4: a level-1 hero's hand should not break at the first scratch. */
+export const PART_MIN = 4;
+export const partMax = (maxHp, part, e = null) => Math.max(PART_MIN, Math.round(maxHp * ruleOf(e, part).hp));
 /** Damage a part has taken so far. */
 export const partDamage = (e, part) => e.parts?.[part] ?? 0;
 export const partLeft = (e, part) => Math.max(0, partMax(e.maxHp, part, e) - partDamage(e, part));
@@ -87,7 +89,7 @@ export function applyHit(e, part, damage) {
   const before = partDamage(e, part);
   e.parts[part] = Math.min(max, before + damage);
   const mult = ruleOf(e, part).mult;
-  return { total: Math.max(1, Math.round(damage * mult)), mult, partLeft: max - e.parts[part], partMax: max, crippledNow: before < max && e.parts[part] >= max };
+  return { total: damage > 0 ? Math.max(1, Math.round(damage * mult)) : 0, mult, partLeft: max - e.parts[part], partMax: max, crippledNow: before < max && e.parts[part] >= max };
 }
 
 /** What crippled parts cost right now. */

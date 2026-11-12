@@ -15,8 +15,8 @@ const mix = (list, multi) => () => list.flatMap(([id, n]) => Array.from({ length
 
 const rows = [];
 const run = (name, heroes, foes) => rows.push(scenario(name, heroes, foes, N));
-for (const multi of [false, true]) {
-  const tag = multi ? ' [multiattack]' : '';
+for (const multi of [true]) {
+  const tag = '';
   run(`L1 party vs 4 goblins${tag}`, party1, many('goblin', 4, multi));
   run(`L1 party vs 6 pit-runts${tag}`, party1, many('pit-runt', 6, multi));
   run(`L1 party vs 4 wolves${tag}`, party1, many('wolf', 4, multi));

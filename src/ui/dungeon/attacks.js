@@ -7,7 +7,7 @@ import { cellsOf } from '../../engine/size.js';
 import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
-import { absorbed, strike, wearArmour, partCover, resistance } from '../../engine/defence.js';
+import { absorbed, strike, wearArmour, partCover, resistance, typeFactor, afterResistance } from '../../engine/defence.js';
 import { isPhysical } from '../../engine/materials.js';
 import { partOf } from '../../engine/body.js';
 import { rollDie, roll } from '../../engine/dice.js';
@@ -365,6 +365,9 @@ export function installAttacks(ctx) {
           part = Math.floor(part / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
         }
         // The part takes what got through; total HP takes it times the part's multiplier (injury.js).
+        // The creature's own nature: immune, resistant, vulnerable (mundane blades v a balor...).
+        const f = typeFactor(target.defence, weapon.type, { magic: !!weapon.magic, silver: weapon.metal === 'silver' });
+        if (f !== 1) { bits.push(f === 0 ? `immune to ${weapon.type}` : f < 1 ? `resists ${weapon.type}` : `vulnerable to ${weapon.type}`); part = Math.round(part * f); }
         const inj = applyHit(target, at.part, part);
         if (inj.mult !== 1) bits.push(`${partName} ×${inj.mult}: ${part} → ${inj.total} HP`);
         bits.push(`${partName} ${inj.partLeft}/${inj.partMax}`);
@@ -376,11 +379,11 @@ export function installAttacks(ctx) {
       for (const [type, amount] of Object.entries(extraByType)) {
         if (amount <= 0) continue;
         const res = resistance(target.defence, type);
-        const got = res ? Math.max(1, Math.round(amount * (1 - res / 100))) : amount;
+        const got = afterResistance(target.defence, amount, type);
         dmg += got;
         bits.push(`${got} ${type}${res ? ` (armour resists ${res}%: ${amount} → ${got})` : ''}`);
       }
-      dmg = Math.max(1, dmg);
+      dmg = Math.max(0, dmg);
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
       line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'}${where}! ${dmg} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
       ctx.float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);

@@ -383,7 +383,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.members[0]) for (const k of MKEYS) s[k] = s.members[0][k];
   }
 
-  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, bane: a.bane ?? null, finesse: (a.properties ?? []).includes('finesse') }));
+  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, bane: a.bane ?? null, magic: !!a.magic, metal: a.metal ?? null, finesse: (a.properties ?? []).includes('finesse') }));
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {

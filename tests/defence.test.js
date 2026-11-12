@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pieceAbsorb, resistance, heroDefence, monsterDefence, absorbed, landChance, blockChanceVs, shieldBlock, parryBlock, ARMOUR_ABSORB, strike, coverage, wearArmour, effectiveAbsorb } from '../src/engine/defence.js';
+import { pieceAbsorb, resistance, typeFactor, heroDefence, monsterDefence, absorbed, landChance, blockChanceVs, shieldBlock, parryBlock, ARMOUR_ABSORB, strike, coverage, wearArmour, effectiveAbsorb } from '../src/engine/defence.js';
 import { makeItem, equipItem } from '../src/engine/items.js';
 import { BESTIARY_BY_ID } from '../src/content/bestiary/index.js';
 import { hitLocation, BODY_PARTS } from '../src/engine/body.js';
@@ -72,7 +72,13 @@ test('monsters: worn armour from the stat block, natural armour all over, parry 
   assert.equal(gob.armour.pct, 10); assert.equal(gob.armour.cover.head, undefined);
   const wolf = monsterDefence(BESTIARY_BY_ID.wolf);
   assert.equal(wolf.block, 0, 'jaws do not parry');
-  assert.equal(coverage(wolf.armour), 100, 'natural armour covers the whole body');
+  assert.equal(coverage(wolf.armour), 93, 'natural armour covers all but the weak spots (throat and belly)');
+  const dragon = monsterDefence(BESTIARY_BY_ID['adult-red-dragon']);
+  assert.equal(typeFactor(dragon, 'fire'), 0, 'red dragons are immune to fire');
+  const balor = monsterDefence(BESTIARY_BY_ID.balor);
+  assert.equal(typeFactor(balor, 'slashing'), 0.5, 'mundane blades only half hurt a balor');
+  assert.equal(typeFactor(balor, 'slashing', { magic: true }), 1);
+  assert.equal(typeFactor(monsterDefence(BESTIARY_BY_ID.skeleton), 'bludgeoning'), 2, 'skeletons shatter');
 });
 
 test('blocking rules and the chance to land', () => {
@@ -94,13 +100,15 @@ test('hit location: each part owns a stretch of the d100', () => {
 test('local injuries: part health, multipliers to total HP, crippled parts', async () => {
   const { applyHit, partMax, injuryPenalties, healParts, isCrippled } = await import('../src/engine/injury.js');
   const e = { maxHp: 30, hp: 30 };
-  assert.equal(partMax(30, 'neck'), 6); assert.equal(partMax(30, 'chest'), 18); assert.equal(partMax(30, 'left-leg'), 14);
+  assert.equal(partMax(30, 'neck'), 11); assert.equal(partMax(30, 'chest'), 18); assert.equal(partMax(30, 'left-leg'), 15);
+  assert.equal(partMax(9, 'left-hand'), 4, 'never below 4');
   // 4 damage to the neck: the neck takes 4, total HP takes 8 (x2).
-  let r = applyHit(e, 'neck', 4); assert.equal(r.total, 8); assert.equal(r.partLeft, 2);
+  let r = applyHit(e, 'neck', 4); assert.equal(r.total, 8); assert.equal(r.partLeft, 7);
   r = applyHit(e, 'head', 4); assert.equal(r.total, 6, 'head x1.5');
   r = applyHit(e, 'left-hand', 4); assert.equal(r.total, 2, 'hand x0.5');
+  assert.equal(applyHit(e, 'chest', 0).total, 0, 'nothing through, nothing lost');
   // Cripple the neck: bleeding.
-  r = applyHit(e, 'neck', 3); assert.equal(r.crippledNow, true); assert.equal(injuryPenalties(e).bleeding, true);
+  r = applyHit(e, 'neck', 7); assert.equal(r.crippledNow, true); assert.equal(injuryPenalties(e).bleeding, true);
   // A lame leg costs 2 squares; a crippled weapon arm gives disadvantage.
   applyHit(e, 'right-leg', 99); applyHit(e, 'right-arm', 99);
   const p = injuryPenalties(e);
