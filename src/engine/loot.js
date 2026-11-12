@@ -7,6 +7,7 @@
 import { ITEMS_BY_ID, RARITY_ORDER } from '../content/items/catalogue.js';
 import { lootProfileFor, CHEST_PROFILE, ARMS_POOL, ARMOR_POOL } from '../content/items/loot-tables.js';
 import { makeItem } from './items.js';
+import { isMetal, rollMetal } from './materials.js';
 import { cryptoRandomInt } from './dice.js';
 
 const dice = (n, sides, rng) => { let t = 0; for (let i = 0; i < n; i++) t += rng(sides) + 1; return t; };
@@ -72,6 +73,13 @@ export function rollMagicItem(cr, rng = cryptoRandomInt) {
   return makeItem('potion-healing', 1);
 }
 
+/** Forged things found in the world come in many metals (materials.js); the deeper, the rarer. */
+function forged(inst, cr, rng) {
+  const def = ITEMS_BY_ID[inst.id];
+  if (isMetal(def) && !inst.material && !/iron|mithral/.test(def.id)) { const m = rollMetal(cr, rng); if (m !== 'steel') inst.material = m; }
+  return inst;
+}
+
 function rollProfile(profile, cr, rng) {
   const items = [];
   for (const e of profile.items) {
@@ -80,6 +88,7 @@ function rollProfile(profile, cr, rng) {
   if (profile.randomWeapon && rng(10000) < profile.randomWeapon * 10000) items.push(makeItem(ARMS_POOL[rng(ARMS_POOL.length)]));
   if (profile.randomArmor && rng(10000) < profile.randomArmor * 10000) items.push(makeItem(ARMOR_POOL[rng(ARMOR_POOL.length)]));
   if (profile.magic && rng(100000) < profile.magic * magicScale(cr) * 100000) items.push(rollMagicItem(cr, rng));
+  for (const it of items) forged(it, cr, rng);
   let coins = 0;
   if (profile.coins) {
     // Fractional multipliers mean "sometimes carries money": 0.4 => 40% chance of a full roll.

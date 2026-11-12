@@ -6,6 +6,7 @@ import { ITEMS_BY_ID, RARITY_LABEL, CATEGORY_LABEL } from '../content/items/cata
 import { SLOTS, JEWEL_SLOTS, SLOT_GROUPS, itemName, itemRarity, isMagic, itemValue, carriedWeight, carryCapacity, splitCoins, isEquipped, slotFor, loadLimits, bagUsed, BAG_SLOTS } from '../engine/items.js';
 import { kg, kilos, metricText } from '../engine/units.js';
 import { ARMOURS } from '../engine/defence.js';
+import { METALS, metalOf, absorbFor, ARMOUR_FORM, FORMS } from '../engine/materials.js';
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -23,8 +24,10 @@ const SLOT_GLYPH = { mainHand: '⚔', offHand: '⛉', ranged: '🏹', body: '�
 export function itemIcon(inst, size = 'md') {
   const def = ITEMS_BY_ID[inst.id];
   const rarity = itemRarity(inst);
+  // Metal gear is tinted by what it is forged from (materials.js): bronze, gold, mithral...
+  const tint = METALS[metalOf(inst, def)]?.tint;
   return `<span class="item-icon ${size} r-${rarity} ${isMagic(inst) ? 'magic' : ''}">
-    ${def?.icon ? `<img src="${esc(def.icon)}" alt="" loading="lazy">` : `<span class="glyph" aria-hidden="true">${def?.glyph ?? '•'}</span>`}
+    ${def?.icon ? `<img src="${esc(def.icon)}" alt="" loading="lazy"${tint && tint !== 'none' ? ` style="filter:${tint}"` : ''}>` : `<span class="glyph" aria-hidden="true">${def?.glyph ?? '•'}</span>`}
     ${(inst.qty ?? 1) > 1 ? `<span class="qty">${inst.qty}</span>` : ''}
   </span>`;
 }
@@ -40,14 +43,19 @@ function statLine(inst) {
   const b = inst.bonus ?? def.bonus ?? 0;
   if (def.weapon) {
     const w = def.weapon;
-    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
+    const metal = metalOf(inst, def); const mw = METALS[metal]?.weapon;
+    const forgedText = metal ? ` · ${METALS[metal].name.toLowerCase()}${mw?.toHit ? ` (${mw.toHit > 0 ? '+' : ''}${mw.toHit} to hit)` : ''}${mw?.damage ? ` (${mw.damage > 0 ? '+' : ''}${mw.damage} damage)` : ''}${mw?.bane ? ` (+${mw.bane.dice} ${mw.bane.type} against ${mw.bane.types.join(' and ')})` : ''}` : '';
+    return `${w.damage}${b ? `+${b}` : ''} ${w.type}${forgedText}${b ? ` · +${b} to hit` : ''}${w.versatile ? ` · ${w.versatile} two-handed` : ''}${w.range ? ` · range ${metricText(`range ${w.range}`).slice(6)}` : ''}${w.thrown ? ` · thrown ${metricText(`thrown ${w.thrown}`).slice(7)}` : ''}`;
   }
   if (def.armor) {
     const a = ARMOURS[def.id];
     const pts = a ? Object.values(a.cover).reduce((x, y) => x + y, 0) : 0;
     const cond = inst.condition ?? 100;
-    const h = a?.hinder ?? 0; const sq = h >= 4 ? 2 : h >= 2 ? 1 : 0;
-    return `Absorbs ${a ? Math.min(60, a.absorb + 5 * b) : '?'}% · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}${def.armor.str ? ` · STR ${def.armor.str}` : ''}`;
+    const metal = metalOf(inst, def);
+    const h = Math.round((a?.hinder ?? 0) * (METALS[metal]?.hinder ?? 1)); const sq = h >= 4 ? 2 : h >= 2 ? 1 : 0;
+    const by = (type) => (a ? absorbFor({ absorb: Math.min(60, a.absorb + 5 * b), form: ARMOUR_FORM[def.id], metal, condition: cond }, type) : 0);
+    const elems = ['fire', 'cold', 'lightning', 'acid', 'poison', 'necrotic'].map((x) => [x, by(x)]).filter(([, v]) => v > 0);
+    return `${FORMS[ARMOUR_FORM[def.id]]?.label ?? 'armour'}${metal ? ` of ${METALS[metal].name.toLowerCase()}` : ''} · edge ${by('slashing')}% · point ${by('piercing')}% · blunt ${by('bludgeoning')}%${elems.length ? ` · ${elems.map(([x, v]) => `${x} ${v}%`).join(' · ')}` : ''} · covers ${pts}/100 · condition ${cond}% · hindrance ${h}${h ? ` (−${h} Evasion${sq ? `, −${sq * 1.5} m move` : ''})` : ''}`;
   }
   if (def.cat === 'shield') return `Blocks blows and arrows: 15% + 5% × proficiency${b ? ` + ${5 * b}%` : ''}`;
   if (def.use?.kind === 'heal') return `Heals ${def.use.dice}`;

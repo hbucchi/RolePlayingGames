@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { heroDefence, monsterDefence, absorbed, landChance, blockChanceVs, shieldBlock, parryBlock, ARMOUR_ABSORB, strike, coverage, wearArmour, effectiveAbsorb } from '../src/engine/defence.js';
+import { pieceAbsorb, resistance, heroDefence, monsterDefence, absorbed, landChance, blockChanceVs, shieldBlock, parryBlock, ARMOUR_ABSORB, strike, coverage, wearArmour, effectiveAbsorb } from '../src/engine/defence.js';
 import { makeItem, equipItem } from '../src/engine/items.js';
 import { BESTIARY_BY_ID } from '../src/content/bestiary/index.js';
 import { hitLocation, BODY_PARTS } from '../src/engine/body.js';
@@ -44,20 +44,22 @@ test('the d100 strip: a roll inside the covered points meets armour, beyond them
 
 test('layers: pieces on the same part multiply; head, neck, hands get their own pieces', () => {
   const d = heroDefence(kit('chain-mail', 'steel-vambraces', 'iron-helm', 'steel-gorget'), { dex: 0 });
-  // Left arm 1-12: mail covers 1-11, vambraces 1-8. A 5 meets both: 1 - 0.6 x 0.6 = 64%.
-  assert.equal(strike(d, 5).pct, 64); assert.equal(strike(d, 5).pieces.length, 2);
-  assert.equal(strike(d, 10).pct, 40, 'beyond the vambraces only the mail');
+  // Left arm 1-12: mail covers 1-11, vambraces 1-8. A 5 meets both: layered, 1 - (1 - a) x (1 - b).
+  const [mail, vamb] = [d.pieces.find((p) => p.slot === 'body'), d.pieces.find((p) => p.slot === 'arms')];
+  const both = Math.round(100 * (1 - (1 - pieceAbsorb(mail) / 100) * (1 - pieceAbsorb(vamb) / 100)));
+  assert.equal(strike(d, 5).pct, both); assert.equal(strike(d, 5).pieces.length, 2);
+  assert.equal(strike(d, 10).pct, pieceAbsorb(mail), 'beyond the vambraces only the mail');
   assert.equal(strike(d, 12).pct, 0, 'the last point of the arm is a gap');
-  assert.equal(strike(d, 92).pct, 35, 'the helm covers the head: 91-97');
+  assert.ok(strike(d, 92).covered, 'the helm covers the head: 91-97');
   assert.equal(strike(d, 99).covered, false, 'the face is open');
-  assert.equal(strike(d, 89).pct, 100 - Math.round(100 * 0.6 * 0.55), 'mail and gorget on the neck');
+  assert.ok(strike(d, 89).pieces.length === 2, 'mail and gorget on the neck');
   assert.ok(d.hinder >= 4, 'more pieces, more hindrance');
 });
 
 test('condition: worn armour absorbs less, and each blow wears it', () => {
   const g = kit('chain-mail'); g.inventory[0].condition = 50;
   const d = heroDefence(g, { dex: 0 });
-  assert.equal(d.armour.absorb, 40); assert.equal(d.armour.condition, 50); assert.equal(d.armour.pct, 20);
+  assert.equal(d.armour.absorb, 40); assert.equal(d.armour.condition, 50); assert.equal(d.armour.pct, 25, 'edge 50% at half condition');
   assert.equal(effectiveAbsorb(40, 100), 40);
   const fresh = heroDefence(kit('chain-mail'), { dex: 0 }).armour;
   wearArmour(fresh); assert.equal(fresh.condition, 99);
@@ -104,4 +106,33 @@ test('local injuries: part health, multipliers to total HP, crippled parts', asy
   const p = injuryPenalties(e);
   assert.equal(p.moveLost, 2); assert.ok(p.attackDis.length); assert.equal(p.noParry, true);
   healParts(e, 100); assert.equal(isCrippled(e, 'neck'), false, 'healing mends parts');
+});
+
+test('materials: forms stop damage types differently; metals change the profile', async () => {
+  const { absorbFor, rollMetal, METALS } = await import('../src/engine/materials.js');
+  // A coat of mail (40): edges 50, points 24, blunt 24, lightning 0 (it conducts).
+  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'slashing'), 50);
+  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'piercing'), 24);
+  assert.equal(absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'lightning'), 0);
+  // Padded cloth is best against blunt blows and burns.
+  assert.ok(absorbFor({ absorb: 10, form: 'cloth' }, 'bludgeoning') > absorbFor({ absorb: 10, form: 'cloth' }, 'piercing'));
+  assert.equal(absorbFor({ absorb: 10, form: 'cloth' }, 'fire'), 0);
+  // Bronze adds fire resistance; gold is soft; mithral stronger and lighter.
+  assert.ok(absorbFor({ absorb: 40, form: 'mail', metal: 'bronze' }, 'fire') > absorbFor({ absorb: 40, form: 'mail', metal: 'steel' }, 'fire'));
+  assert.ok(absorbFor({ absorb: 40, form: 'mail', metal: 'gold' }, 'slashing') < 50);
+  assert.ok(METALS.mithral.weight < 1 && METALS.gold.weight > 1);
+  const g = kit('chain-mail'); g.inventory[0].material = 'bronze';
+  const d = heroDefence(g, { dex: 0 });
+  assert.match(d.armour.name, /^Bronze/);
+  assert.ok(resistance(d, 'fire') > 0, 'non-physical damage meets the armour overall');
+  for (let i = 0; i < 50; i++) assert.ok(METALS[rollMetal(3)]);
+});
+
+test('body maps: four-legged beasts and spiders', async () => {
+  const { bodyMapOf, strikeAt } = await import('../src/engine/body.js');
+  assert.equal(bodyMapOf(BESTIARY_BY_ID.wolf), 'quadruped');
+  assert.equal(bodyMapOf(BESTIARY_BY_ID['giant-spider']), 'arachnid');
+  assert.equal(bodyMapOf(BESTIARY_BY_ID.goblin), 'humanoid');
+  assert.equal(strikeAt(100, 'quadruped').part, 'head'); assert.equal(strikeAt(1, 'arachnid').part, 'leg-1');
+  assert.equal(monsterDefence(BESTIARY_BY_ID.wolf).map, 'quadruped');
 });

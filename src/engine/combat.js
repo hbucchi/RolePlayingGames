@@ -75,6 +75,7 @@ export function isBehind(attackerPos, target) {
 
 import { playRange, spellRange, THROWN_NAMES, ENDLESS_THROWN, THROWS_CARRIED } from './range.js';
 import { injuryPenalties } from './injury.js';
+import { bodyMapOf } from './body.js';
 
 export const chebyshev = (a, b) => Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y));
 
@@ -244,7 +245,7 @@ export function createMonster(stat, id, pos, facing = 4) {
   return {
     id, statId: stat.id, name: stat.name, pos, facing,
     // Evasion (10 + DEX) is what attacks must beat; the rest of the stat block's AC is armour (defence.js).
-    hp: stat.hp, maxHp: stat.hp, ac: monsterDefence(stat).evasion, defence: monsterDefence(stat), dexMod: stat.mods.dex,
+    hp: stat.hp, maxHp: stat.hp, ac: monsterDefence(stat).evasion, defence: monsterDefence(stat), bodyMap: bodyMapOf(stat), dexMod: stat.mods.dex,
     speed: Math.floor(Math.max(stat.speed.walk ?? 30, stat.speed.fly ?? 0, stat.speed.climb ?? 0) / 5),
     weapons, aware: false, dead: false, reaction: true,
     nimble: stat.traits.some((t) => /Nimble Escape/.test(t.name)),

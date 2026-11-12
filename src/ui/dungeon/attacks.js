@@ -7,16 +7,17 @@ import { cellsOf } from '../../engine/size.js';
 import { rangedCover } from '../../engine/vision.js';
 import { attackOptions, facingToward, resolveAttack } from '../../engine/combat.js';
 import { countOf, consume } from '../../engine/items.js';
-import { absorbed, strike, wearArmour, partCover } from '../../engine/defence.js';
-import { BODY_BY_ID } from '../../engine/body.js';
-import { rollDie } from '../../engine/dice.js';
+import { absorbed, strike, wearArmour, partCover, resistance } from '../../engine/defence.js';
+import { isPhysical } from '../../engine/materials.js';
+import { partOf } from '../../engine/body.js';
+import { rollDie, roll } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play } from '../audio.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
 import { rollDice, diceWanted, diceOf } from '../dice.js';
-import { applyHit, PART_RULES, CRIPPLED_TEXT } from '../../engine/injury.js';
+import { applyHit, ruleOf, CRIPPLED_TEXT } from '../../engine/injury.js';
 
 export function installAttacks(ctx) {
   const { S, host, overlay, reduceMotion, s, signed, sleep, viewport } = ctx;
@@ -331,34 +332,57 @@ export function installAttacks(ctx) {
       ctx.float(target.pos, def?.blockWith === 'shield' ? 'blocked' : 'parried', 'muted');
       play('sword-hit', { volume: 0.35 });
     } else if (r.hit) {
-      let dmg = r.damage; const bits = [];
+      const bits = [];
+      // Split the blow by damage type (materials.js): the weapon's own type plus any extra dice
+      // (a fire rider, poison on a bite). Your own extras (sneak attack, smiting) share the weapon's type.
+      const extraByType = {};
+      for (const x of r.extras ?? []) extraByType[x.type] = (extraByType[x.type] ?? 0) + x.total;
+      let main = r.damage - Object.values(extraByType).reduce((a, b) => a + b, 0);
       if (attacker === s.hero) {
         const x = ctx.hitExtras(target, weapon, opts, ranged, r.crit);
-        dmg += x.total; bits.push(...x.text);
+        main += x.total; bits.push(...x.text);
       }
-      // Where it lands (d100 on the body strip), and whether it meets armour or finds a gap.
-      // Spells pass through armour.
-      const roll100 = rollDie(100);
-      const at = strike(target.defence, roll100);
-      const pct = weapon.spell ? 0 : at.pct;
-      const raw = dmg; dmg = absorbed(dmg, pct);
-      target.lastHit = { part: at.part, roll: roll100, covered: at.covered, raw, dealt: dmg, pct };
-      const where = `to the ${BODY_BY_ID[at.part].name.toLowerCase()} (d100 ${roll100})`;
-      if (pct) {
-        bits.push(`${at.pieces.map((p) => p.name.toLowerCase()).join(' + ')} absorb${at.pieces.length > 1 ? '' : 's'} ${pct}%: ${raw} → ${dmg}`);
-        for (const p of at.pieces) { const cond = wearArmour(p, r.crit); if (target === s.hero) ctx.wearHeroArmour?.(p.uid, cond); }
-      } else if (!weapon.spell && partCover(target.defence, at.part) > 0) bits.push('through a gap in the armour');
-      if (target === s.hero && s.def.uncanny && s.hero.reaction && dmg > 1) {
-        dmg = Math.floor(dmg / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
+      // A silver blade against the undead (or a fiend): its bane dice.
+      if (weapon.bane && weapon.bane.types.includes(BESTIARY_BY_ID[target.statId]?.type)) {
+        const b = roll(weapon.bane.dice); extraByType[weapon.bane.type] = (extraByType[weapon.bane.type] ?? 0) + b.total; bits.push(`silver bites: +${b.total} ${weapon.bane.type}`);
       }
-      // The part takes what got through; total HP takes it times the part's multiplier (injury.js).
-      const inj = applyHit(target, at.part, dmg);
-      const partDmg = dmg; dmg = inj.total;
-      if (inj.mult !== 1) bits.push(`${BODY_BY_ID[at.part].name.toLowerCase()} ×${inj.mult}: ${partDmg} → ${dmg} HP`);
-      bits.push(`${BODY_BY_ID[at.part].name.toLowerCase()} ${inj.partLeft}/${inj.partMax}`);
-      if (inj.crippledNow) crippled = at.part;
+      if (!isPhysical(weapon.type)) { extraByType[weapon.type] = (extraByType[weapon.type] ?? 0) + main; main = 0; }
+      let dmg = 0; let where = '';
+      // Physical: lands on a body part (d100 on the creature's body map), meets the armour there or a gap.
+      if (main > 0) {
+        const roll100 = rollDie(100);
+        const at = strike(target.defence, roll100, weapon.type);
+        const pct = at.pct;
+        let part = absorbed(main, pct);
+        const map = target.bodyMap ?? 'humanoid';
+        const partName = partOf(map, at.part)?.name.toLowerCase() ?? at.part;
+        where = ` to the ${partName} (d100 ${roll100})`;
+        if (pct) {
+          bits.push(`${at.pieces.map((p) => p.name.toLowerCase()).join(' + ')} absorb${at.pieces.length > 1 ? '' : 's'} ${pct}% of ${weapon.type}: ${main} → ${part}`);
+          for (const p of at.pieces) { const cond = wearArmour(p, r.crit); if (target === s.hero) ctx.wearHeroArmour?.(p.uid, cond); }
+        } else if (partCover(target.defence, at.part) > 0) bits.push('through a gap in the armour');
+        if (target === s.hero && s.def.uncanny && s.hero.reaction && part > 1) {
+          part = Math.floor(part / 2); s.hero.reaction = false; bits.push('Uncanny Dodge halves it');
+        }
+        // The part takes what got through; total HP takes it times the part's multiplier (injury.js).
+        const inj = applyHit(target, at.part, part);
+        if (inj.mult !== 1) bits.push(`${partName} ×${inj.mult}: ${part} → ${inj.total} HP`);
+        bits.push(`${partName} ${inj.partLeft}/${inj.partMax}`);
+        if (inj.crippledNow) crippled = at.part;
+        dmg += inj.total;
+        target.lastHit = { part: at.part, roll: roll100, covered: at.covered, raw: main, dealt: part, pct };
+      }
+      // Fire, cold, poison...: straight to total HP, less the armour's overall resistance to it.
+      for (const [type, amount] of Object.entries(extraByType)) {
+        if (amount <= 0) continue;
+        const res = resistance(target.defence, type);
+        const got = res ? Math.max(1, Math.round(amount * (1 - res / 100))) : amount;
+        dmg += got;
+        bits.push(`${got} ${type}${res ? ` (armour resists ${res}%: ${amount} → ${got})` : ''}`);
+      }
+      dmg = Math.max(1, dmg);
       if (target === s.hero) ctx.damageHero(dmg); else dmg = ctx.damageMonster(target, dmg);
-      line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'} ${where}! ${dmg} ${weapon.type} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
+      line += ` ${r.crit ? 'CRITICAL HIT' : 'Hit'}${where}! ${dmg} damage${r.damageRoll ? ` [${r.damageRoll.rolls.join(', ')}${r.damageRoll.modifier ? ` ${signed(r.damageRoll.modifier)}` : ''}]` : ''}${bits.length ? ` (${bits.join('; ')})` : ''}.`;
       ctx.float(target.pos, `−${dmg}`, target === s.hero ? 'bad' : 'good', r.crit);
       play(ranged ? 'arrow-hit' : 'sword-hit');
       if (r.crit) play('crit', { volume: 0.9 });
@@ -372,8 +396,8 @@ export function installAttacks(ctx) {
     const landed = r.hit && !blocked;
     ctx.log(line, target === s.hero ? (landed ? 'bad' : 'info') : (landed ? 'good' : 'info'));
     if (crippled && target.hp > 0) {
-      const kind = PART_RULES[crippled].crippled;
-      ctx.log(`${whom}'s ${BODY_BY_ID[crippled].name.toLowerCase()} is crippled: ${CRIPPLED_TEXT[kind]}.`, target === s.hero ? 'bad' : 'good');
+      const kind = ruleOf(target, crippled).crippled;
+      ctx.log(`${whom}'s ${(partOf(target.bodyMap ?? 'humanoid', crippled)?.name ?? crippled).toLowerCase()} is crippled: ${CRIPPLED_TEXT[kind]}.`, target === s.hero ? 'bad' : 'good');
       ctx.float(target.pos, kind === 'bleeding' ? 'bleeding!' : 'crippled!', target === s.hero ? 'bad' : 'good');
     }
     if (target !== s.hero && target.hp <= 0) {

@@ -53,7 +53,7 @@ test('dwarf warrior derives the right numbers', () => {
   assert.equal(c.defence.evasion, 8); assert.equal(c.defence.hinder, 3); assert.equal(c.defence.moveLost, 1);
   assert.equal(c.speed, 20);
   assert.equal(c.defence.block, 25); assert.equal(c.defence.blockWith, 'shield');
-  assert.equal(c.defence.armour.pct, 40); assert.equal(c.defence.armour.cover.chest, 22); assert.equal(c.defence.armour.cover['left-leg'], 7);
+  assert.equal(c.defence.armour.absorb, 40); assert.equal(c.defence.armour.pct, 50, 'mail: 40% x 1.25 against edges'); assert.equal(c.defence.armour.cover.chest, 22); assert.equal(c.defence.armour.cover['left-leg'], 7);
   assert.equal(c.defence.armour.cover.head, undefined, 'a coat of mail has no helm');
   const athletics = c.skills.find((s) => s.id === 'athletics');
   assert.equal(athletics.proficient, true);

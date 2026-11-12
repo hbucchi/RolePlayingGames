@@ -25,20 +25,65 @@ export const BODY_PARTS = [
   { id: 'head', name: 'Head', weight: 10, x: 0.496, y: 0.09 },
 ];
 // Each part owns a stretch of the d100: left arm 1-12, right arm 13-24, ... head 91-100.
-{ let n = 0; for (const p of BODY_PARTS) { p.from = n + 1; p.to = n + p.weight; n = p.to; } }
-export const BODY_BY_ID = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
+const stretch = (list) => { let n = 0; for (const p of list) { p.from = n + 1; p.to = n + p.weight; n = p.to; } return list; };
+stretch(BODY_PARTS);
 
 /**
- * Where a d100 roll (1-100) lands: the part, and how far into that part's stretch it is
- * (1 = the part's first point). Armour covers a number of points from the start of each stretch,
- * so `offset` <= coverage means the blow meets the armour; beyond it, it finds a gap.
+ * Other bodies. Four-legged beasts (wolves, bears, horses, dragons) and many-legged arachnids
+ * have their own map of the d100; ids shared with the humanoid map (head, neck, chest,
+ * abdomen) mean the same thing.
  */
-export function strikeAt(d100) {
-  const p = BODY_PARTS.find((x) => d100 >= x.from && d100 <= x.to) ?? BODY_PARTS[BODY_PARTS.length - 1];
+export const BODY_MAPS = {
+  humanoid: BODY_PARTS,
+  quadruped: stretch([
+    { id: 'fore-left-leg', name: 'Left foreleg', weight: 8 },
+    { id: 'fore-right-leg', name: 'Right foreleg', weight: 8 },
+    { id: 'hind-left-leg', name: 'Left hind leg', weight: 8 },
+    { id: 'hind-right-leg', name: 'Right hind leg', weight: 8 },
+    { id: 'tail', name: 'Tail', weight: 5 },
+    { id: 'hindquarters', name: 'Hindquarters', weight: 13 },
+    { id: 'abdomen', name: 'Belly', weight: 12 },
+    { id: 'chest', name: 'Chest and shoulders', weight: 18 },
+    { id: 'neck', name: 'Neck', weight: 7 },
+    { id: 'head', name: 'Head', weight: 13 },
+  ]),
+  arachnid: stretch([
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ id: `leg-${n}`, name: `${n <= 4 ? 'Left' : 'Right'} leg ${((n - 1) % 4) + 1}`, weight: n % 2 ? 5 : 6 })),
+    { id: 'abdomen', name: 'Abdomen', weight: 24 },
+    { id: 'cephalothorax', name: 'Body', weight: 20 },
+    { id: 'head', name: 'Head and fangs', weight: 12 },
+  ]),
+};
+/** Humanoid parts by id (the hero's body); `partOf(map, id)` for any body. */
+export const BODY_BY_ID = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p]));
+export const partOf = (map, id) => (BODY_MAPS[map] ?? BODY_PARTS).find((p) => p.id === id) ?? BODY_BY_ID[id];
+
+/**
+ * What body a creature has. Spiders and scorpions: arachnid; beasts that walk on four legs
+ * (and dragons): quadruped; everyone else (people, giants, undead...): humanoid.
+ */
+const ARACHNID = /spider|scorpion|weaver|ettercap-mount/i;
+const QUADRUPED = /wolf|worg|warg|hound|dog|jackal|hyena|bear|boar|horse|pony|mule|camel|elk|deer|ox|bull|goat|lion|tiger|panther|leopard|cat|lynx|rat|badger|wolverine|weasel|crocodile|lizard|basilisk|dragon|drake|wyvern|hydra|griffon|hippogriff|manticore|chimera|behir|bulette|rhino|elephant|mammoth|mastiff/i;
+export function bodyMapOf(stat) {
+  if (stat?.bodyMap) return stat.bodyMap;
+  const name = `${stat?.name ?? ''} ${stat?.id ?? ''}`;
+  if (ARACHNID.test(name)) return 'arachnid';
+  if (/beast|monstrosity|dragon/i.test(stat?.type ?? '') && QUADRUPED.test(name)) return 'quadruped';
+  return 'humanoid';
+}
+
+/**
+ * Where a d100 roll (1-100) lands on a body: the part, and how far into that part's stretch it
+ * is (1 = the part's first point). Armour covers a number of points from the start of each
+ * stretch, so `offset` <= coverage means the blow meets the armour; beyond it, it finds a gap.
+ */
+export function strikeAt(d100, map = 'humanoid') {
+  const list = BODY_MAPS[map] ?? BODY_PARTS;
+  const p = list.find((x) => d100 >= x.from && d100 <= x.to) ?? list[list.length - 1];
   return { part: p.id, offset: d100 - p.from + 1 };
 }
 /** Pick the part a blow lands on from a d100 roll (1-100). */
-export const hitLocation = (d100) => strikeAt(d100).part;
+export const hitLocation = (d100, map = 'humanoid') => strikeAt(d100, map).part;
 
 /** Which parts armour covers: light protects the trunk, medium the arms too, heavy almost everything. */
 const ARMOUR_COVERS = {

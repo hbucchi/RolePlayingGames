@@ -30,7 +30,8 @@
  * covers every point of the body, absorbing 6% per point of AC above 10 + DEX (at most 60%).
  */
 import { itemDef } from './items.js';
-import { BODY_PARTS, BODY_BY_ID, strikeAt } from './body.js';
+import { BODY_PARTS, BODY_MAPS, partOf, strikeAt, bodyMapOf } from './body.js';
+import { absorbFor, ARMOUR_FORM, METALS, metalOf, isMetal } from './materials.js';
 
 /**
  * Every armour: absorption (%) and coverage (points of each part's stretch). Parts not listed are
@@ -83,7 +84,8 @@ export const moveSquaresLost = (hinder, str = 10) => Math.max(0, (hinder >= 4 ? 
 export const ARMOUR_ABSORB = Object.fromEntries(Object.entries(ARMOURS).map(([k, v]) => [k, v.absorb]));
 export const MAX_ABSORB = 60;
 export const MAX_BLOCK = 50;
-const FULL = Object.fromEntries(BODY_PARTS.map((p) => [p.id, p.weight])); // natural armour: every point
+/** Natural armour covers every point of whatever body the creature has. */
+const fullCover = (map) => Object.fromEntries((BODY_MAPS[map] ?? BODY_PARTS).map((p) => [p.id, p.weight]));
 
 export const shieldBlock = (pb, trained = true) => Math.min(MAX_BLOCK, 15 + (trained ? 5 * pb : 0));
 export const parryBlock = (pb) => Math.min(MAX_BLOCK, 5 + 5 * pb);
@@ -91,19 +93,24 @@ export const parryBlock = (pb) => Math.min(MAX_BLOCK, 5 + 5 * pb);
 /** The absorption armour gives at its condition (0-100%). */
 export const effectiveAbsorb = (absorb, condition = 100) => Math.round(absorb * Math.max(0, Math.min(100, condition)) / 100);
 
+/** A piece's absorption against one damage type (materials.js: form x metal x condition). */
+export const pieceAbsorb = (p, type = 'slashing') => absorbFor({ absorb: p.absorb, form: p.form, metal: p.metal, condition: p.condition }, type);
+
 /**
- * One worn piece: { name, absorb, condition, pct (absorb at that condition), cover, uid }.
- * `cover` maps part id -> points covered (never more than the part's stretch).
+ * One worn piece: { name, absorb (base), form, metal, condition, pct (against edges, for show),
+ * cover, uid, hinder }. `cover` maps part id -> points covered (never more than the part's stretch).
  */
-function piece({ name, absorb, cover, condition = 100, uid = null, hinder = null }) {
-  const c = Object.fromEntries(Object.entries(cover).map(([k, v]) => [k, Math.min(v, BODY_BY_ID[k]?.weight ?? 0)]));
+function piece({ name, absorb, cover, condition = 100, uid = null, hinder = null, form = 'leather', metal = null, map = 'humanoid' }) {
+  const c = Object.fromEntries(Object.entries(cover).map(([k, v]) => [k, Math.min(v, partOf(map, k)?.weight ?? 0)]));
   const points = Object.values(c).reduce((x, y) => x + y, 0);
-  return { name, absorb, condition, pct: effectiveAbsorb(absorb, condition), cover: c, uid, hinder: hinder ?? hindranceOf(absorb, points) };
+  const p = { name, absorb, form, metal, condition, cover: c, uid, hinder: hinder ?? hindranceOf(absorb, points) };
+  p.pct = pieceAbsorb(p);
+  return p;
 }
 
 /**
  * A hero's defence from what they wear and wield.
- * @returns {{ evasion, block, blockWith: 'shield'|'parry'|null, armour: piece|null }}
+ * @returns {{ evasion, block, blockWith, pieces, armour, hinder, moveLost, map }}
  */
 export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = true, weaponTrained = () => true, magicEvasion = 0 } = {}) {
   const eq = (slot) => (gear.inventory ?? []).find((x) => x.uid === gear.equipped?.[slot]) ?? null;
@@ -114,10 +121,12 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
     const inst = eq(slot); const def = itemDef(inst);
     if (!def?.armor) continue;
     const a = ARMOURS[def.id] ?? { absorb: Math.max(5, 5 + 6 * ((def.armor.base ?? 11) - 10)), cover: ARMOURS.leather.cover };
-    // Enchantment adds absorption, not stiffness: hindrance stays the armour's own.
-    const p = piece({ name: def.name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (inst.bonus ?? 0)), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder });
+    const metal = metalOf(inst, def);
+    const name = metal && metal !== metalOf({}, def) ? `${METALS[metal].name} ${def.name.toLowerCase()}` : def.name;
+    // Enchantment adds absorption, not stiffness: hindrance stays the armour's own (and its metal's).
+    const p = piece({ name, absorb: Math.min(MAX_ABSORB, a.absorb + 5 * (inst.bonus ?? 0)), cover: a.cover, condition: inst.condition ?? 100, uid: inst.uid, hinder: a.hinder, form: ARMOUR_FORM[def.id] ?? 'leather', metal });
     p.slot = slot; pieces.push(p);
-    raw += a.hinder === 0 ? 0 : rawHindrance(a.absorb, Object.values(a.cover).reduce((x, y) => x + y, 0));
+    raw += a.hinder === 0 ? 0 : rawHindrance(a.absorb, Object.values(a.cover).reduce((x, y) => x + y, 0)) * (METALS[metal]?.hinder ?? 1);
   }
   const hinder = Math.round(raw);
   const evasion = 10 + dex - hinder + magicEvasion;
@@ -126,7 +135,7 @@ export function heroDefence(gear, { dex = 0, pb = 2, str = 10, shieldTrained = t
   const shield = off?.cat === 'shield' ? shieldBlock(pb, shieldTrained) + 5 * (offInst.bonus ?? 0) : 0;
   const parry = main?.weapon && !main.weapon.ranged && weaponTrained(main) ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
-  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces, armour: pieces.find((x) => x.slot === 'body') ?? pieces[0] ?? null, hinder, moveLost: moveSquaresLost(hinder, str) };
+  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces, armour: pieces.find((x) => x.slot === 'body') ?? pieces[0] ?? null, hinder, moveLost: moveSquaresLost(hinder, str), map: 'humanoid' };
 }
 
 /** Armour named in a stat block ("leather armor, shield", "natural armor"). */
@@ -136,6 +145,8 @@ const WORN = [
   [/studded/i, 'studded-leather'], [/\bhide\b/i, 'hide-armour'], [/leather/i, 'leather'], [/padded/i, 'padded'],
   [/\bmail\b/i, 'chain-mail'], // "iron mail", "black mail", "ancient bronze mail": a coat of mail
 ];
+/** The metal named in a stat block: "bronze mail", "black plate", "gilded scale"... */
+const WORN_METAL = [[/mithral/i, 'mithral'], [/dwarf/i, 'dwarf-steel'], [/gild|gold/i, 'gold'], [/silver/i, 'silver'], [/bronze/i, 'bronze'], [/copper/i, 'copper'], [/black|dark/i, 'black-iron'], [/iron/i, 'iron']];
 /** Weapons a creature can parry with (claws and jaws do not parry). */
 const MADE_WEAPON = /sword|axe|mace|spear|scimitar|club|dagger|hammer|staff|flail|pick|glaive|halberd|rapier|morningstar|trident|maul|javelin|pike|lance|sickle|blade|knife|cudgel/i;
 
@@ -144,49 +155,70 @@ export function monsterDefence(stat) {
   const dex = stat.mods?.dex ?? 0;
   const pb = stat.proficiencyBonus ?? 2;
   const text = stat.armor ?? '';
+  const map = bodyMapOf(stat);
   const hasShield = /shield/i.test(text);
-  const worn = WORN.find(([re]) => re.test(text))?.[1];
+  const worn = map === 'humanoid' ? WORN.find(([re]) => re.test(text))?.[1] : null;
   const wornDef = worn ? itemDef({ id: worn }) : null;
   let armour = null;
   if (wornDef) {
-    armour = piece({ name: wornDef.name, ...ARMOURS[worn] });
+    const metal = isMetal(wornDef) ? (WORN_METAL.find(([re]) => re.test(text))?.[1] ?? 'steel') : null;
+    armour = piece({ name: metal && metal !== 'steel' ? `${METALS[metal].name} ${wornDef.name.toLowerCase()}` : wornDef.name, ...ARMOURS[worn], form: ARMOUR_FORM[worn], metal });
   } else {
     const pts = Math.max(0, (stat.ac ?? 10) - 10 - dex - (hasShield ? 2 : 0));
     const absorb = Math.min(MAX_ABSORB, 6 * pts);
     // Natural armour, or something odd in the stat block ("robes of warding"): named in its own words.
     const own = text.split(',')[0].trim();
-    if (absorb) armour = piece({ name: !own || /natural/i.test(own) ? 'natural armour' : own[0].toUpperCase() + own.slice(1), absorb, cover: FULL });
+    if (absorb) armour = piece({ name: !own || /natural/i.test(own) ? 'natural armour' : own[0].toUpperCase() + own.slice(1), absorb, cover: fullCover(map), form: 'natural', map });
   }
   // Worn armour hinders monsters too; natural armour is part of the body and does not.
   const hinder = wornDef ? armour.hinder : 0;
   const evasion = 10 + dex - hinder;
-  const canParry = (stat.scores?.int ?? 0) >= 5 && (stat.actions ?? []).some((a) => a.attack && ['mw', 'mrw'].includes(a.attack.kind) && MADE_WEAPON.test(a.name));
+  const canParry = map === 'humanoid' && (stat.scores?.int ?? 0) >= 5 && (stat.actions ?? []).some((a) => a.attack && ['mw', 'mrw'].includes(a.attack.kind) && MADE_WEAPON.test(a.name));
   const shield = hasShield ? shieldBlock(pb) : 0;
   const parry = canParry ? parryBlock(pb) : 0;
   const block = Math.min(MAX_BLOCK, Math.max(shield, parry));
-  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces: armour ? [armour] : [], armour, hinder, moveLost: 0 };
+  return { evasion, block, blockWith: block ? (shield >= parry ? 'shield' : 'parry') : null, pieces: armour ? [armour] : [], armour, hinder, moveLost: 0, map };
 }
 
 /** The pieces of armour that a blow at this part and offset meets. */
 export const piecesAt = (def, part, offset) => (def?.pieces ?? []).filter((p) => offset <= (p.cover[part] ?? 0));
 
+/** Layered absorption: each piece lets through (1 - its share); at most MAX_LAYERED. */
+const layered = (pieces, type) => {
+  if (!pieces.length) return 0;
+  const through = pieces.reduce((f, p) => f * (1 - pieceAbsorb(p, type) / 100), 1);
+  return Math.min(MAX_LAYERED, Math.round(100 * (1 - through)));
+};
+
 /**
- * Where a d100 lands on this defender, and what armour it meets there.
+ * Where a physical blow lands on this defender (d100 on its body map), and what armour it meets
+ * there against that damage type.
  * @returns {{ part, offset, covered: boolean, pct: number, pieces }}  pct = combined absorption (0 in a gap)
  */
-export function strike(def, d100) {
-  const { part, offset } = strikeAt(d100);
+export function strike(def, d100, type = 'slashing') {
+  const { part, offset } = strikeAt(d100, def?.map ?? 'humanoid');
   const met = piecesAt(def, part, offset);
-  const through = met.reduce((f, p) => f * (1 - p.pct / 100), 1);
-  const pct = met.length ? Math.min(MAX_LAYERED, Math.round(100 * (1 - through))) : 0;
-  return { part, offset, covered: met.length > 0, pct, pieces: met };
+  return { part, offset, covered: met.length > 0, pct: layered(met, type), pieces: met };
+}
+
+/**
+ * Resistance to a non-physical damage type (fire, cold...): such damage does not land on one part;
+ * the armour helps in proportion to how much of the body it covers. The average, over every point
+ * of the body, of the layered absorption against that type.
+ */
+export function resistance(def, type) {
+  if (!def?.pieces?.length) return 0;
+  const list = BODY_MAPS[def.map ?? 'humanoid'] ?? BODY_PARTS;
+  let sum = 0;
+  for (const p of list) for (let o = 1; o <= p.weight; o++) sum += layered(piecesAt(def, p.id, o), type);
+  return Math.round(sum / 100);
 }
 
 /** Wear armour by one blow (1%, or 3% for a critical hit); returns the new condition. */
 export function wearArmour(armour, crit = false) {
   if (!armour) return null;
   armour.condition = Math.max(0, armour.condition - (crit ? 3 : 1));
-  armour.pct = effectiveAbsorb(armour.absorb, armour.condition);
+  armour.pct = pieceAbsorb(armour);
   return armour.condition;
 }
 
@@ -196,7 +228,7 @@ export const partCover = (def, part) => Math.max(0, ...(def?.pieces ?? []).map((
 /** Points of the body (out of 100) covered: by one piece, or (given a defence) by any of its pieces. */
 export function coverage(x) {
   if (!x) return 0;
-  if (x.pieces) return BODY_PARTS.reduce((n, p) => n + partCover(x, p.id), 0);
+  if (x.pieces) return (BODY_MAPS[x.map ?? 'humanoid'] ?? BODY_PARTS).reduce((n, p) => n + partCover(x, p.id), 0);
   return Object.values(x.cover).reduce((a, b) => a + b, 0);
 }
 
@@ -228,5 +260,5 @@ export function armourSummary(def) {
   const ps = def?.pieces ?? (def?.armour ? [def.armour] : []);
   if (!ps.length) return 'No armour';
   const n = coverage(def.pieces ? def : ps[0]);
-  return `${ps.map((a) => `${a.name} ${a.pct}%${a.condition < 100 ? ` (condition ${a.condition}%)` : ''}`).join(', ')}: ${n === 100 ? 'the whole body' : `${n} of 100 points covered`}${def.hinder ? `, hindrance ${def.hinder} (−${def.hinder} Evasion)` : ''}`;
+  return `${ps.map((a) => `${a.name} ${pieceAbsorb(a, 'slashing')}/${pieceAbsorb(a, 'piercing')}/${pieceAbsorb(a, 'bludgeoning')}%${a.condition < 100 ? ` (condition ${a.condition}%)` : ''}`).join(', ')} (edge/point/blunt): ${n === 100 ? 'the whole body' : `${n} of 100 points covered`}${def.hinder ? `, hindrance ${def.hinder} (−${def.hinder} Evasion)` : ''}`;
 }

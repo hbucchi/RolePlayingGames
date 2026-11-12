@@ -383,7 +383,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     if (s.members[0]) for (const k of MKEYS) s[k] = s.members[0][k];
   }
 
-  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, finesse: (a.properties ?? []).includes('finesse') }));
+  const heroWeapons = (def) => (def?.attacks ?? []).map((a) => ({ ...weaponFromHeroAttack(a), ammo: a.ammo, uid: a.uid, slot: a.slot, bane: a.bane ?? null, finesse: (a.properties ?? []).includes('finesse') }));
 
   /** Save the hero after loot, XP or gear changes. A ready-made hero is adopted into your company. */
   function persist() {
@@ -983,7 +983,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
           if (inst) { removeItem(d.inventory, inst.uid, 1); break; }
         }
       }
-      if (e.heal) { for (const h of party()) h.hp = h.maxHp; play('spell-heal', { volume: 0.7 }); log('A healing prayer washes over the party: every wound is mended.', 'heal'); saveActive(); saveParty(); }
+      if (e.heal) { for (const h of party()) { h.hp = h.maxHp; h.parts = {}; } play('spell-heal', { volume: 0.7 }); log('A healing prayer washes over the party: every wound is mended.', 'heal'); saveActive(); saveParty(); }
       if (e.rest) { saveActive(); replenishParty(e.rest === true ? 'The party sleeps soundly. Rest brings back mana, but wounds stay until a potion or a spell mends them.' : e.rest); }
       if (e.xp) { const back = s.active; for (let i = 0; i < s.members.length; i++) { activate(i); awardXp(e.xp, s.hero.pos, true); } activate(back); log(`Each hero gains ${e.xp} XP.`, 'good'); }
     }

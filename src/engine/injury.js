@@ -22,9 +22,9 @@
  *
  * Healing (potions, spells) mends total HP and every hurt part by the same amount.
  */
-import { BODY_PARTS, BODY_BY_ID } from './body.js';
+import { BODY_MAPS, partOf } from './body.js';
 
-export const PART_RULES = {
+const HUMANOID_RULES = {
   head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
   neck: { hp: 0.2, mult: 2, crippled: 'bleeding' },
   chest: { hp: 0.6, mult: 1, crippled: 'bleeding' },
@@ -33,24 +33,49 @@ export const PART_RULES = {
   'left-arm': { hp: 0.4, mult: 0.75, crippled: 'shield arm' },
   'right-hand': { hp: 0.2, mult: 0.5, crippled: 'weapon arm' },
   'left-hand': { hp: 0.2, mult: 0.5, crippled: 'shield arm' },
-  'right-leg': { hp: 0.45, mult: 0.75, crippled: 'lame' },
-  'left-leg': { hp: 0.45, mult: 0.75, crippled: 'lame' },
+  'right-leg': { hp: 0.45, mult: 0.75, crippled: 'lame', lame: 2 },
+  'left-leg': { hp: 0.45, mult: 0.75, crippled: 'lame', lame: 2 },
 };
+/** Per body map (body.js): a part's share of max HP, its multiplier to total HP, what crippling does. */
+export const RULES_BY_MAP = {
+  humanoid: HUMANOID_RULES,
+  quadruped: {
+    head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
+    neck: { hp: 0.25, mult: 2, crippled: 'bleeding' },
+    chest: { hp: 0.6, mult: 1, crippled: 'bleeding' },
+    abdomen: { hp: 0.45, mult: 1, crippled: 'bleeding' },
+    hindquarters: { hp: 0.5, mult: 1, crippled: 'lame', lame: 1 },
+    tail: { hp: 0.15, mult: 0.5, crippled: 'docked' },
+    ...Object.fromEntries(['fore-left-leg', 'fore-right-leg', 'hind-left-leg', 'hind-right-leg'].map((id) => [id, { hp: 0.3, mult: 0.75, crippled: 'lame', lame: 1 }])),
+  },
+  arachnid: {
+    head: { hp: 0.3, mult: 1.5, crippled: 'dazed' },
+    cephalothorax: { hp: 0.6, mult: 1, crippled: 'bleeding' },
+    abdomen: { hp: 0.5, mult: 1.25, crippled: 'bleeding' }, // soft and swollen
+    ...Object.fromEntries([1, 2, 3, 4, 5, 6, 7, 8].map((n) => [`leg-${n}`, { hp: 0.15, mult: 0.5, crippled: 'lame', lame: 1 }])),
+  },
+};
+/** Humanoid rules by part id (the heroes' bodies). */
+export const PART_RULES = HUMANOID_RULES;
+const mapOf = (e) => e?.bodyMap ?? 'humanoid';
+export const ruleOf = (e, part) => RULES_BY_MAP[mapOf(e)]?.[part] ?? HUMANOID_RULES[part] ?? { hp: 0.4, mult: 1, crippled: 'bleeding' };
+
 export const CRIPPLED_TEXT = {
   dazed: 'dazed: −2 Evasion, disadvantage on attacks',
   bleeding: 'bleeding: −1 HP each turn',
   'weapon arm': 'weapon arm useless: disadvantage on attacks, no parrying',
   'shield arm': 'shield arm useless: no blocking with a shield',
-  lame: 'lame: −2 squares of movement',
+  lame: 'lame: slower (−2 squares for a person, −1 a leg for beasts and spiders)',
+  docked: 'tail crippled: no other effect',
 };
 
 /** A part's health: its share of the creature's maximum HP (at least 2). */
-export const partMax = (maxHp, part) => Math.max(2, Math.round(maxHp * (PART_RULES[part]?.hp ?? 0.4)));
+export const partMax = (maxHp, part, e = null) => Math.max(2, Math.round(maxHp * ruleOf(e, part).hp));
 /** Damage a part has taken so far. */
 export const partDamage = (e, part) => e.parts?.[part] ?? 0;
-export const partLeft = (e, part) => Math.max(0, partMax(e.maxHp, part) - partDamage(e, part));
-export const isCrippled = (e, part) => partDamage(e, part) >= partMax(e.maxHp, part);
-export const crippledParts = (e) => BODY_PARTS.filter((p) => isCrippled(e, p.id)).map((p) => p.id);
+export const partLeft = (e, part) => Math.max(0, partMax(e.maxHp, part, e) - partDamage(e, part));
+export const isCrippled = (e, part) => partDamage(e, part) >= partMax(e.maxHp, part, e);
+export const crippledParts = (e) => (BODY_MAPS[mapOf(e)] ?? BODY_MAPS.humanoid).filter((p) => isCrippled(e, p.id)).map((p) => p.id);
 
 /**
  * A blow of `damage` (already past the armour) lands on `part`.
@@ -58,10 +83,10 @@ export const crippledParts = (e) => BODY_PARTS.filter((p) => isCrippled(e, p.id)
  */
 export function applyHit(e, part, damage) {
   e.parts ??= {};
-  const max = partMax(e.maxHp, part);
+  const max = partMax(e.maxHp, part, e);
   const before = partDamage(e, part);
   e.parts[part] = Math.min(max, before + damage);
-  const mult = PART_RULES[part]?.mult ?? 1;
+  const mult = ruleOf(e, part).mult;
   return { total: Math.max(1, Math.round(damage * mult)), mult, partLeft: max - e.parts[part], partMax: max, crippledNow: before < max && e.parts[part] >= max };
 }
 
@@ -69,12 +94,12 @@ export function applyHit(e, part, damage) {
 export function injuryPenalties(e) {
   const out = { attackDis: [], evasion: 0, noShield: false, noParry: false, moveLost: 0, bleeding: false };
   for (const part of crippledParts(e)) {
-    const kind = PART_RULES[part].crippled;
+    const rule = ruleOf(e, part); const kind = rule.crippled;
     if (kind === 'dazed') { out.evasion -= 2; out.attackDis.push('dazed by a head wound'); }
     if (kind === 'bleeding') out.bleeding = true;
     if (kind === 'weapon arm') { out.noParry = true; if (!out.attackDis.includes('weapon arm crippled')) out.attackDis.push('weapon arm crippled'); }
     if (kind === 'shield arm') out.noShield = true;
-    if (kind === 'lame') out.moveLost += 2;
+    if (kind === 'lame') out.moveLost += rule.lame ?? 2;
   }
   return out;
 }
@@ -87,8 +112,8 @@ export function healParts(e, amount) {
 
 /** "Left leg 2/9 (lame)" lines for the hurt parts, worst first. */
 export function injuryLines(e) {
-  return BODY_PARTS.filter((p) => partDamage(e, p.id) > 0)
-    .map((p) => ({ p, left: partLeft(e, p.id), max: partMax(e.maxHp, p.id) }))
+  return (BODY_MAPS[mapOf(e)] ?? BODY_MAPS.humanoid).filter((p) => partDamage(e, p.id) > 0)
+    .map((p) => ({ p, left: partLeft(e, p.id), max: partMax(e.maxHp, p.id, e) }))
     .sort((a, b) => a.left / a.max - b.left / b.max)
-    .map(({ p, left, max }) => `${BODY_BY_ID[p.id].name} ${left}/${max}${left <= 0 ? ` (${PART_RULES[p.id].crippled})` : ''}`);
+    .map(({ p, left, max }) => `${partOf(mapOf(e), p.id).name} ${left}/${max}${left <= 0 ? ` (${ruleOf(e, p.id).crippled})` : ''}`);
 }
