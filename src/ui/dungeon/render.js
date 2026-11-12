@@ -136,7 +136,7 @@ export function installRender(ctx) {
    */
   function bodyToken(e, d, url, hero) {
     const sz = S(); const state = woundState(e.hp, e.maxHp);
-    const { ring, hpFrac, cls } = tokenLook(e, hero, state);
+    const { hpFrac, cls } = tokenLook(e, hero, state);
     const off = s.lunge?.id === e.id ? { x: s.lunge.dx * sz * 0.28, y: s.lunge.dy * sz * 0.28 } : { x: 0, y: 0 };
     const cx = (e.pos.x + d.w / 2) * sz + off.x; const cy = (e.pos.y + d.h / 2) * sz + off.y;
     // The sprite's own box when facing north (wing-spread bodies are wider than long).
@@ -144,7 +144,10 @@ export function installRender(ctx) {
     const scale = (spanOf(e.size ?? 1) === 1 ? 1.3 : 1.04) * bodyScale(hero ? e.race : e.statId);
     const bw = north.w * sz * scale; const bh = north.h * sz * scale;
     const rx = d.w * sz * 0.46; const ry = d.h * sz * 0.46;
-    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : (hero ? 'none' : bodyTint(e.statId));
+    // No ring under a body (it breaks the illusion of a figure on the floor): the hero whose turn it
+    // is glows softly instead.
+    const active = hero && e === s.hero && s.members.length > 1;
+    const petrified = e.cond?.petrified ? 'grayscale(1) brightness(0.85)' : active ? 'drop-shadow(0 0 7px #ffe28a) drop-shadow(0 0 2px #ffe28a)' : (hero ? 'none' : bodyTint(e.statId));
     // Winged creatures (dragons): the same body with wings spread, faded in while it attacks. In
     // that picture the body (head to tail) is about 76% of its height, and it is 5:4 wide.
     const open = !hero && !e.dead && !e.cond?.petrified ? bodyOpenUrl(e.statId) : null;
@@ -152,8 +155,6 @@ export function installRender(ctx) {
     return `<g class="${cls} tk-body${open && e.wingsOpen ? ' tk-wings' : ''}" transform="translate(${cx} ${cy})">
       ${s.selectedId === e.id ? `<ellipse rx="${rx + 8}" ry="${ry + 8}" class="tk-selring"/>` : ''}
       ${s.aiming === e.id ? `<ellipse rx="${rx + 5}" ry="${ry + 5}" class="tk-aim"/>` : ''}
-      ${hero && e === s.hero && s.members.length > 1 ? `<ellipse rx="${rx + 6}" ry="${ry + 6}" class="tk-activering"/>` : ''}
-      <ellipse rx="${rx}" ry="${ry}" class="body-base" style="stroke:${ring}"/>
       ${auraSvg(e, rx, ry)}
       <g class="body-shadow"><g transform="rotate(${facingAngle(e.facing)})">
         <image href="${esc(url)}" x="${-bw / 2}" y="${-bh / 2}" width="${bw}" height="${bh}" class="body-img${open ? ' body-closed' : ''}" preserveAspectRatio="xMidYMid meet" style="filter:${petrified}"/>
