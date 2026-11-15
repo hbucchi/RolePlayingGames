@@ -7,18 +7,53 @@
  * named cache; afterwards every request the page makes is answered from that cache first, and only
  * goes to the network for something not stored. A new build has a new VERSION, so the next visit
  * with a connection installs the new copy and throws the old one away.
+ *
+ * Downloading ~40 MB on a phone must survive a bad connection:
+ *   - each file is fetched on its own and tried three times; one that still fails does not
+ *     cancel the others (cache.addAll would), and an interrupted download resumes where it stopped
+ *   - FILES carries each file's own fingerprint: an update copies every unchanged file from the
+ *     old copy and downloads only what changed
+ *   - the page is told how far it has got ('offline-progress'), and when it is ready
+ *   - only the start page and the code are essential; a picture that failed is fetched (and
+ *     stored) the first time the game asks for it with a connection
  */
 const VERSION = '__VERSION__';
-const FILES = __FILES__;
+const FILES = __FILES__; // [[path, fingerprint], ...]
 const CACHE = `hero-forge-${VERSION}`;
 const at = (f) => new URL(f, self.registration.scope).href;
+const HASH = new Map(FILES.map(([f, h]) => [at(f), h]));
+
+async function tell(msg) { for (const c of await self.clients.matchAll({ includeUncontrolled: true, type: 'window' })) c.postMessage(msg); }
+/** Store a response with its fingerprint, so the next version can tell whether it changed. */
+async function keep(cache, url, res, hash) {
+  const body = await res.blob();
+  const headers = new Headers(res.headers); headers.set('X-Fingerprint', hash);
+  await cache.put(url, new Response(body, { status: 200, statusText: 'OK', headers }));
+}
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    // A few at a time, so a phone on a weak connection is not swamped.
-    const list = FILES.map(at);
-    for (let i = 0; i < list.length; i += 12) await cache.addAll(list.slice(i, i + 12));
+    const have = new Set((await cache.keys()).map((r) => r.url)); // an interrupted try resumes
+    const old = (await caches.keys()).filter((k) => k.startsWith('hero-forge-') && k !== CACHE);
+    const todo = FILES.map(([f, h]) => [at(f), h]).filter(([u]) => !have.has(u));
+    let done = FILES.length - todo.length; const failed = [];
+    const one = async ([u, h]) => {
+      for (const k of old) { // unchanged since the last version: copy it, no download
+        const r = await (await caches.open(k)).match(u);
+        if (r && r.headers.get('X-Fingerprint') === h) { await cache.put(u, r); done++; return; }
+      }
+      for (let tries = 0; tries < 3; tries++) {
+        try { const r = await fetch(u, { cache: 'reload' }); if (r.ok) { await keep(cache, u, r, h); done++; return; } } catch { /* try again */ }
+      }
+      failed.push(u);
+    };
+    for (let i = 0; i < todo.length; i += 6) {
+      await Promise.all(todo.slice(i, i + 6).map(one));
+      tell({ type: 'offline-progress', done, total: FILES.length, version: VERSION });
+    }
+    // Without the start page and the code the game cannot open offline: try again next visit.
+    if (failed.some((u) => /\/$|\.html$|\.js$|\.css$/.test(u))) throw new Error(`offline copy incomplete: ${failed.length} files`);
     await self.skipWaiting();
   })());
 });
@@ -27,7 +62,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     for (const k of await caches.keys()) if (k.startsWith('hero-forge-') && k !== CACHE) await caches.delete(k);
     await self.clients.claim();
-    for (const c of await self.clients.matchAll()) c.postMessage({ type: 'offline-ready', version: VERSION, files: FILES.length });
+    tell({ type: 'offline-ready', version: VERSION, files: FILES.length });
   })());
 });
 
@@ -55,6 +90,12 @@ self.addEventListener('fetch', (e) => {
     if (req.mode === 'navigate') return (await cache.match(at('index.html'))) || fetch(req);
     const hit = await cache.match(req, { ignoreSearch: true, ignoreVary: true });
     if (hit) return req.headers.has('range') ? partial(req, hit) : hit;
-    try { return await fetch(req); } catch { return new Response('', { status: 504, statusText: 'Offline' }); }
+    try {
+      const res = await fetch(req);
+      // A file of the game that failed to download at install: keep it now that it came.
+      const url = req.url.split('?')[0];
+      if (res.ok && res.status === 200 && HASH.has(url) && !req.headers.has('range')) keep(cache, url, res.clone(), HASH.get(url)).catch(() => {});
+      return res;
+    } catch { return new Response('', { status: 504, statusText: 'Offline' }); }
   })());
 });

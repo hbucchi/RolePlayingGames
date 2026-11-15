@@ -249,9 +249,24 @@ function renderInto(body) {
     <main>${body}</main>
     ${state.settingsOpen ? `<div class="settings-modal" role="dialog" aria-modal="true" aria-label="Settings" data-action="close-settings-bg">
       <div class="settings-card"><div class="row"><h2>⚙ Settings</h2><span class="spacer"></span><button class="btn icon small" data-action="close-settings" aria-label="Close">✕</button></div>
-      <div class="home-settings-grid">${settingsControls('data-action="setting"', undefined, 'home')}</div></div></div>` : ''}
+      <div class="home-settings-grid">${settingsControls('data-action="setting"', undefined, 'home')}</div>
+      ${updateSection()}</div></div>` : ''}
     ${state.notice ? `<div class="toast ${state.notice.kind}" role="status">${esc(state.notice.text)}</div>` : ''}
   `;
+}
+
+/**
+ * Game updates (index.html window.gameUpdate, set where the game is installed as an app): the
+ * version on this device, a check for a newer one now, and a fresh download of everything.
+ */
+function updateSection() {
+  const u = window.gameUpdate;
+  return `<div class="update-box"><h3>Game updates</h3>
+    ${u ? `<p class="small muted">Version on this device: <b>${esc(u.version() ?? 'not saved for offline play yet')}</b>. New versions download by themselves when you open the game online; these buttons do it now.</p>
+      <div class="row wrap"><button class="btn small primary" data-action="update-check">Check for updates now</button>
+      <button class="btn small" data-action="update-reinstall" title="Throws the offline copy away and downloads the whole game again. Your heroes and saves are kept.">Download the game again</button></div>
+      <p class="small muted">Your heroes, saves and settings are kept either way.</p>`
+    : '<p class="small muted">This page always loads the newest version: just reload it.</p>'}</div>`;
 }
 
 const tabButton = (id, label) => `<button role="tab" aria-selected="${state.tab === id}" class="tab ${state.tab === id ? 'active' : ''}" data-action="tab" data-tab="${id}">${label}</button>`;
@@ -1216,6 +1231,8 @@ const actions = {
     render();
   },
   'open-settings'() { state.settingsOpen = true; render(); },
+  async 'update-check'(el) { el.disabled = true; el.textContent = 'Checking…'; try { await window.gameUpdate?.check(); } finally { el.disabled = false; el.textContent = 'Check for updates now'; } },
+  'update-reinstall'(el) { if (!confirmTwice('reinstall', 'Download the whole game again? Your heroes and saves are kept.')) return; el.disabled = true; window.gameUpdate?.reinstall(); },
   'close-settings'() { state.settingsOpen = false; render(); },
   'close-settings-bg'(el, e) { if (e?.target === el) { state.settingsOpen = false; render(); } },
   'open-campaign'(el) { Object.assign(state, { view: 'campaign', campaignId: el.dataset.id }); render(); window.scrollTo(0, 0); },

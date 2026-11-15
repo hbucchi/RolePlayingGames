@@ -83,8 +83,11 @@ write('assets/packs/index.json', JSON.stringify(index));
   const h = createHash('sha256');
   for (const f of files.sort()) h.update(f).update(fs.readFileSync(path.join(DIST, f)));
   const version = h.digest('hex').slice(0, 12);
+  // Each file with its own fingerprint, so an update downloads only the files that changed.
+  const fp = (f) => createHash('sha256').update(fs.readFileSync(path.join(DIST, f))).digest('hex').slice(0, 10);
+  const listed = [['./', fp('index.html')], ...files.map((f) => [f, fp(f)])];
   const sw = fs.readFileSync(path.join(ROOT, 'tools/sw-template.js'), 'utf8')
-    .replace('__VERSION__', version).replace('__FILES__', JSON.stringify(['./', ...files]));
+    .replace('__VERSION__', version).replace('__FILES__', JSON.stringify(listed));
   fs.writeFileSync(path.join(DIST, 'sw.js'), sw); // not in `written`: the claude.ai page does not use it
   const bytes = files.reduce((n, f) => n + fs.statSync(path.join(DIST, f)).size, 0);
   console.log(`Offline: sw.js keeps ${files.length} files (${(bytes / 1e6).toFixed(1)} MB), version ${version}`);

@@ -33,6 +33,12 @@
       // Was an older copy already running this page? Then a new version is an update to switch to.
       const hadCopy = !!navigator.serviceWorker?.controller;
       navigator.serviceWorker?.addEventListener('message', (e) => {
+        if (e.data?.type === 'offline-progress') {
+          const pct = Math.round(100 * e.data.done / e.data.total);
+          const t = document.querySelector('.offline-toast');
+          if (t && pct < 100) { clearTimeout(toast.timer); t.hidden = false; t.textContent = `Saving the game for offline play… ${pct}% (${e.data.done} of ${e.data.total} files)`; }
+          return;
+        }
         if (e.data?.type !== 'offline-ready') return;
         const first = !localStorage.getItem('rpg.offline');
         const prev = localStorage.getItem('rpg.offline');
@@ -49,7 +55,24 @@
       window.addEventListener('load', () => {
         fetch('sw.js', { method: 'HEAD' }).then((r) => {
           if (!r.ok) return;
-          navigator.serviceWorker.register('sw.js').then((reg) => {
+          navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+            // For the settings: look for a new version now, or throw the offline copy away and
+            // download the whole game again (if something went wrong with it).
+            window.gameUpdate = {
+              version: () => localStorage.getItem('rpg.offline'),
+              async check() {
+                await reg.update();
+                if (reg.installing || reg.waiting) { toast('A new version was found: downloading it…'); return 'updating'; }
+                toast('✓ You have the latest version.'); return 'latest';
+              },
+              async reinstall() {
+                toast('Downloading the whole game again…');
+                for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+                for (const k of await caches.keys()) if (k.startsWith('hero-forge-')) await caches.delete(k);
+                try { localStorage.removeItem('rpg.offline'); } catch {}
+                location.reload();
+              },
+            };
             // Look for a new version whenever the game comes back to the screen (phones keep apps
             // open for days), and every half hour while it is open.
             const check = () => reg.update().catch(() => {});

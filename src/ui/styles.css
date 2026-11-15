@@ -1293,3 +1293,6 @@ html { -webkit-tap-highlight-color: transparent; }
 .dungeon-card.locked { opacity: .62; border-left-color: var(--line); filter: grayscale(.4); }
 .badge.done { background: #4f8a3a; color: #fff; }
 .dg-name { font-family: var(--font-display); font-size: 1.05rem; }
+.update-box { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.update-box h3 { margin: 0; font-size: 1.05rem; }
+.update-box p { margin: 0; }
