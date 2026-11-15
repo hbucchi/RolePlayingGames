@@ -44,4 +44,14 @@ test('each weapon leaves its own strike mark and its own pitch of hit sound', as
   assert.equal(strikeKind({ name: 'Longbow', type: 'piercing', ranged: true }, true), 'shot');
   assert.equal(strikeKind({ name: 'Spear', type: 'piercing', ranged: true, melee: true }, true), 'thrust', 'a thrown spear is still a spear');
   assert.ok(hitSound('smash').rate < hitSound('slash').rate && hitSound('thrust').rate > hitSound('slash').rate);
+  const { weaponShape } = await import('../src/ui/dungeon/strikes.js');
+  const shape = (name, type = 'slashing', ranged = false) => weaponShape({ name, type }, ranged);
+  assert.equal(shape('Longsword'), 'sword'); assert.equal(shape('Scimitar'), 'curved'); assert.equal(shape('Greataxe'), 'greataxe');
+  assert.equal(shape('Handaxe'), 'axe'); assert.equal(shape('Rapier', 'piercing'), 'rapier'); assert.equal(shape('Dagger', 'piercing'), 'dagger');
+  assert.equal(shape('Spear', 'piercing'), 'spear'); assert.equal(shape('Warhammer', 'bludgeoning'), 'hammer'); assert.equal(shape('Morningstar', 'piercing'), 'mace');
+  assert.equal(shape('Greatclub', 'bludgeoning'), 'club'); assert.equal(shape('Quarterstaff', 'bludgeoning'), 'staff');
+  assert.equal(shape('Claw'), 'claw'); assert.equal(shape('Bite', 'piercing'), 'jaws'); assert.equal(shape('Tail', 'bludgeoning'), 'whip');
+  assert.equal(shape('Slam', 'bludgeoning'), 'fist'); assert.equal(shape('Gore', 'piercing'), 'horn');
+  assert.equal(shape('Longbow', 'piercing', true), null, 'the arrow already flew');
+  assert.equal(shape('Life Drain', 'necrotic'), null, 'nothing to show for a touch');
 });

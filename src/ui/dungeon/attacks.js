@@ -339,9 +339,9 @@ export function installAttacks(ctx) {
     const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2' : opts.cover === 'three-quarters' ? 'three-quarters cover +5' : null].filter(Boolean);
     const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));
     let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs Evasion ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
-    // The blow's own mark over the target (strikes.js): a slash, a chop, a thrust, a smash...
+    // The weapon itself makes the blow over the target (strikes.js): a sword swings, a spear thrusts...
     const kind = strikeKind(weapon, ranged);
-    const mark = (result) => drawStrike(host.querySelector('.dg-fx'), { kind, result, crit: r.crit, sz: S(), span: spanOf(target.size ?? 1),
+    const mark = (result) => drawStrike(host.querySelector('.dg-fx'), { weapon, ranged, result, crit: r.crit, sz: S(), span: spanOf(target.size ?? 1),
       at: centerOf(target.pos, target.size ?? 1), from: centerOf(attacker.pos, attacker.size ?? 1) });
     // Past Evasion: the defender may still block it (shield, or a parry with a trained weapon).
     let crippled = null;
@@ -413,7 +413,7 @@ export function installAttacks(ctx) {
       const bottom = getSetting('dmgPart') === 'on' && target.lastHit && main > 0 ? shortName(target.bodyMap ?? 'humanoid', target.lastHit.part) : '';
       ctx.float(target.pos, { top, main: `−${dmg}`, bottom }, target === s.hero ? 'bad' : 'good', r.crit);
       { const snd = hitSound(kind); play(snd.key, { rate: snd.rate }); } // every blow that lands is heard
-      if (!weapon.spell) mark('hit');
+      mark('hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) hurtCry(target, { delay: 120, volume: 0.85 });
       flashHit(target, { sound: false });
