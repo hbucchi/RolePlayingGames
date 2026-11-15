@@ -110,6 +110,10 @@ export function installActions(ctx) {
       if (t.found || t.sprung || !searchable(t)) continue;
       if (c.total >= t.dc) { t.found = true; s.revealed.add(cellKey(t.x, t.y)); found.push(`a ${t.name}`); xpFound += skillXp(t.dc, s.def.level); } else missed++;
     }
+    for (const ch of s.features.chests) {
+      const tr = ch.trap; if (!tr || tr.found || tr.disarmed || ch.opened || !searchable(ch)) continue;
+      if (c.total >= tr.dc) { tr.found = true; found.push('a trapped chest'); xpFound += skillXp(tr.dc, s.def.level); } else missed++;
+    }
     for (const k of [...s.features.secretDoors]) {
       const [x, y] = k.split(',').map(Number);
       if (chebyshev({ x, y }, s.hero.pos) > 4) continue;
@@ -255,17 +259,52 @@ export function installActions(ctx) {
     ctx.redraw();
   }
 
-  function openChest(c) {
+  /**
+   * A trapped chest goes off as the lid comes up (features.js CHEST_TRAP): a DEX save for half
+   * (Evasion: none on a save, half on a failure). Bracing for a trap you found gives advantage.
+   */
+  function springChestTrap(c, braced = false) {
+    const tr = c.trap; tr.found = true; tr.disarmed = true; // it fires once
+    play('trap', { volume: 0.8 });
+    const dexSave = s.def.saves?.dex ?? s.hero.dexMod;
+    const save = heroCheck(dexSave, tr.saveDc, { save: true, mode: braced ? 'advantage' : 'normal' });
+    const dmg = roll(tr.damage);
+    const taken = s.def.evasion ? (save.ok ? 0 : Math.floor(dmg.total / 2)) : (save.ok ? Math.floor(dmg.total / 2) : dmg.total);
+    damageHero(taken);
+    ctx.float(s.hero.pos, { top: 'Needle', main: `−${taken}` }, 'bad', !save.ok);
+    ctx.flashHit(s.hero, { sound: false });
+    if (taken) play(ctx.cry(s.hero, s.hero.hp > 0 ? 'hurt' : 'death'), { delay: 150 });
+    ctx.banner(braced ? 'You brace and lift the lid... the trap snaps!' : 'A needle springs from the lock!');
+    ctx.log(`The chest was trapped! ${checkText('DEX save', save)}. ${save.ok ? 'Half damage' : 'Full damage'}: ${taken} piercing [${dmg.rolls.join(', ')}].`, 'bad');
+  }
+
+  /** Disarm a chest's trap you found: thieves' tools against its DC; fail by 5 and it fires. */
+  function disarmChest(c) {
+    if (!hasTools()) { ctx.banner('You need thieves\' tools to disarm a trap.'); return; }
+    if (!spendAction('Disarming a chest trap')) return;
+    const ck = heroCheck(s.def.toolBonus, c.trap.dc);
+    play('lockpick', { volume: 0.7 });
+    if (ck.ok) { c.trap.disarmed = true; ctx.log(`${s.hero.name} disarms the chest's trap. ${checkText('Thieves\' tools (DEX)', ck)}.`, 'good'); ctx.awardXp(skillXp(c.trap.dc, s.def.level) * 2, c); }
+    else if (ck.margin <= -5) { ctx.log(`${s.hero.name} slips! ${checkText('Thieves\' tools (DEX)', ck)}.`, 'bad'); springChestTrap(c); }
+    else ctx.log(`The mechanism resists. ${checkText('Thieves\' tools (DEX)', ck)}.`, 'info');
+    ctx.redraw();
+  }
+
+  function openChest(c, { braced = false } = {}) {
     if (c.locked) { ctx.banner('The chest is locked.'); return; }
+    // A trap you found and have not disarmed: ask first (panels.js shows disarm / open anyway).
+    if (!c.opened && c.trap?.found && !c.trap.disarmed && !braced) { s.target = { kind: 'chest', id: c.id }; ctx.redraw(); return; }
     if (!c.opened) {
       c.opened = true;
-      // A campaign chest holds what was put in it; a deeper floor's chests are richer (depths.js),
-      // and the boss's hoard richer still: three chests' worth, with sure magic.
+      if (c.trap && !c.trap.disarmed) springChestTrap(c, braced);
+      // A campaign chest holds what was put in it. A dungeon chest is modest (loot.js), richer on
+      // deeper floors (depths.js); the boss's hoard holds two chests' worth and a sure magic item.
       if (!c.loot) {
-        const lv = (s.lootLevel ?? s.def.level ?? 1) + (c.hoard ? 3 : 0);
-        c.loot = rollChestLoot(lv);
-        if (c.hoard) { for (let i = 0; i < 2; i++) { const more = rollChestLoot(lv); c.loot.items.push(...more.items); c.loot.coins += more.coins; } c.loot.items.push(rollMagicItem(lv)); }
-        c.loot.coins = Math.round(c.loot.coins * (s.coinMult ?? 1));
+        const lv = (s.lootLevel ?? s.def.level ?? 1) + (c.hoard ? 3 : 0); const depth = s.depth ?? 1;
+        c.loot = rollChestLoot(lv, undefined, depth);
+        if (c.hoard) { const more = rollChestLoot(lv, undefined, depth); c.loot.items.push(...more.items, rollMagicItem(lv)); c.loot.coins += more.coins; }
+        c.loot.coins = Math.round(c.loot.coins * (s.coinMult ?? 1) * (s.replayMult ?? 1));
+        if ((s.replayMult ?? 1) < 1 && c.loot.items.length > 1) c.loot.items.length = Math.ceil(c.loot.items.length / 2); // a dungeon done before: half
       }
       // The key to an iron door somewhere in this dungeon (features.js: one key, one door).
       if (c.keyFor && !c.loot.items.some((it) => it.door === c.keyFor)) c.loot.items.unshift(makeItem('iron-key', 1, { door: c.keyFor, label: doorName(c.keyFor) }));
@@ -434,5 +473,5 @@ export function installActions(ctx) {
     ctx.onKill(m);
   }
 
-  return { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead };
+  return { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, disarmChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead };
 }

@@ -36,7 +36,8 @@ async function fresh() {
   await p.goto(URL_); await p.evaluate(() => localStorage.clear()); await p.reload();
   return p;
 }
-const enter = async (p) => { await p.click('[data-tab="adventures"]'); await p.click('[data-action="enter-dungeon"]'); await p.waitForSelector('.tk-hero'); };
+/** Adventures → Dungeons → the first dungeon (the Old Cellars: level 1, three floors). */
+const enter = async (p) => { await p.click('[data-tab="adventures"]'); await p.click('[data-action="adv-page"][data-id="dungeons"]'); await p.click('[data-action="enter-dungeon"][data-id="old-cellars"]'); await p.waitForSelector('.tk-hero'); };
 const roster = (p) => p.evaluate(() => { const r = JSON.parse(localStorage.getItem('rpg.roster.v1')); const list = r?.data ?? r; return Array.isArray(list) ? list : []; });
 const delveActive = (p) => p.evaluate(() => !!JSON.parse(localStorage.getItem('rpg.delve.v1') ?? 'null'));
 const clearFloor = (p) => p.evaluate(() => { const s = window.__dungeon.state(); s.monsters.forEach((m) => { if (!m.side) { m.dead = true; m.hp = 0; } }); s.mode = 'explore'; });
@@ -85,9 +86,9 @@ test('defeat, or closing the game mid-floor, undoes the floor', async () => {
   await p.close();
 });
 
-test('the tenth floor: one hall, a boss fit for one hero (no legendary blow), the way out sealed until it falls', async () => {
+test('the last floor: one hall, a boss fit for one hero (no legendary blow), the way out sealed until it falls; slaying it conquers the dungeon', async () => {
   const p = await fresh(); await enter(p);
-  await p.evaluate(() => window.__dungeon.floor(10)); await p.waitForTimeout(400);
+  await p.evaluate(() => window.__dungeon.floor(3)); await p.waitForTimeout(400);
   const lair = await p.evaluate(() => { const s = window.__dungeon.state(); const b = s.monsters.find((m) => m.boss); return { rooms: s.map.rooms.length, boss: b?.name, legendary: !!b?.legendary }; });
   assert.equal(lair.rooms, 1); assert.match(lair.boss, /Master of the Deep/);
   assert.equal(lair.legendary, false, 'against a lone hero the boss takes no legendary actions (depths.js)');
@@ -95,7 +96,9 @@ test('the tenth floor: one hall, a boss fit for one hero (no legendary blow), th
   assert.equal(await p.evaluate(() => document.querySelector('.dg-endscreen').hidden), true, 'sealed while the boss lives');
   await p.evaluate(() => window.__dungeon.wound(9999)); await p.waitForTimeout(1500);
   const record = await p.evaluate(() => JSON.parse(localStorage.getItem('rpg.delve.best')));
-  assert.equal(record.bosses, 1); assert.equal(record.deepest, 10);
+  assert.equal(record.bosses, 1); assert.equal(record.deepest, 3, 'the Old Cellars are three floors deep');
+  const prog = await p.evaluate(() => JSON.parse(localStorage.getItem('rpg.dungeons.v1')));
+  assert.equal(prog.completed['old-cellars'], 1, 'conquered');
   await p.evaluate(() => document.querySelector('[data-dg="close-end"]')?.click());
   await toStairs(p); await p.waitForTimeout(300);
   assert.match(await p.textContent('.dg-endscreen'), /The way out/);
@@ -130,6 +133,21 @@ test('the workshop: buy supplies, smelt ingots, the trade gains its own XP (neve
   assert.ok((hero.trades?.smithing ?? 0) > 0, 'smithing XP grew');
   assert.equal(hero.xp ?? 0, 0, 'crafting gives no hero XP');
   assert.match(await p.textContent('.ws-result'), /d20 \d+ \+ \d+ = \d+ vs DC/);
+  assert.deepEqual(p.errors, []);
+  await p.close();
+});
+
+test('the dungeons page: the ladder locks in order, and a conquered dungeon offers a half-pay replay', async () => {
+  const p = await fresh();
+  await p.click('[data-tab="adventures"]'); await p.click('[data-action="adv-page"][data-id="dungeons"]');
+  assert.equal(await p.$$eval('.dungeon-card', (x) => x.length), 10);
+  assert.equal(await p.$$eval('.dungeon-card.locked', (x) => x.length), 9, 'only the first is open');
+  await p.evaluate(() => localStorage.setItem('rpg.dungeons.v1', JSON.stringify({ completed: { 'old-cellars': 1 } })));
+  await p.click('[data-action="adv-page"][data-id=""]'); await p.click('[data-action="adv-page"][data-id="dungeons"]');
+  assert.equal(await p.$$eval('.dungeon-card.locked', (x) => x.length), 8, 'conquering the first opens the second');
+  assert.match(await p.textContent('[data-action="enter-dungeon"][data-id="old-cellars"]'), /½/);
+  await p.click('[data-action="adv-page"][data-id=""]'); await p.click('[data-action="adv-page"][data-id="campaign"]');
+  assert.ok(await p.$$eval('.dungeon-card.chapter', (x) => x.length) >= 3, 'the campaign in chapters');
   assert.deepEqual(p.errors, []);
   await p.close();
 });

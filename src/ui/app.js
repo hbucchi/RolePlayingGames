@@ -37,6 +37,8 @@ import { mountStory, resolveBattle, savedRun } from './story-view.js';
 import { levelUpDialog } from './level-up.js';
 import { mountCampaign, buildPlace, placeHooks, leftPlace, loadRun as loadCampaignRun } from './campaign-view.js';
 import { CAMPAIGNS } from '../content/campaigns/index.js';
+import { questDone } from '../engine/campaign.js';
+import { DUNGEONS, DUNGEON_BY_ID, loadProgress as loadDungeonProgress, isCompleted as isDungeonDone, isUnlocked as isDungeonOpen } from '../engine/dungeons.js';
 import { playRange } from '../engine/range.js';
 import { rollDice, diceWanted } from './dice.js';
 import { bestiaryView, bestiaryResults, defaultBestiaryFilters, monsterView } from './bestiary-view.js';
@@ -175,7 +177,11 @@ function render() {
   };
   renderInto((views[state.view] ?? homeView)());
   if (!['dungeon', 'arena-fight', 'story-fight', 'campaign-place'].includes(state.view)) music.setMood('menu');
-  if (state.view === 'dungeon') mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi, onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures' }); render(); toast('Back in town. Your loot is in the safe; the next delve starts at depth 1.'); } });
+  if (state.view === 'dungeon') {
+    const dungeon = DUNGEON_BY_ID[state.dungeonId] ?? null;
+    mountDungeon(root.querySelector('#dungeon-host'), { heroes: explorerHeroes(), api: heroApi, dungeon,
+      onLeave: () => { Object.assign(state, { view: 'home', tab: 'adventures', advPage: dungeon ? 'dungeons' : null }); render(); toast('Back in town. Your loot is in the safe; the next delve starts at depth 1.'); } });
+  }
   if (state.view === 'arena') {
     mountArenaBuilder(root.querySelector('#arena-host'), {
       heroes: explorerHeroes(), setup: state.arenaSetup,
@@ -534,55 +540,94 @@ root.addEventListener('click', async (e) => {
   render();
 });
 
-/** The deepest floor reached and the bosses slain (dungeon-view.js noteRecord). */
-function delveRecordHtml() {
-  let r = {}; try { r = JSON.parse(localStorage.getItem('rpg.delve.best') ?? '{}'); } catch { /* storage blocked */ }
-  return `<p class="small"><b>10 floors</b>, deeper is deadlier and richer; a boss waits on the last.${r.deepest ? ` Deepest reached: <b>floor ${r.deepest}</b>${r.bosses ? ` · bosses slain: <b>${r.bosses}</b>` : ''}.` : ''}</p>`;
-}
+/** The strongest hero's level (for the dungeons' "suggested level" hints). */
+const bestLevel = () => Math.max(0, ...roster.list().map((d) => d.level ?? 1));
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
 
+/**
+ * Adventures: three ways to play (Dungeons, Campaign, Arena), and the town between them (the
+ * Trading Post and the Workshop). Dungeons and Campaign open their own pages of boxes.
+ */
 function adventuresView() {
+  if (state.advPage === 'dungeons') return dungeonsPage();
+  if (state.advPage === 'campaign') return campaignPage();
+  const prog = loadDungeonProgress(); const done = DUNGEONS.filter((d) => isDungeonDone(d.id, prog)).length;
   return `
     <section>
       <h1>Adventures</h1>
-      <p class="muted">Choose a tale and bring your company. Full adventures are on the way; the sandbox lets you explore generated dungeons now.</p>
+      <p class="muted">Choose how to play. Dungeons and the campaign keep what you win; the arena is for practice.</p>
+      <div class="mode-grid">
+        <button class="mode-card dungeons" data-action="adv-page" data-id="dungeons">
+          <span class="mode-icon" aria-hidden="true">🗝</span><b>Dungeons</b>
+          <span>Ten delves, each deeper and deadlier than the last. Conquer one to open the next.</span>
+          <span class="mode-meta">${done} of ${DUNGEONS.length} conquered</span></button>
+        <button class="mode-card campaign" data-action="adv-page" data-id="campaign">
+          <span class="mode-icon" aria-hidden="true">📜</span><b>Campaign</b>
+          <span>The tales of the Westlands, chapter by chapter: towns, people, quests and battles.</span>
+          <span class="mode-meta">${chapters().filter((c) => c.done).length} of ${chapters().filter((c) => !c.soon).length} chapters complete</span></button>
+        <button class="mode-card arena" data-action="open-arena">
+          <span class="mode-icon" aria-hidden="true">⚔</span><b>Arena</b>
+          <span>Build your own battlefield square by square, choose heroes and any of the 356 creatures, and fight. Practice: nothing is won or lost.</span>
+          <span class="mode-meta">Any level</span></button>
+      </div>
+      <h2 class="town-head">In town</h2>
       <div class="card-grid">
-        ${CAMPAIGNS.map((cp) => `<article class="card adventure campaign-card">
-          <div class="card-head"><h3>${esc(cp.title)}</h3><span class="badge">Campaign</span></div>
-          <p>${esc(cp.blurb)}</p>
-          <p class="muted small">Levels ${esc(cp.levels)} · a world map, 6 places, a quest</p>
-          <button class="btn small primary" data-action="open-campaign" data-id="${esc(cp.id)}">${loadCampaignRun(cp.id) ? 'Continue the campaign' : 'Begin the campaign'}</button>
-        </article>`).join('')}
         <article class="card adventure market-card">
-          <div class="card-head"><h3>The Workshop</h3><span class="badge">Playable</span></div>
-          <p>Smelt ore into ingots, forge blades and mail, carve bows, tan hides and stitch leather. Resources plus skill: a roll decides, and a great one makes a superior piece. Smithing, woodcraft and leatherwork grow with practice.</p>
-          <p class="muted small">Any level · craft your own gear</p>
-          <button class="btn small primary" data-action="open-workshop">Open the workshop</button>
-        </article>
-        <article class="card adventure market-card">
-          <div class="card-head"><h3>The Trading Post</h3><span class="badge">Playable</span></div>
-          <p>Between adventures, buy arms, armour and supplies, and sell what you brought back. Traders pay half the price new; haggle with Charisma for a better deal. Now and then Marta has something magical.</p>
-          <p class="muted small">Any level · buy gear, sell loot</p>
+          <div class="card-head"><h3>The Trading Post</h3><span class="badge">Town</span></div>
+          <p>Buy arms, armour and supplies, sell what you brought back, and rest at the inn or the healer. Haggle with Charisma; now and then Marta has something magical.</p>
           <button class="btn small primary" data-action="open-market">Visit the trading post</button>
         </article>
-        <article class="card adventure arena-card">
-          <div class="card-head"><h3>The Arena</h3><span class="badge">Playable</span></div>
-          <p>Build your own battlefield square by square (grass, mud, rivers, castle floors, walls), choose up to four heroes and any of the 356 creatures, place them, and fight. Save your arenas to use again.</p>
-          <p class="muted small">Any level · practice bouts</p>
-          <button class="btn small primary" data-action="open-arena">Open the arena</button>
+        <article class="card adventure market-card">
+          <div class="card-head"><h3>The Workshop</h3><span class="badge">Town</span></div>
+          <p>Smelt ore, forge blades and mail, carve bows, tan hides. Resources plus skill: a roll decides, and a great one makes a superior piece.</p>
+          <button class="btn small primary" data-action="open-workshop">Open the workshop</button>
         </article>
-        ${setting.adventures.map((a) => {
-    const playable = a.status === 'playable';
-    return `
-          <article class="card adventure">
-            <div class="card-head"><h3>${esc(a.title)}</h3><span class="badge ${playable ? '' : 'soon'}">${playable ? 'Playable' : 'Coming soon'}</span></div>
-            <p>${esc(a.blurb)}</p>
-            <p class="muted small">Levels ${esc(a.levels)} · ${esc(a.length)}</p>
-            ${a.story ? `<button class="btn small primary" data-action="start-story" data-id="${esc(a.story)}">${savedRun(a.story) ? 'Continue the tale' : 'Begin the tale'}</button>`
-    : playable ? `${delveRecordHtml()}<button class="btn small primary" data-action="enter-dungeon" data-id="${esc(a.id)}">Enter</button>` : '<button class="btn small" disabled>Begin</button>'}
-          </article>`;
-  }).join('')}
       </div>
     </section>`;
+}
+
+/** The dungeon ladder: a box each, with its suggested level, whether it is conquered, and the way in. */
+function dungeonsPage() {
+  const prog = loadDungeonProgress(); const best = bestLevel();
+  return `<section>
+    <div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="adv-page" data-id="">← Adventures</button><h1 class="arena-title">Dungeons</h1>
+      <p class="muted small">Conquer a dungeon (slay the master of its deepest hall) to open the next. A conquered dungeon can be run again for half the experience and loot.</p></div>
+    <div class="dungeon-grid">${DUNGEONS.map((d, i) => {
+    const times = prog.completed[d.id] ?? 0; const open = isDungeonOpen(d.id, prog);
+    const prev = DUNGEONS[i - 1];
+    const risk = best && open ? (best < d.level ? `<span class="warn">Your strongest hero is level ${best}: dangerous.</span>` : best > d.level + 3 ? '<span class="muted">Easy for your heroes now.</span>' : '') : '';
+    return `<article class="dungeon-card ${times ? 'done' : ''} ${open ? '' : 'locked'}">
+        <div class="dg-num">${ROMAN[i]}</div>
+        <div class="card-head"><h3>${esc(d.name)}</h3>${times ? `<span class="badge done" title="Conquered ${times} time${times > 1 ? 's' : ''}">✔ Conquered${times > 1 ? ` ×${times}` : ''}</span>` : open ? '<span class="badge">Open</span>' : '<span class="badge soon">🔒 Locked</span>'}</div>
+        <p>${esc(d.blurb)}</p>
+        <p class="dg-facts"><b>Suggested level ${d.level}</b> for each hero · ${d.floors} floors · a boss in the deepest hall</p>
+        ${risk ? `<p class="small">${risk}</p>` : ''}
+        ${open ? `<button class="btn small ${times ? '' : 'primary'}" data-action="enter-dungeon" data-id="${esc(d.id)}">${times ? 'Run it again (½ experience and loot)' : 'Enter'}</button>`
+    : `<button class="btn small" disabled>Conquer ${esc(prev.name)} first</button>`}
+      </article>`;
+  }).join('')}</div></section>`;
+}
+
+/** The campaign's chapters, in order: each campaign and tale, done or not, and those still to come. */
+function chapters() {
+  return [
+    ...CAMPAIGNS.map((c) => ({ title: c.title, blurb: c.blurb, levels: c.levels, kind: 'Campaign', done: questDone(c, loadCampaignRun(c.id) ?? { flags: [] }), started: !!loadCampaignRun(c.id), action: 'open-campaign', id: c.id })),
+    ...setting.adventures.filter((a) => a.story || a.status === 'coming-soon').map((a) => (a.story
+      ? { title: a.title, blurb: a.blurb, levels: a.levels, kind: 'Tale', done: savedRun(a.story)?.progress?.ended === 'victory', started: !!savedRun(a.story), action: 'start-story', id: a.story }
+      : { title: a.title, blurb: a.blurb, levels: a.levels, kind: 'Coming soon', soon: true })),
+  ];
+}
+function campaignPage() {
+  return `<section>
+    <div class="row sheet-actions arena-head"><button class="btn ghost small" data-action="adv-page" data-id="">← Adventures</button><h1 class="arena-title">Campaign</h1>
+      <p class="muted small">The tales of the Westlands, chapter by chapter. Experience and loot won here are yours to keep.</p></div>
+    <div class="dungeon-grid">${chapters().map((c, i) => `<article class="dungeon-card chapter ${c.done ? 'done' : ''} ${c.soon ? 'locked' : ''}">
+        <div class="dg-num">${ROMAN[i]}</div>
+        <div class="card-head"><h3>Chapter ${ROMAN[i]}: ${esc(c.title)}</h3>${c.done ? '<span class="badge done">✔ Complete</span>' : c.soon ? '<span class="badge soon">Coming soon</span>' : `<span class="badge">${esc(c.kind)}</span>`}</div>
+        <p>${esc(c.blurb)}</p>
+        <p class="dg-facts"><b>Levels ${esc(c.levels)}</b></p>
+        ${c.soon ? '<button class="btn small" disabled>Not yet written</button>' : `<button class="btn small primary" data-action="${c.action}" data-id="${esc(c.id)}">${c.done ? 'Play it again' : c.started ? 'Continue' : 'Begin'}</button>`}
+      </article>`).join('')}</div></section>`;
 }
 
 // ---- Wizard ----------------------------------------------------------------
@@ -1125,7 +1170,7 @@ const actions = {
     Object.assign(state, { view: 'home', draft: null, sheet: null, diceLog: [] });
     render();
   },
-  tab(el) { state.tab = el.dataset.tab; render(); },
+  tab(el) { state.tab = el.dataset.tab; state.advPage = null; render(); },
   'view-monster'(el) {
     if (!BESTIARY_BY_ID[el.dataset.id]) return;
     state.listScroll = window.scrollY;
@@ -1179,8 +1224,10 @@ const actions = {
   'open-market'() { Object.assign(state, { view: 'market', market: { heroId: explorerHeroes()[0]?.id ?? null, haggles: {}, draft: null, tab: 'buy' } }); render(); window.scrollTo(0, 0); },
   'market-hero'(el) { state.market.heroId = el.dataset.id; state.market.draft = null; render(); },
   'open-arena'() { Object.assign(state, { view: 'arena' }); render(); window.scrollTo(0, 0); },
-  'enter-dungeon'() {
-    Object.assign(state, { view: 'dungeon' });
+  'adv-page'(el) { Object.assign(state, { view: 'home', tab: 'adventures', advPage: el.dataset.id || null }); render(); window.scrollTo(0, 0); },
+  'enter-dungeon'(el) {
+    const id = el?.dataset?.id; if (id && DUNGEON_BY_ID[id] && !isDungeonOpen(id, loadDungeonProgress())) return;
+    Object.assign(state, { view: 'dungeon', dungeonId: DUNGEON_BY_ID[id] ? id : null });
     render();
     window.scrollTo(0, 0);
   },

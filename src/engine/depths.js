@@ -20,7 +20,8 @@
 import { THRESHOLDS, crowdMultiplier } from './progression.js';
 
 export const MAX_DEPTH = 10;
-export const isBossFloor = (depth) => depth >= MAX_DEPTH;
+/** The last floor (the boss's hall): 10 by default, or a named dungeon's own depth (dungeons.js). */
+export const isBossFloor = (depth, floors = MAX_DEPTH) => depth >= floors;
 
 /** The level foes are matched to on a floor. */
 export const depthLevel = (partyLevel, depth) => Math.min(20, Math.max(1, partyLevel + Math.round((Math.max(1, depth) - 1) * 0.3)));

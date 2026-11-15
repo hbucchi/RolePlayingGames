@@ -14,6 +14,7 @@ import { getSetting } from '../settings.js';
 import { rollDie, roll } from '../../engine/dice.js';
 import { cellKey } from '../../engine/movement.js';
 import { monsterVoice, voiceSound, heroSound, play, isAmazon, amazonHurtLine } from '../audio.js';
+import { strikeKind, drawStrike, hitSound } from './strikes.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { dims, centerOf, spanOf } from '../../engine/size.js';
 import { TILE } from '../../engine/dungeon.js';
@@ -275,7 +276,12 @@ export function installAttacks(ctx) {
     return out;
   }
 
-  function flashHit(e) {
+  /**
+   * A creature is hurt: it flickers red (styles.css redflick) and, unless the caller already played
+   * the blow's own sound (a weapon hit, strikes.js), a short impact is heard, so no hit is silent.
+   */
+  function flashHit(e, { sound = true } = {}) {
+    if (sound) play('sword-hit', { volume: 0.55, rate: 0.85 });
     s.flash.add(e.id); ctx.drawOverlay();
     setTimeout(() => { s.flash.delete(e.id); ctx.drawOverlay(); }, 450);
     if (e === s.hero && !reduceMotion) {
@@ -333,6 +339,10 @@ export function installAttacks(ctx) {
     const why = [...opts.adv.map((a) => `advantage: ${a}`), ...opts.dis.map((d) => `disadvantage: ${d}`), opts.cover === 'half' ? 'half cover +2' : opts.cover === 'three-quarters' ? 'three-quarters cover +5' : null].filter(Boolean);
     const hurled = ranged && (weapon.spell || weapon.melee || /rock|boulder|stone/i.test(weapon.name));
     let line = `${hurled ? `${who} hurls ${weapon.name} at ${whom}` : `${who} ${ranged ? 'shoots' : 'attacks'} ${whom} with ${weapon.name}`}: ${dice} ${signed(weapon.toHit)}${boost.text} = ${r.total} vs Evasion ${opts.ac}${why.length ? ` (${why.join('; ')})` : ''}.`;
+    // The blow's own mark over the target (strikes.js): a slash, a chop, a thrust, a smash...
+    const kind = strikeKind(weapon, ranged);
+    const mark = (result) => drawStrike(host.querySelector('.dg-fx'), { kind, result, crit: r.crit, sz: S(), span: spanOf(target.size ?? 1),
+      at: centerOf(target.pos, target.size ?? 1), from: centerOf(attacker.pos, attacker.size ?? 1) });
     // Past Evasion: the defender may still block it (shield, or a parry with a trained weapon).
     let crippled = null;
     const blocked = r.hit && !r.crit && (opts.block ?? 0) > 0 && Math.random() < opts.block;
@@ -340,7 +350,8 @@ export function installAttacks(ctx) {
       const def = target.defence;
       line += ` It would land, but ${whom} ${def?.blockWith === 'shield' ? 'catches it on the shield' : 'parries it'}! (${Math.round(opts.block * 100)}% block)`;
       ctx.float(target.pos, def?.blockWith === 'shield' ? 'blocked' : 'parried', 'muted');
-      play('sword-hit', { volume: 0.35 });
+      play('sword-hit', { volume: 0.45, rate: def?.blockWith === 'shield' ? 0.7 : 1.15 });
+      mark('blocked');
     } else if (r.hit) {
       const bits = [];
       // Split the blow by damage type (materials.js): the weapon's own type plus any extra dice
@@ -401,14 +412,15 @@ export function installAttacks(ctx) {
       const top = getSetting('dmgType') === 'on' && kinds.length ? `${r.crit ? 'Critical! ' : ''}${kinds.map((k, i) => (i ? k : `${k[0].toUpperCase()}${k.slice(1)}`)).join(' + ')}` : r.crit ? 'Critical!' : '';
       const bottom = getSetting('dmgPart') === 'on' && target.lastHit && main > 0 ? shortName(target.bodyMap ?? 'humanoid', target.lastHit.part) : '';
       ctx.float(target.pos, { top, main: `−${dmg}`, bottom }, target === s.hero ? 'bad' : 'good', r.crit);
-      play(ranged ? 'arrow-hit' : 'sword-hit');
+      { const snd = hitSound(kind); play(snd.key, { rate: snd.rate }); } // every blow that lands is heard
+      if (!weapon.spell) mark('hit');
       if (r.crit) play('crit', { volume: 0.9 });
       if (target.hp > 0) hurtCry(target, { delay: 120, volume: 0.85 });
-      flashHit(target);
+      flashHit(target, { sound: false });
     } else {
       line += r.d20 === 1 ? ' Natural 1: a clumsy miss.' : ` ${whom} dodges it.`;
       ctx.float(target.pos, 'miss', 'muted');
-      if (!ranged) play('swing-miss', { volume: 0.7 });
+      if (!ranged) { play('swing-miss', { volume: 0.7 }); mark('miss'); }
     }
     const landed = r.hit && !blocked;
     ctx.log(line, target === s.hero ? (landed ? 'bad' : 'info') : (landed ? 'good' : 'info'));

@@ -6,13 +6,16 @@
  */
 import { createMonster } from '../../engine/combat.js';
 import { seededRng } from '../../engine/dice.js';
-import { MAX_DEPTH, isBossFloor, depthReward, pickBoss, bossHasLegendary } from '../../engine/depths.js';
+import { isBossFloor as bossFloorOf, depthReward, pickBoss, bossHasLegendary } from '../../engine/depths.js';
+import { markCompleted } from '../../engine/dungeons.js';
 import { SAFE_SLOTS } from '../../engine/safe.js';
 import { formatCoins, isEquipped, bagUsed, BAG_SLOTS, itemName } from '../../engine/items.js';
 import { play } from '../audio.js';
 
 export function installExits(ctx) {
   const { $, esc, s } = ctx;
+  const MAX_DEPTH = ctx.MAX_DEPTH; // this dungeon's depth (10, or a named dungeon's own)
+  const isBossFloor = (d) => bossFloorOf(d, MAX_DEPTH);
 
   /**
    * The tenth floor: the master of the deep on its throne at the far end of the hall, perhaps
@@ -53,6 +56,8 @@ export function installExits(ctx) {
     ctx.log(`${m.name} is slain! The hall falls silent; behind the throne the way out stands open. +${Math.round(bonus * ctx.xpRate())} XP for the deed.`, 'good');
     ctx.awardPartyXp(bonus, m.pos);
     noteRecord({ deepest: MAX_DEPTH, boss: true });
+    // A named dungeon is completed: the next one on the ladder opens (engine/dungeons.js).
+    if (ctx.dungeon) { markCompleted(ctx.dungeon.id); ctx.log(`${ctx.dungeon.name} is conquered! The next dungeon is open to you.`, 'good'); }
   }
 
 

@@ -12,6 +12,15 @@ import { TILE } from '../../engine/dungeon.js';
 import { cellKey } from '../../engine/movement.js';
 import { metres } from '../../engine/units.js';
 
+/**
+ * An arrow in flight, its point at 0,0 and flying along +x: a wooden shaft (with a lighter grain
+ * line), a steel leaf-shaped head with a bright ridge, cord binding, two fletching feathers and a nock.
+ */
+const ARROW_SVG = `<line x1="-50" y1="0" x2="-11" y2="0" class="arw-shaft"/><line x1="-48" y1="-0.7" x2="-13" y2="-0.7" class="arw-grain"/>
+  <path d="M -41 -1.2 Q -46 -9 -54 -8.5 L -51 -1.2 Z" class="arw-feather"/><path d="M -41 1.2 Q -46 9 -54 8.5 L -51 1.2 Z" class="arw-feather"/>
+  <rect x="-54" y="-1.8" width="3.5" height="3.6" rx="1" class="arw-nock"/><rect x="-15" y="-2.1" width="4" height="4.2" rx="1" class="arw-bind"/>
+  <path d="M 4 0 L -8 -5.5 L -11.5 -2 L -11.5 2 L -8 5.5 Z" class="arw-head"/><line x1="2" y1="0" x2="-10" y2="0" class="arw-ridge"/>`;
+
 export function installRender(ctx) {
   const { S, esc, overlay, s } = ctx;
 
@@ -290,6 +299,7 @@ export function installRender(ctx) {
     : `<path d="M ${sz * 0.14} ${sz * 0.4} Q ${sz * 0.5} ${sz * 0.1} ${sz * 0.86} ${sz * 0.4} Z" class="chest-lid"/>`}
         <rect x="${sz * 0.14}" y="${sz * 0.5}" width="${sz * 0.72}" height="${sz * 0.07}" class="chest-band"/>
         ${c.locked ? `<rect x="${sz * 0.44}" y="${sz * 0.46}" width="${sz * 0.12}" height="${sz * 0.16}" rx="2" class="chest-lock"/>` : ''}
+        ${c.trap?.found && !c.trap.disarmed && !c.opened ? `<circle cx="${sz * 0.84}" cy="${sz * 0.2}" r="${sz * 0.13}" class="trap-badge"/><text x="${sz * 0.84}" y="${sz * 0.2 + sz * 0.055}" class="trap-mark">!</text>` : ''}
         ${!empty && c.opened ? `<circle cx="${sz * 0.5}" cy="${sz * 0.32}" r="${sz * 0.07}" class="chest-gold"/>` : ''}
       </g>`;
     }
@@ -443,7 +453,7 @@ export function installRender(ctx) {
       out += `<line x1="${x0}" y1="${y0}" x2="${x}" y2="${y}" class="dg-proj-trail ${color ? 'magic' : ''}" style="${color ? `stroke:${color}` : ''}"/>`;
       if (color) out += `<g class="dg-proj-head" transform="translate(${x} ${y}) rotate(${ang})"><circle r="20" class="dg-bolt-glow" style="fill:${color}"/><circle r="11" class="dg-bolt" style="fill:${color}"/><circle r="5" fill="#fff"/></g>`;
       else if (shape === 'stone') out += `<g class="dg-proj-head" transform="translate(${x} ${y}) rotate(${ang})"><ellipse rx="15" ry="13" class="dg-stone"/><ellipse rx="5" ry="4" cx="-4" cy="-4" fill="#9a9389"/></g>`;
-      else out += `<g class="dg-proj-head dg-arrow" transform="translate(${x} ${y}) rotate(${ang})"><line x1="-34" y1="0" x2="0" y2="0"/><path d="M 0 0 L -12 -6 L -12 6 Z"/><path d="M -34 0 L -42 -6 M -34 0 L -42 6"/></g>`;
+      else out += `<g class="dg-proj-head dg-arrow" transform="translate(${x} ${y}) rotate(${ang})">${ARROW_SVG}</g>`;
     }
     for (const fx of s.effects) for (const c of fx.cells) {
       const n = ((c.x * 7 + c.y * 3) % 4) + 1;

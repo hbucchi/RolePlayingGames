@@ -60,6 +60,14 @@ export function trapTile(t) {
   if (t.disarmed) return `assets/traps/${t.kind === 'pit' ? 'pit-nailed' : t.kind === 'ceiling' ? 'ceiling-armed' : 'plate-jammed'}.jpg`;
   return `assets/traps/${t.kind}-${t.sprung ? 'sprung' : 'armed'}.jpg`;
 }
+/** Two chests a floor: treasure is meant to come slowly (loot.js rollChestLoot keeps each one modest). */
+export const CHESTS_PER_FLOOR = 2;
+/**
+ * A trapped chest: a poisoned needle in the lock or a spring blade under the lid. A search finds it
+ * (its DC); found, it can be disarmed with thieves' tools, or the chest opened anyway with a DEX
+ * save for half. Unfound, it strikes whoever lifts the lid. About one chest in four early on.
+ */
+export const CHEST_TRAP = { chance: 25, damage: (level) => (level <= 4 ? '1d8' : level <= 10 ? '2d8' : level <= 16 ? '4d8' : '6d8') };
 /** Trap damage by level tier (DMG "setback" to "dangerous"). */
 export const trapDamage = (level) => (level <= 4 ? '1d10' : level <= 10 ? '2d10' : level <= 16 ? '4d10' : '10d10');
 
@@ -98,10 +106,12 @@ export function placeFeatures(map, seed, level = 1) {
     locks.set(k, { dc: (tier === 0 ? 8 : 10) + r + tier, material: 'wood', ironish });
   }
 
-  // Chests: about a third of the rooms, against a wall, away from doors.
+  // Chests: two per floor (treasure comes slowly), each in its own room, against a wall, away from
+  // doors. Some are trapped: a hidden needle or blade that a search can find (CHEST_TRAP).
   const chests = [];
-  for (const r of map.rooms) {
-    if (r.entrance || rng(100) >= 35) continue;
+  const order = map.rooms.filter((r) => !r.entrance).map((r) => [rng(1000), r]).sort((a, b) => a[0] - b[0]).map(([, r]) => r);
+  for (const r of order) {
+    if (chests.length >= CHESTS_PER_FLOOR) break;
     for (let t = 0; t < 12; t++) {
       const edge = rng(4);
       const x = edge === 0 ? r.x : edge === 1 ? r.x + r.w - 1 : r.x + rng(r.w);
@@ -110,7 +120,9 @@ export function placeFeatures(map, seed, level = 1) {
       if (taken.has(k) || nearDoor(x, y)) continue;
       taken.add(k);
       const locked = rng(100) < 50;
-      chests.push({ id: `c${chests.length + 1}`, x, y, roomId: r.id, locked, dc: 10 + rng(5) + tier, opened: false, loot: null });
+      const trapped = rng(100) < CHEST_TRAP.chance + tier * 5;
+      chests.push({ id: `c${chests.length + 1}`, x, y, roomId: r.id, locked, dc: 10 + rng(5) + tier, opened: false, loot: null,
+        trap: trapped ? { dc: 12 + rng(3) + tier, saveDc: 11 + tier, damage: CHEST_TRAP.damage(level), found: false, disarmed: false } : null });
       break;
     }
   }

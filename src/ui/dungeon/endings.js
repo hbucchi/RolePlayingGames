@@ -33,8 +33,8 @@ export function installEndings(ctx) {
       ? `<div class="dg-endcard"><h2>The master of the deep is dead</h2><p>The tenth floor is yours. Its hoard lies in the chests beside the throne, and behind it the way out to the daylight stands open.</p>
         <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted.</p><div class="row"><button class="btn primary" data-dg="close-end">Claim the hoard</button></div></div>`
       : kind === 'victory'
-      ? `<div class="dg-endcard"><h2>Depth ${s.depth} of ${ctx.MAX_DEPTH} cleared</h2><p>Every foe on this floor of dungeon #${s.seed} has fallen. The stairs down still wait somewhere${s.exitSeen ? ' (you have seen them)' : ''}. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
-        <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="close-end">Find the way down</button><button class="btn" data-dg="random">Start a new dungeon</button></div></div>`
+      ? `<div class="dg-endcard"><h2>Depth ${s.depth} of ${ctx.MAX_DEPTH} cleared</h2><p>Every foe on this floor of ${ctx.dungeon ? esc(ctx.dungeon.name) : `dungeon #${s.seed}`} has fallen. The stairs down still wait somewhere${s.exitSeen ? ' (you have seen them)' : ''}. ${esc(s.hero.name)} stands victorious with ${s.hero.hp} of ${s.hero.maxHp} hit points.</p>
+        <p class="small">This delve: <b>${s.delve.kills}</b> foes slain · <b>${s.delve.xp.toLocaleString()}</b> XP · <b>${esc(formatCoins(s.delve.coins))}</b> · <b>${s.delve.items}</b> items looted. Bodies and chests you have not searched are still down there.</p><div class="row"><button class="btn primary" data-dg="close-end">Find the way down</button>${ctx.dungeon ? '' : '<button class="btn" data-dg="random">Start a new dungeon</button>'}</div></div>`
       : defeatCard();
     // A defeat mode from a mod (see ../mods) may add its own scene, e.g. being taken captive.
     const mode = kind === 'defeat' && !arena ? defeatMode(getSetting('defeat')) : null;
@@ -46,6 +46,7 @@ export function installEndings(ctx) {
     return `<div class="row wrap">
       <button class="btn" data-dg="review">Look over the battlefield</button>
       ${ctx.place ? '<button class="btn primary" data-dg="retry">Try again</button><button class="btn ghost" data-dg="leave-arena">Back to the world map</button>' : arena ? '<button class="btn primary" data-dg="retry">Restart the bout</button><button class="btn ghost" data-dg="leave-arena">Back to the builder</button>'
+    : ctx.dungeon ? '<button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-action="adv-page" data-id="dungeons">Back to the dungeons</button>'
     : '<button class="btn primary" data-dg="retry">Try this dungeon again</button><button class="btn ghost" data-dg="random">Try a new dungeon</button><button class="btn ghost" data-action="home">Return to the menu</button>'}
     </div>`;
   }

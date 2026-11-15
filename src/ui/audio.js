@@ -41,9 +41,9 @@ export function amazonHurtLine(random = Math.random) {
 
 /**
  * Play one variation of a sound, never the same variation twice in a row (or take `n` when given).
- * Returns the take played.
+ * `rate` plays it faster and higher (1.25) or slower and deeper (0.7). Returns the take played.
  */
-export function play(key, { volume = 0.9, delay = 0, n: take = 0 } = {}) {
+export function play(key, { volume = 0.9, delay = 0, n: take = 0, rate = 1 } = {}) {
   if (muted || !key) return 0;
   const count = variantsOf(key);
   let n = take || 1 + Math.floor(Math.random() * count);
@@ -52,6 +52,7 @@ export function play(key, { volume = 0.9, delay = 0, n: take = 0 } = {}) {
   const start = () => {
     const a = new Audio(packed(`assets/sounds/${key}-${n}.mp3`));
     a.volume = volume;
+    if (rate !== 1) { a.preservesPitch = false; a.playbackRate = rate; } // faster = higher, slower = deeper
     a.play().catch(() => { /* blocked or missing: stay silent */ });
   };
   if (delay) setTimeout(start, delay); else start();

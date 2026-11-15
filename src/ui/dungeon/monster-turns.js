@@ -57,7 +57,7 @@ export function installMonsterTurns(ctx) {
       if (m.dead) continue;
       if (injuryPenalties(m).bleeding) {
         if (ctx.canSee(m)) ctx.log(`${m.name} bleeds (−1 HP).`, 'good');
-        ctx.damageMonster(m, 1); ctx.finishIfDead(m);
+        ctx.damageMonster(m, 1); if (ctx.canSee(m)) ctx.flashHit(m, { sound: false }); ctx.finishIfDead(m);
         if (m.dead) continue;
       }
       tickAllyTime(m);

@@ -17,6 +17,7 @@
  */
 import { generateDungeon, generateBossLair, TILE, roomAt as roomAtMap } from '../engine/dungeon.js';
 import { MAX_DEPTH, isBossFloor, depthLevel, bossLevel, depthReward, lootLevel, depthMix } from '../engine/depths.js';
+import { loadProgress, rewardShare } from '../engine/dungeons.js';
 import { renderDungeonSVG } from '../engine/dungeon-render.js';
 import { renderArenaSVG } from '../engine/arena-render.js';
 import { cellsOf, blockDistance, dims, spanOf, centerOf } from '../engine/size.js';
@@ -87,7 +88,7 @@ const SHRUGS_OFF_STEEL = (stat) => /nonmagical/i.test([...(stat.resist ?? []), .
  *   api.load(id) -> the hero's draft (with gear); api.derive(draft) -> combat stats;
  *   api.save(draft) -> the saved draft (a ready-made hero is adopted on its first save).
  */
-export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null, onOutcome = null, campaign = null }) {
+export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null, onLeave = null, onOutcome = null, campaign = null, dungeon = null }) {
   // A place in a campaign (arena.location) is a real outing: XP, loot and wounds count, people
   // can be talked to, and the way out leads back to the world map. A plain arena bout is practice.
   const place = arena?.location ?? null;
@@ -99,7 +100,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   // Experience: generated dungeons can be played again and again, so they teach little;
   // the campaign is where heroes grow (progression.js XP_RATE).
   // Deeper floors pay more (engine/depths.js).
-  const xpRate = () => (practice ? 0 : place ? XP_RATE.campaign : onOutcome ? XP_RATE.story : XP_RATE.dungeon * depthReward(s.depth ?? 1));
+  // A named dungeon (engine/dungeons.js): its own seed, depth and level; run again once completed,
+  // it pays half (REPLAY) in experience and loot.
+  const share = dungeon ? rewardShare(dungeon.id, loadProgress()) : 1;
+  const maxDepth = dungeon?.floors ?? MAX_DEPTH;
+  if (dungeon) initialSeed = dungeon.seed;
+  const xpRate = () => (practice ? 0 : place ? XP_RATE.campaign : onOutcome ? XP_RATE.story : XP_RATE.dungeon * depthReward(s.depth ?? 1) * share);
   const s = {
     seed: initialSeed, map: null, grid: true, revealAll: !!arena && arena.reveal !== false, rule: 'standard', zoom: 0.5,
     partyIds: arena ? arena.heroes.map((h) => h.id) : heroes.slice(0, 1).map((h) => h.id), members: [], active: 0,
@@ -132,10 +138,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
         ${place ? '' : '<button class="btn small ghost" data-dg="retry">Restart bout</button>'}
       </div>
       <div class="dg-group" ${arena ? 'hidden' : ''}>
-        <button class="btn small ghost" data-dg="seed-prev" aria-label="Previous dungeon">◀</button>
+        ${dungeon ? `<b class="dg-name">${esc(dungeon.name)}</b>${share < 1 ? '<span class="badge soon" title="Completed before: half experience and loot">Replay ×½</span>' : ''}<button class="btn small ghost" data-action="adv-page" data-id="dungeons" title="Leave: anything gained since the last stairs is lost">← Dungeons</button>` : ''}
+        <span ${dungeon ? 'hidden' : ''}><button class="btn small ghost" data-dg="seed-prev" aria-label="Previous dungeon">◀</button>
         <label class="dg-seed" for="dg-seed">Dungeon #</label><input id="dg-seed" type="number" min="1" max="999999" data-dg="seed">
         <button class="btn small ghost" data-dg="seed-next" aria-label="Next dungeon">▶</button>
-        <button class="btn small" data-dg="random">New dungeon</button>
+        <button class="btn small" data-dg="random">New dungeon</button></span>
         <span class="dg-depth badge" title="How deep you are. Every two floors, foes get tougher.">Depth 1</span>
       </div>
       <div class="dg-group">
@@ -216,7 +223,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     onLeave: { get: () => onLeave },
     leavePlace: { get: () => leavePlace },
     keepsCheckpoint: { get: () => keepsCheckpoint },
-    MAX_DEPTH: { get: () => MAX_DEPTH },
+    MAX_DEPTH: { get: () => maxDepth },
+    dungeon: { get: () => dungeon },
     banner: { get: () => banner },
     bleed: { get: () => bleed },
     boltFor: { get: () => boltFor },
@@ -327,7 +335,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   const { enemiesOf, heroAttackPlan, hasAmmo, whyNot, canAttack, heroAttack, heroOpportunityAttack, monsterOpportunityAttack, voiceOf, cry, hurtCry, shootProjectile, BOLT, boltFor, lunge, BLOODLESS, bloodOf, SPIRIT, bleed, drawBlood, flashHit, doAttack } = installAttacks(ctx);
   const { showEnd, defeatButtons, defeatCard } = installEndings(ctx);
   const { redraw, token, zoomedOut, bodyToken, tokenLook, hpBar, auraSvg, rectToken, chainSvg, drawDoors, drawFeatures, drawFog, drawOverlay } = installRender(ctx);
-  const { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
+  const { useKey, keyFor, doorName, spendAction, checkText, hasTools, heal, bandage, useItem, search, raisePhial, lockLabel, lockOf, unlock, pickLock, forceLock, makeNoise, disarm, openChest, disarmChest, magicHero, growResources, refreshAC, helpless, monsterRoll, conditionSkip, provoke, rollBoosts, heroCheck, hitExtras, damageHero, damageMonster, finishIfDead } = installActions(ctx);
   const { endConcentration, timeLabel, magicBlocked, spendTime, findMagic, useMagic, payFor, areaTargets, VFX_BY_TYPE, vfxFor, showVfx, showBlast, resolveMagic, burnIn, inEffect, riderText, applyRider, ordinal, finishTeleport, replenishParty, sneak } = installMagic(ctx);
   const { placeBoss, noteRecord, bossSlain, memberDrafts, keepGains, loseDelve, atStairs, showSafe, safeStore, leaveDungeon } = installExits(ctx);
   const { drawPanel, magicPanel, actionBar, LORE_SKILL, SKILL_LABEL, STUDIES, studyDC, known, study, revealedHtml, talkContext, talkMath, talkSection, talkTo, wrestleSection, wrestleChance, wrestle, pushAway, freeCreature, captivePanel, allyPanel, foePanel, isBehindHero, xpBar, nearbyThings, drawNearby, interactPanel, toggleSettings, drawPop, partyBar, drawInventory, drawTargetInfo } = installPanels(ctx);
@@ -452,7 +460,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function newDungeon(seed, carry = null) {
     if (!carry) { saveParty(); s.depth = 1; }
     s.seed = Math.max(1, Math.floor(seed) || 1);
-    s.map = arena ? arena.map : isBossFloor(s.depth ?? 1) ? generateBossLair(s.seed) : generateDungeon(s.seed);
+    s.map = arena ? arena.map : isBossFloor(s.depth ?? 1, maxDepth) ? generateBossLair(s.seed) : generateDungeon(s.seed);
     $('#dg-seed').value = s.seed;
     base.innerHTML = arena ? renderArenaSVG(s.map, { grid: s.grid }) : renderDungeonSVG(s.map, { grid: s.grid, labels: true, roomNumbers: s.roomNumbers, doors: false });
     overlay.setAttribute('viewBox', `0 0 ${s.map.width * S()} ${s.map.height * S()}`);
@@ -495,9 +503,11 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Its secrets are fixed by the dungeon's number; its inhabitants are matched to the party's
       // level and size, and every two floors deeper the danger rises as if a level higher.
       // Each floor down, the danger and the pay rise a little (engine/depths.js).
-      const lv = party().length ? Math.round(s.members.reduce((t, m) => t + m.def.level, 0) / s.members.length) : 1;
+      // A named dungeon has its own level (the suggested level): its foes do not grow with the party.
+      const partyLv = party().length ? Math.round(s.members.reduce((t, m) => t + m.def.level, 0) / s.members.length) : 1;
+      const lv = dungeon ? dungeon.level : partyLv;
       const level = depthLevel(lv, s.depth ?? 1);
-      s.lootLevel = lootLevel(lv, s.depth ?? 1); s.coinMult = depthReward(s.depth ?? 1);
+      s.lootLevel = lootLevel(lv, s.depth ?? 1); s.coinMult = depthReward(s.depth ?? 1); s.replayMult = share;
       // Fairness: before level 5 (no Extra Attack, rarely magic), a party with only plain steel
       // meets no creature that shrugs it off. Silvered blades are sold everywhere for that.
       const armed = s.members.some((m) => m.hero.weapons.some((w) => w.magic || w.metal === 'silver'));
@@ -550,14 +560,21 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const kinds = [...new Set(foes().map((m) => m.name))];
     const friends = allies();
     const prisoner = s.monsters.some((m) => m.side === 'captive');
-    log(`${names}${friends.length ? ` and ${friends.map((a) => a.name).join(', ')}` : ''} ${carry ? (s.members.length + friends.length > 1 ? 'climb down' : 'climbs down') : (s.members.length + friends.length > 1 ? 'descend the stairs' : 'descends the stairs')} into dungeon #${s.seed}, depth ${s.depth}. Somewhere here: ${foes().length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, traps, and stairs leading further down.${prisoner ? ' Rumour says a prisoner is held on this floor.' : ''} Find them.`, 'info');
-    $('.dg-depth').textContent = `Depth ${s.depth}`;
+    log(`${names}${friends.length ? ` and ${friends.map((a) => a.name).join(', ')}` : ''} ${carry ? (s.members.length + friends.length > 1 ? 'climb down' : 'climbs down') : (s.members.length + friends.length > 1 ? 'descend the stairs' : 'descends the stairs')} into ${dungeon ? dungeon.name : `dungeon #${s.seed}`}, depth ${s.depth}. Somewhere here: ${foes().length} foes (${kinds.join(', ') || 'none'}), ${s.features.chests.length} chests, traps, and stairs leading further down.${prisoner ? ' Rumour says a prisoner is held on this floor.' : ''} Find them.`, 'info');
+    $('.dg-depth').textContent = `Depth ${s.depth} of ${maxDepth}`;
     updateVision();
     redraw();
   }
 
 
   /** Is a creature's block next to a wall (for chaining it)? */
+  /** The way to face with your back to a wall touching this square on a side (0/2/4/6), or null. */
+  function wallFacing(x, y) {
+    const solid = (a, b) => s.map.tiles[b]?.[a] === TILE.ROCK || s.map.terrain?.[b]?.[a] === 'wall';
+    for (const [dx, dy, f] of [[0, -1, 4], [1, 0, 6], [0, 1, 0], [-1, 0, 2]]) if (solid(x + dx, y + dy) && !solid(x - dx, y - dy)) return f;
+    return null;
+  }
+
   function nextToWall(pos, n = 1) {
     const { w, h } = dims(n);
     for (let y = pos.y - 1; y <= pos.y + h; y++) for (let x = pos.x - 1; x <= pos.x + w; x++) {
@@ -579,12 +596,13 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const taken = new Set([...avoid, ...s.monsters.flatMap((m) => cellsOf(m.pos, m.size ?? 1).map((c) => cellKey(c.x, c.y)))]);
     for (const r of rooms.slice(0, 3)) {
       const cells = [];
-      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (isFloor(x, y) && !taken.has(cellKey(x, y)) && nextToWall({ x, y }) && s.map.tiles[y][x] !== TILE.DOOR) cells.push({ x, y });
+      // Chained with her back to the wall, facing into the room.
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (isFloor(x, y) && !taken.has(cellKey(x, y)) && wallFacing(x, y) !== null && s.map.tiles[y][x] !== TILE.DOOR) cells.push({ x, y });
       if (!cells.length) continue;
       const pos = cells[rng(cells.length)];
       const stat = BESTIARY_BY_ID['captive-princess'];
       const names = ['Princess Aelwen of the Westmarch', 'Princess Idril of Dol Harrow', 'Princess Mirien of the White Hills'];
-      const m = { ...createMonster(stat, 'captive1', pos, rng(8)), name: names[rng(names.length)], side: 'captive', aware: false, cond: { bound: { to: 'wall', dc: 12 + Math.floor(s.depth / 2) } } };
+      const m = { ...createMonster(stat, 'captive1', pos, wallFacing(pos.x, pos.y)), name: names[rng(names.length)], side: 'captive', aware: false, cond: { bound: { to: 'wall', dc: 12 + Math.floor(s.depth / 2) } } };
       m.hp = Math.max(3, Math.floor(m.maxHp / 2)); // hurt and hungry
       s.monsters.push(m);
       return;
@@ -605,11 +623,12 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       .sort((a, b) => (Math.abs(a.x - ent.x) + Math.abs(a.y - ent.y)) - (Math.abs(b.x - ent.x) + Math.abs(b.y - ent.y)));
     for (const r of rooms.slice(0, 4)) {
       const cells = [];
-      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (isFloor(x, y) && !busy.has(cellKey(x, y)) && s.map.tiles[y][x] !== TILE.DOOR && terrainCostAt(x, y) < Infinity) cells.push({ x, y });
+      // The trader stands with their back to a wall, facing into the room (never in the middle).
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) if (isFloor(x, y) && !busy.has(cellKey(x, y)) && s.map.tiles[y][x] !== TILE.DOOR && terrainCostAt(x, y) < Infinity && wallFacing(x, y) !== null && !s.map.doors.some((d) => Math.abs(d.x - x) + Math.abs(d.y - y) <= 1)) cells.push({ x, y });
       if (!cells.length) continue;
       const pos = cells[rng(cells.length)];
       const names = ['Odo Tallowby, a travelling trader', 'Gerda of the Grey Caravan', 'Bram Stonehand, a dwarf pedlar'];
-      s.monsters.push({ ...createMonster(BESTIARY_BY_ID.commoner, 'trader1', pos, rng(8)), name: names[rng(names.length)], side: 'npc', trader: true, aware: false, haggles: {} });
+      s.monsters.push({ ...createMonster(BESTIARY_BY_ID.commoner, 'trader1', pos, wallFacing(pos.x, pos.y)), name: names[rng(names.length)], side: 'npc', trader: true, aware: false, haggles: {} });
       return;
     }
   }
@@ -752,7 +771,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       // Local injuries: lame legs slow you; a crippled neck, chest or belly bleeds each turn.
       const inj = injuryPenalties(s.hero);
       if (inj.moveLost) s.moveLeft = Math.max(1, s.moveLeft - inj.moveLost);
-      if (inj.bleeding && s.mode === 'combat' && s.hero.hp > 0) { damageHero(1); log(`${s.hero.name} bleeds (−1 HP).`, 'bad'); }
+      if (inj.bleeding && s.mode === 'combat' && s.hero.hp > 0) { damageHero(1); flashHit(s.hero, { sound: false }); log(`${s.hero.name} bleeds (−1 HP).`, 'bad'); }
       if (s.mode === 'combat') for (const fx of s.effects) if (fx.dice && inEffect(s.hero, fx)) log(burnIn(s.hero, fx), 'bad');
       if (s.buffs.shield) { delete s.buffs.shield; }
       // Song of Heroes: temporary hit points equal to your spellcasting modifier each turn.
@@ -986,7 +1005,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const taken = s.def.evasion ? (save.ok ? 0 : Math.floor(dmg.total / 2)) : (save.ok ? Math.floor(dmg.total / 2) : dmg.total);
     damageHero(taken);
     float(s.hero.pos, `−${taken}`, 'bad', !save.ok);
-    flashHit(s.hero);
+    flashHit(s.hero, { sound: false }); // the trap's own sound already played
     if (taken) play(cry(s.hero, s.hero.hp > 0 ? 'hurt' : 'death'), { delay: 150 });
     banner(t.text);
     log(`${t.text} ${s.hero.name} springs a ${t.name}! DEX save: d20 (${save.d20}) ${signed(dexSave)}${save.extra} = ${save.total} vs DC ${t.saveDc}. ${s.def.evasion ? (save.ok ? 'Evasion: no damage' : 'Evasion: half damage') : save.ok ? 'Half damage' : 'Full damage'}: ${taken} ${t.type} [${dmg.rolls.join(', ')}].`, 'bad');
@@ -1179,7 +1198,7 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
 
 
   function descend() {
-    if (!onExit() || s.busy || isBossFloor(s.depth)) return; // the tenth floor is the last
+    if (!onExit() || s.busy || isBossFloor(s.depth, maxDepth)) return; // the boss's hall is the last floor
     if (place) { leavePlace(); return; }
     if (s.mode === 'combat') { banner('You cannot slip away down the stairs while foes are on you.'); return; }
     $('.dg-endscreen').hidden = true;
@@ -1212,7 +1231,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const stat = BESTIARY_BY_ID[m.statId];
     if (m.side) { m.loot = { coins: 0, items: [] }; log(`${m.name} falls! You have lost ${m.side === 'ally' ? 'a friend' : 'the one you came to save'}.`, 'bad'); return; }
     m.loot = rollMonsterLoot(stat);
-    if (!place && !arena) m.loot.coins = Math.round(m.loot.coins * (s.coinMult ?? 1)); // deeper pays more (depths.js)
+    if (!place && !arena) {
+      m.loot.coins = Math.round(m.loot.coins * (s.coinMult ?? 1) * share); // deeper pays more (depths.js); a replay half
+      if (share < 1 && m.loot.items.length > 1) m.loot.items.length = Math.ceil(m.loot.items.length / 2);
+    }
     s.delve.kills++;
     if (m.boss) bossSlain(m);
     const n = m.loot.items.length + (m.loot.coins ? 1 : 0);
@@ -1833,6 +1855,8 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       case 'settings': toggleSettings(); break;
       case 'close-settings': toggleSettings(false); break;
       case 'open-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c); break; }
+      case 'open-chest-braced': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) openChest(c, { braced: true }); break; }
+      case 'disarm-chest': { const c = s.features.chests.find((x) => x.id === s.target?.id); if (c) disarmChest(c); break; }
       case 'pick-lock': if (s.target) pickLock(s.target); break;
       case 'force-lock': if (s.target) forceLock(s.target); break;
       case 'use-key': if (s.target) useKey(s.target); break;

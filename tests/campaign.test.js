@@ -66,3 +66,17 @@ test('shops and paid services check the purse', () => {
   const r = npcChoose(c, run, 'maudie', poor.i, { coins: 150 });
   assert.deepEqual(r.effects, [{ coins: -100 }, { heal: true }, { rest: true }]); // a night's sleep: wounds and mana
 });
+
+test('people of a place stand with their backs to a wall, facing away from it', async () => {
+  const { TERRAINS } = await import('../src/engine/terrain.js');
+  const NAME = Object.fromEntries(Object.entries(CODE).map(([k, v]) => [v, k]));
+  for (const c of CAMPAIGNS) for (const [id, loc] of Object.entries(c.locations)) {
+    if (!loc.rows) continue;
+    const p = parseLocation(loc, (t) => CODE[t] ?? '.');
+    const wall = (x, y) => { const ch = p.terrainRows[y]?.[x]; return ch === undefined || !!TERRAINS[NAME[ch]]?.wall; };
+    for (const n of p.npcs) {
+      const behind = { 4: [0, -1], 6: [1, 0], 0: [0, 1], 2: [-1, 0] }[n.facing];
+      assert.ok(behind && wall(n.pos.x + behind[0], n.pos.y + behind[1]), `${c.id}/${id}: ${n.name} at ${n.pos.x},${n.pos.y} facing ${n.facing} has no wall behind`);
+    }
+  }
+});

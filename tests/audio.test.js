@@ -32,3 +32,16 @@ test('Amazons shout one of their four lines on about half of their wounds; each 
   assert.ok(isAmazon('amazon-war-queen') && !isAmazon('orc'));
   for (let n = 1; n <= 8; n++) assert.ok(fs.existsSync(new URL(`../assets/sounds/amazon-say-hurt-${n}.mp3`, import.meta.url)), `take ${n}`);
 });
+
+test('each weapon leaves its own strike mark and its own pitch of hit sound', async () => {
+  const { strikeKind, hitSound } = await import('../src/ui/dungeon/strikes.js');
+  assert.equal(strikeKind({ name: 'Longsword', type: 'slashing' }), 'slash');
+  assert.equal(strikeKind({ name: 'Battleaxe', type: 'slashing' }), 'chop');
+  assert.equal(strikeKind({ name: 'Rapier', type: 'piercing' }), 'thrust');
+  assert.equal(strikeKind({ name: 'Warhammer', type: 'bludgeoning' }), 'smash');
+  assert.equal(strikeKind({ name: 'Claws', type: 'slashing' }), 'claws');
+  assert.equal(strikeKind({ name: 'Bite', type: 'piercing' }), 'bite');
+  assert.equal(strikeKind({ name: 'Longbow', type: 'piercing', ranged: true }, true), 'shot');
+  assert.equal(strikeKind({ name: 'Spear', type: 'piercing', ranged: true, melee: true }, true), 'thrust', 'a thrown spear is still a spear');
+  assert.ok(hitSound('smash').rate < hitSound('slash').rate && hitSound('thrust').rate > hitSound('slash').rate);
+});

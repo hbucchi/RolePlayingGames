@@ -604,6 +604,12 @@ export function installPanels(ctx) {
       if (!c) return '';
       if (!near(c)) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><p class="small muted">Move next to the chest to open it.</p></div>`;
       if (c.locked) return `<div class="loot-card"><div class="foe-head"><h3>🔒 Locked chest</h3>${close}</div><p class="small">A heavy iron-bound chest with a stout lock.</p>${lockButtons(c)}</div>`;
+      if (!c.opened && c.trap?.found && !c.trap.disarmed) {
+        return `<div class="loot-card"><div class="foe-head"><h3>⚠ Trapped chest</h3>${close}</div>
+        <p class="small">A needle hides in the lock. It deals ${esc(c.trap.damage)} piercing (DEX save DC ${c.trap.saveDc} for half).</p>
+        <div class="studies"><button class="study" data-dg="disarm-chest" ${tools ? '' : 'disabled'}><b>Disarm it</b> <span class="muted">DEX ${signed(s.def.toolBonus)} vs DC ${c.trap.dc} · ${Math.round(checkChance(s.def.toolBonus, c.trap.dc) * 100)}%</span><span>${tools ? `Fail by 5 or more and it fires!${combatNote}` : 'Needs thieves\' tools'}</span></button>
+        <button class="study" data-dg="open-chest-braced"><b>Open it anyway</b> <span class="muted">Brace yourself: DEX save with advantage</span><span>The trap fires once</span></button></div></div>`;
+      }
       if (!c.opened) return `<div class="loot-card"><div class="foe-head"><h3>Chest</h3>${close}</div><button class="btn small primary" data-dg="open-chest">Open it</button></div>`;
       return lootHtml({ bag: bagState(),  title: 'Chest', coins: c.loot.coins, items: c.loot.items });
     }

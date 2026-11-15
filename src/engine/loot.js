@@ -128,13 +128,34 @@ function addHoard(loot, stat, rng) {
   loot.hoard = true;
 }
 
-/** Loot in a treasure chest for a dungeon of the given level; better potions at higher levels. */
-export function rollChestLoot(level, rng = cryptoRandomInt) {
+/**
+ * Loot in a treasure chest. Treasure is meant to come slowly: a chest holds at most three things
+ * (one or two on the first floors, two or three from floor 7) and one modest purse. Things are
+ * drawn by their weight in the chest table (CHEST_PROFILE: bandages and ore often, gems rarely),
+ * without repeats. Depth (1-10) makes the draw better: the chance that one thing is a plain weapon
+ * or armour piece grows, and so does the chance of a magic item (3% on floor 1, about 20% on floor
+ * 10); healing potions turn greater at level 5 and superior at 11.
+ */
+export function rollChestLoot(level, rng = cryptoRandomInt, depth = 1) {
   const cr = Math.max(0, level - 1);
-  const loot = rollProfile(CHEST_PROFILE, cr, rng);
-  if (level >= 5) for (const it of loot.items) if (it.id === 'potion-healing' && rng(2)) it.id = level >= 11 ? 'potion-superior-healing' : 'potion-greater-healing';
-  if (!loot.items.length && !loot.coins) loot.items.push(makeItem('bandage', 2));
-  return loot;
+  const count = Math.min(3, depth <= 3 ? 1 + rng(2) : depth <= 6 ? 2 : 2 + rng(2));
+  const pool = CHEST_PROFILE.items.map((e) => ({ ...e }));
+  const items = [];
+  const weighted = () => {
+    const total = pool.reduce((s, e) => s + e.p, 0); let r = rng(100000) / 100000 * total;
+    for (let i = 0; i < pool.length; i++) { r -= pool[i].p; if (r <= 0) return pool.splice(i, 1)[0]; }
+    return pool.pop();
+  };
+  const magicP = 0.03 + 0.019 * (depth - 1); const armsP = 0.08 + 0.02 * depth;
+  for (let i = 0; i < count; i++) {
+    if (i === 0 && rng(100000) < magicP * 100000) { items.push(rollMagicItem(cr, rng)); continue; }
+    if (rng(100000) < armsP * 100000) { items.push(rng(3) ? makeItem(ARMS_POOL[rng(ARMS_POOL.length)]) : makeItem(ARMOR_POOL[rng(ARMOR_POOL.length)])); continue; }
+    const e = weighted(); items.push(makeItem(e.id, between(e.qty, rng)));
+  }
+  for (const it of items) forged(it, cr, rng);
+  if (level >= 5) for (const it of items) if (it.id === 'potion-healing' && rng(2)) it.id = level >= 11 ? 'potion-superior-healing' : 'potion-greater-healing';
+  // One modest purse: half a coin roll for the level.
+  return { coins: Math.round(rollCoins(cr, rng) / 2), items };
 }
 
 /** Expected number of item drops from a profile: the sum of the independent probabilities. */

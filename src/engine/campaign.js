@@ -19,6 +19,10 @@
  *
  * A run (saved progress) is plain data: { at, discovered, visited, flags, party, log }.
  */
+import { TERRAINS, CODE } from './terrain.js';
+import { propCells } from './props.js';
+
+const CODE_NAME = Object.fromEntries(Object.entries(CODE).map(([k, v]) => [v, k]));
 
 export function newRun(c) {
   const discovered = Object.entries(c.locations).filter(([, l]) => l.discovered).map(([id]) => id);
@@ -151,7 +155,50 @@ export function parseLocation(loc, codeOf) {
     });
     out.terrainRows.push(line);
   });
+  backsToWalls(out, loc);
   return out;
+}
+
+/** Facing (0 north, 2 east, 4 south, 6 west) away from a wall touching x,y, or null if none does. */
+const SIDES = [[0, -1, 4], [1, 0, 6], [0, 1, 0], [-1, 0, 2]]; // wall to the north: face south, and so on
+const wallish = (name) => !!TERRAINS[name]?.wall;
+
+/**
+ * People of a place stand with their backs to a wall (or a house front), facing into the room or
+ * street, never adrift in the middle of it. An NPC whose square touches no wall on its four sides
+ * moves to the nearest free square that does (walking distance, never onto furniture, a prop, an
+ * exit or anyone else); then it faces away from that wall. A wall it already touched keeps its spot.
+ */
+export function backsToWalls(out, loc) {
+  const nameAt = (x, y) => { const ch = loc.rows[y]?.[x]; if (ch === undefined) return 'wall'; const m = loc.legend?.[ch]; return m ? (m.on ?? 'floor') : CODE_NAME[ch] ?? 'floor'; };
+  const props = new Set((loc.props ?? []).flatMap((p) => propCells(p).map((c) => `${c.x},${c.y}`)));
+  const busy = new Set([...out.heroes, ...out.exits, ...out.foes.map((f) => f.pos), ...out.chests.map((c) => c.pos), ...out.npcs.map((n) => n.pos)].map((c) => `${c.x},${c.y}`));
+  const walkable = (x, y) => { const n = nameAt(x, y); return !wallish(n) && (TERRAINS[n]?.cost ?? 1) < Infinity && !props.has(`${x},${y}`); };
+  const faceFrom = (x, y, prefer) => {
+    const open = SIDES.filter(([dx, dy]) => wallish(nameAt(x + dx, y + dy))).map(([, , f]) => f);
+    return open.length ? (open.includes(prefer) ? prefer : open[0]) : null;
+  };
+  for (const n of out.npcs) {
+    let f = faceFrom(n.pos.x, n.pos.y, n.facing);
+    if (f === null) {
+      busy.delete(`${n.pos.x},${n.pos.y}`);
+      const seen = new Set([`${n.pos.x},${n.pos.y}`]); let q = [n.pos]; let spot = null;
+      while (q.length && !spot) {
+        const next = [];
+        for (const c of q) for (const [dx, dy] of SIDES) {
+          const x = c.x + dx; const y = c.y + dy; const k = `${x},${y}`;
+          if (seen.has(k) || !walkable(x, y)) continue; seen.add(k);
+          if (!busy.has(k) && faceFrom(x, y, n.facing) !== null) { spot = { x, y }; break; }
+          next.push({ x, y });
+        }
+        q = next;
+      }
+      if (spot) n.pos = spot;
+      busy.add(`${n.pos.x},${n.pos.y}`);
+      f = faceFrom(n.pos.x, n.pos.y, n.facing);
+    }
+    if (f !== null) n.facing = f;
+  }
 }
 
 // ---------------------------------------------------------------------------

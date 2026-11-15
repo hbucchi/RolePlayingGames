@@ -299,7 +299,7 @@ export function installMagic(ctx) {
           const c = ctx.heroCheck(s.def.saves?.[e.save] ?? 0, dc, { save: true });
           const evade = s.def.evasion && e.save === 'dex';
           const dmg = afterResistance(s.hero.defence, evade ? (c.ok ? 0 : Math.floor(dmgRoll.total / 2)) : (c.ok ? Math.floor(dmgRoll.total / 2) : dmgRoll.total), e.damageType);
-          ctx.damageHero(dmg); ctx.float(s.hero.pos, `−${dmg}`, 'bad');
+          ctx.damageHero(dmg); ctx.float(s.hero.pos, `−${dmg}`, 'bad'); if (dmg) ctx.flashHit(s.hero);
           lines.push(`${s.hero.name} is caught in the blast! ${ctx.checkText(`${e.save.toUpperCase()} save`, c)}: ${dmg} damage`);
         }
         // Fire scorches the floor, cold leaves ice, thunder cracks the stone: for a few rounds.

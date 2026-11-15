@@ -315,14 +315,14 @@ main:has(.dungeon-host) { max-width: 1480px; }
 .tk-nose { stroke: #120f0c; stroke-width: 2; }
 .tk-letter { fill: #fff; font: 700 26px Georgia, serif; text-anchor: middle; paint-order: stroke; stroke: #1d1a17; stroke-width: 5px; }
 .tk-hitflash { fill: #ff2a1a; opacity: 0; pointer-events: none; }
-.tk-flash .tk-hitflash { animation: tkflash .45s ease-out; }
+.tk-flash .tk-hitflash { animation: tkflicker .45s linear; }
+@keyframes tkflicker { 0%, 30%, 62% { opacity: .6; } 15%, 46%, 80% { opacity: .15; } 100% { opacity: 0; } }
 @keyframes tkflash { 0% { opacity: .65; } 100% { opacity: 0; } }
 .tk-selring { fill: none; stroke: #ffe08a; stroke-width: 4; stroke-dasharray: 10 7; animation: selspin 6s linear infinite; }
 @keyframes selspin { to { stroke-dashoffset: -170; } }
 .tk-hpbg { fill: #1d1a17; }
 .tk-hp { fill: #6fcf62; }
 .tk-hp.low { fill: #e0412a; }
-.dg-arrow line, .dg-arrow path { stroke: #f6e7c1; stroke-width: 4; fill: #f6e7c1; stroke-linecap: round; }
 .dg-viewport.shake { animation: shake .4s; }
 @keyframes shake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(4px, -2px); } 30%, 50%, 70% { transform: translate(-6px, 2px); } 40%, 60% { transform: translate(6px, -1px); } }
 @media (prefers-reduced-motion: reduce) { .dg-viewport.shake, .tk-selring { animation: none; } }
@@ -703,7 +703,13 @@ main:has(.dungeon-host) { max-width: 1480px; }
 /* Bodies seen from above */
 .tk-body .body-base { fill: rgba(0, 0, 0, .14); stroke-width: 2; opacity: .55; }
 .tk-body .body-shadow { filter: drop-shadow(5px 8px 5px rgba(0, 0, 0, .6)); }
-.tk-body.tk-flash .body-img { filter: brightness(1.8) sepia(1) hue-rotate(-40deg) saturate(4) !important; }
+/* Hit: the figure flickers red three times and settles back to its own colours. */
+.tk-body.tk-flash .body-img { animation: redflick .45s linear; }
+@keyframes redflick {
+  0%, 30%, 62% { filter: brightness(1.5) sepia(1) hue-rotate(-45deg) saturate(5); }
+  15%, 46%, 80% { filter: brightness(1.05) sepia(.4) hue-rotate(-40deg) saturate(2.5); }
+  100% { filter: brightness(1) sepia(0) hue-rotate(0deg) saturate(1); }
+}
 .tk-body .tk-selring, .tk-body .tk-aim, .tk-body .tk-activering { fill: none; }
 .tk-body.tk-down .body-img { opacity: .45; }
 
@@ -1247,3 +1253,47 @@ html { -webkit-tap-highlight-color: transparent; }
 /* A body you are about to search (bodies view): it glows instead of a ring on the floor. */
 .remains-sel { filter: drop-shadow(0 0 5px #ffe08a) drop-shadow(0 0 2px #ffe08a); }
 .remains .dead-img { filter: brightness(.85) saturate(.9); }
+
+/* The arrow in flight (render.js ARROW_SVG): wood shaft, steel head, fletching. */
+.dg-arrow .arw-shaft { stroke: #7a4a22; stroke-width: 3.4; stroke-linecap: round; }
+.dg-arrow .arw-grain { stroke: #b98552; stroke-width: 0.9; opacity: .8; }
+.dg-arrow .arw-head { fill: #b8c1ca; stroke: #3c434b; stroke-width: 1.1; stroke-linejoin: round; }
+.dg-arrow .arw-ridge { stroke: #f2f6fa; stroke-width: 0.9; opacity: .9; }
+.dg-arrow .arw-bind { fill: #3a2a1b; }
+.dg-arrow .arw-feather { fill: #e8dcc2; stroke: #8f2f25; stroke-width: 1; }
+.dg-arrow .arw-nock { fill: #2c2016; }
+.dg-arrow { filter: drop-shadow(2px 3px 2px rgba(0, 0, 0, .55)); }
+
+/* Strike marks (dungeon/strikes.js): pale steel for blades, warmer for claws and teeth. */
+.dg-strike { pointer-events: none; }
+.dg-strike .st-line { fill: none; stroke: #eef4ff; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(190, 215, 255, .9)); }
+.dg-strike.claws .st-line, .dg-strike.bite .st-line { stroke: #ffe4dc; filter: drop-shadow(0 0 3px rgba(255, 120, 100, .8)); }
+.dg-strike.smash .st-line, .dg-strike.shot .st-line { stroke: #fff3d6; }
+.dg-strike .st-ring { fill: none; stroke: #fff3d6; stroke-width: 3; transform-box: fill-box; transform-origin: center; }
+.dg-strike .st-tip { fill: #eef4ff; }
+.dg-strike .spark { stroke: #ffd36a; filter: drop-shadow(0 0 3px #ffb02e); }
+.dg-strike.crit .st-line { stroke: #fff; filter: drop-shadow(0 0 5px #ffd36a); }
+.dg-strike.miss .st-line { stroke-dasharray: 100; opacity: .7; }
+@media (prefers-reduced-motion: reduce) { .tk-body.tk-flash .body-img { animation: none; filter: brightness(1.4) sepia(1) hue-rotate(-45deg) saturate(4); } }
+
+/* Adventures: the three ways to play, and the boxes of dungeons and chapters. */
+.mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 14px 0 26px; }
+.mode-card { display: grid; gap: 8px; text-align: left; align-content: start; padding: 20px 20px 18px; border-radius: 14px; cursor: pointer;
+  background: var(--card); color: var(--ink); border: 1.5px solid var(--line); border-bottom-width: 4px; font: inherit; transition: transform .1s, border-color .15s, box-shadow .15s; }
+.mode-card:hover { transform: translateY(-2px); border-color: var(--gold); box-shadow: 0 8px 22px rgba(0, 0, 0, .18); }
+.mode-card b { font: 700 1.55rem var(--font-display); }
+.mode-card .mode-icon { font-size: 2rem; line-height: 1; }
+.mode-card .mode-meta { font-size: .85rem; color: var(--gold); font-weight: 700; letter-spacing: .02em; }
+.town-head { margin: 8px 0 10px; font-size: 1.2rem; }
+.dungeon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; margin-top: 12px; }
+.dungeon-card { position: relative; display: grid; gap: 6px; align-content: start; padding: 16px 16px 14px 16px; border-radius: 12px; background: var(--card); border: 1.5px solid var(--line); border-left: 5px solid var(--gold); }
+.dungeon-card p { margin: 0; }
+.dungeon-card .card-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; padding-right: 34px; }
+.dungeon-card h3 { margin: 0; font-size: 1.1rem; }
+.dungeon-card .dg-num { position: absolute; top: 10px; right: 12px; font: 700 1.1rem var(--font-display); color: var(--gold); opacity: .8; }
+.dungeon-card .dg-facts { font-size: .9rem; }
+.dungeon-card .btn { justify-self: start; margin-top: 4px; }
+.dungeon-card.done { border-left-color: #4f8a3a; }
+.dungeon-card.locked { opacity: .62; border-left-color: var(--line); filter: grayscale(.4); }
+.badge.done { background: #4f8a3a; color: #fff; }
+.dg-name { font-family: var(--font-display); font-size: 1.05rem; }
