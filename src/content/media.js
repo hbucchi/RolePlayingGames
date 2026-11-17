@@ -39,7 +39,12 @@ const bodyKey = (key) => HERO_BODIES[key] ?? artOf(key).body;
  * their spears and bows made them spill over two squares; they stand in one like any human.
  */
 export const BODY_SCALE = { 'body-sorcerer': 1.15, 'body-necromancer': 1.15 };
-export const bodyScale = (key) => BODY_SCALE[bodyKey(key)] ?? 1;
+/**
+ * One-square creatures are not all the size of a man: a Small goblin or kobold is drawn at 85%,
+ * a Tiny rat or imp at 70%. Living figure and corpse use the same scale, so they match.
+ */
+export const SIZE_DRAW = { Tiny: 0.7, Small: 0.85 };
+export const bodyScale = (key) => (BODY_SCALE[bodyKey(key)] ?? 1) * (SIZE_DRAW[BESTIARY_BY_ID[key]?.size] ?? 1);
 /** Body for a hero's kindred or a creature id (null when there is none: a round token is drawn). */
 export const bodyUrl = (key) => (bodyKey(key) ? packed(`assets/bodies/${bodyKey(key)}.png`) : null);
 export const bodyTint = (statId) => artOf(statId).tint || 'none';

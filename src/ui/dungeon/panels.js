@@ -13,7 +13,7 @@ import { countOf, findItem, itemDef, formatCoins as formatCoinsShort, bagUsed, B
 import { DIAGONAL_RULES, cellKey } from '../../engine/movement.js';
 import { BESTIARY_BY_ID } from '../../content/bestiary/index.js';
 import { rollDie } from '../../engine/dice.js';
-import { play } from '../audio.js';
+import { play, spokenLine, RESCUE_HERO_LINES, RESCUE_CAPTIVE_LINES } from '../audio.js';
 import { skillXp } from '../../engine/magic.js';
 import { formatModifier } from '../../engine/abilities.js';
 import { sensesText } from '../../engine/monsters.js';
@@ -359,7 +359,14 @@ export function installPanels(ctx) {
   function freeCreature(m) {
     if (m.cond) delete m.cond.bound;
     if (m.side === 'captive') {
-      ctx.log(`The shackles fall away. "${s.hero.name}, I owe you my life. I will see this through with you," says ${m.name}.`, 'good');
+      // A few words, spoken (audio.js): the hero first, then the one they freed.
+      const me = spokenLine(RESCUE_HERO_LINES); const her = spokenLine(RESCUE_CAPTIVE_LINES);
+      play(`rescue-hero-${s.hero.voice === 'high' ? 'high' : 'low'}`, { n: me.n, volume: 0.95 });
+      ctx.float(s.hero.pos, `“${me.line}”`, 'say');
+      ctx.log(`${s.hero.name}: “${me.line}”`, 'info');
+      setTimeout(() => { play('rescue-captive', { n: her.n, volume: 0.95 }); ctx.float(m.pos, `“${her.line}”`, 'say'); }, 2300);
+      ctx.log(`${m.name}: “${her.line}”`, 'good');
+      ctx.log(`The shackles fall away. ${m.name} joins the party.`, 'good');
       ctx.joinParty(m, { permanent: true, reason: 'now that her chains are broken' });
       if (!m.xpGiven) { m.xpGiven = true; ctx.awardPartyXp(BESTIARY_BY_ID[m.statId].xp * 4, m.pos); }
     } else ctx.log(`${m.name} is free of its bonds.`, 'info');
@@ -657,6 +664,11 @@ export function installPanels(ctx) {
     const box = $('.dg-pop');
     const html = s.target ? interactPanel(s.target) : '';
     if (s.target && !html) s.target = null;
+    // When it opens (or changes to another thing), note the moment: the tap that opened it must
+    // not also press one of its buttons or its backdrop (dungeon-view.js: the ghost-click guard).
+    const key = html ? `${s.target.kind}:${s.target.id}` : '';
+    if (key && key !== box.dataset.key) box.dataset.openedAt = String(performance.now());
+    box.dataset.key = key;
     box.hidden = !html;
     if (!html) box.innerHTML = '';
     if (html) box.innerHTML = `<div class="dg-pop-card">${html}<p class="small muted pop-hint">Esc or click outside to close.</p></div>`;

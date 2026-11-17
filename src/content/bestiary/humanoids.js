@@ -8,7 +8,7 @@ const parry = (n) => act('Parry', `Adds ${n} to its AC against one melee attack 
 export const humanoids = [
   // ---- Peoples ------------------------------------------------------------
   {
-    name: 'Goblin', art: { portrait: 'goblin', body: 'body-goblin' }, voice: 'goblin', size: 'Small', type: 'humanoid', subtype: 'goblinoid', alignment: 'neutral evil',
+    name: 'Goblin', art: { portrait: 'goblin', body: 'body-goblin', tint: 'saturate(1.5) brightness(1.15)' }, voice: 'goblin', size: 'Small', type: 'humanoid', subtype: 'goblinoid', alignment: 'neutral evil',
     ac: 15, armor: 'leather armor, shield', hp: '2d6', speed: 30, ab: [8, 14, 10, 10, 8, 8],
     skills: { stealth: 6 }, senses: { darkvision: 60 }, languages: 'Common, Goblin', cr: '1/4',
     traits: [act('Nimble Escape', 'Can take the Disengage or Hide action as a bonus action on each of its turns.')],
@@ -396,7 +396,7 @@ export const humanoids = [
     lore: lore('Watchful and patient; would rather report than fight.', 'Rangers and outriders who watch borders and guide armies.', 'Shoot from cover and fall back; never be caught in melee.'),
   },
   {
-    name: 'Spy', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'grayscale(.4)', portraitTint: 'grayscale(.4)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
+    name: 'Spy', art: { portrait: 'fam-bandit', body: 'body-fam-bandit', tint: 'hue-rotate(200deg) saturate(1.1)', portraitTint: 'grayscale(.4)' }, voice: 'hero-low', size: 'Medium', type: 'humanoid', subtype: 'any race', alignment: 'any alignment',
     ac: 12, hp: '6d8', speed: 30, ab: [10, 15, 10, 12, 14, 16],
     skills: { deception: 5, insight: 4, investigation: 5, perception: 6, persuasion: 5, 'sleight-of-hand': 4, stealth: 4 }, languages: 'any two languages', cr: '1',
     traits: [

@@ -891,6 +891,15 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
   function heroReach() {
     if (!s.hero || s.busy || s.mode === 'defeat') return new Map();
     const blocked = new Set([...occupied(s.hero), ...terrainBlocked()]);
+    // Outside a fight, friends step aside: the hero walks past companions, allies and the people
+    // of a place (never foes), but cannot stop on a square someone stands on.
+    const friendly = new Set();
+    if (s.mode !== 'combat') {
+      for (const e of [...party(), ...s.monsters.filter((m) => m.side)]) {
+        if (e === s.hero || e.dead || !(e.hp > 0)) continue;
+        for (const c of cellsOf(e.pos, e.size ?? 1)) { const k = cellKey(c.x, c.y); friendly.add(k); blocked.delete(k); }
+      }
+    }
     if (!s.revealAll) {
       // You can only walk into squares you have discovered.
       for (let y = 0; y < s.map.height; y++) for (let x = 0; x < s.map.width; x++) if (!s.revealed.has(cellKey(x, y))) blocked.add(cellKey(x, y));
@@ -900,8 +909,10 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     const traps = (s.features?.traps ?? []).filter((t) => t.found && !t.disarmed && !t.sprung).map((t) => cellKey(t.x, t.y));
     const budget = immobile(s.hero) ? 0 : s.moveLeft;
     const all = reachableSquares(s.map, s.hero.pos, budget, { diagonalRule: s.rule, blocked });
+    for (const k of friendly) all.delete(k); // pass through, never stop there
     if (!traps.length) return all;
     const safe = reachableSquares(s.map, s.hero.pos, budget, { diagonalRule: s.rule, blocked: new Set([...blocked, ...traps]) });
+    for (const k of friendly) safe.delete(k);
     for (const [k, c] of all) if (!safe.has(k)) safe.set(k, { ...c, risky: true });
     return safe;
   }
@@ -1664,6 +1675,9 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
       const t = s.reach.get(k);
       const worth = pile.some((m) => !m.searched || m.loot?.coins || m.loot?.items?.length);
       if (!worth && t && t.cost > 0) { s.target = null; moveHero(t); return; }
+      // Outside a fight one tap is enough: walk up and open it. In a fight, where a step matters,
+      // ask whether to search or to stand there.
+      if (worth && s.mode !== 'combat') { searchBodies(pile.map((m) => m.id)); return; }
       s.target = { kind: 'corpse-ask', id: k, ids: pile.map((m) => m.id) }; redraw(); return;
     }
     // The mana totem, or a camp fire in a campaign place: walk up and use it.
@@ -1749,6 +1763,14 @@ export function mountDungeon(host, { heroes, api, initialSeed = 7, arena = null,
     redraw();
   }
 
+  // The tap that opens a pop-up is handled when the finger lifts; the browser then sends a
+  // "click" for the same tap, which would land on the pop-up now under the finger: pressing a
+  // button there (and spending a bonus action), or its backdrop (closing it at once). Clicks on a
+  // pop-up in its first 400 ms are that same tap, and are dropped.
+  host.addEventListener('click', (e) => {
+    const pop = e.target.closest?.('.dg-pop');
+    if (pop && performance.now() - Number(pop.dataset.openedAt ?? 0) < 400) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
   host.addEventListener('click', (e) => { if (e.target.classList?.contains('dg-pop')) { s.target = null; redraw(); } });
   host.addEventListener('click', (e) => {
     const el = e.target.closest('[data-inv]');

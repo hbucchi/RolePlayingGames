@@ -22,7 +22,19 @@ export function setMuted(v) {
 /** Spoken hero lines have more takes than effects: 6 lines, each performed twice. */
 export const variantsOf = (key) => TAKES[key] ?? (/-say-/.test(key) ? SAY_TAKES : VARIANTS);
 const SAY_TAKES = 12;
-const TAKES = { 'amazon-say-hurt': 8 };
+const TAKES = { 'amazon-say-hurt': 8, 'rescue-hero-low': 6, 'rescue-hero-high': 6, 'rescue-captive': 6 };
+
+/**
+ * Freeing a captive: the hero says one line, the captive answers. Three lines each, each recorded
+ * twice (line k is takes 2k-1 and 2k), as for the Amazons' cries.
+ */
+export const RESCUE_HERO_LINES = ['Easy now. The chains are off.', "You're free. Stay close to me.", "Can you walk? Let's get you out of here."];
+export const RESCUE_CAPTIVE_LINES = ['Thank you... I thought no one would ever come.', "Free at last! I'll fight beside you.", 'Bless you, brave one. Lead the way.'];
+/** A line from a list and the take that speaks it. `random` is for tests. */
+export function spokenLine(lines, random = Math.random) {
+  const k = Math.floor(random() * lines.length);
+  return { line: lines[k], n: 2 * k + 1 + (random() < 0.5 ? 0 : 1) };
+}
 
 /**
  * What an Amazon cries when wounded. Each line was recorded twice: line k is takes 2k-1 and 2k of
@@ -107,7 +119,7 @@ export const SOUND_KEYS = [
   'coins', 'level-up', 'lockpick', 'trap', 'bandage', 'chest-open', 'potion',
   'spell-fire', 'spell-arcane', 'spell-heal', 'spell-thunder',
   'whip-crack', 'goblin-laugh',
-  'hero-low-say-attack', 'hero-low-say-hurt', 'hero-high-say-attack', 'hero-high-say-hurt', 'amazon-say-hurt',
+  'hero-low-say-attack', 'hero-low-say-hurt', 'hero-high-say-attack', 'hero-high-say-hurt', 'amazon-say-hurt', 'rescue-hero-low', 'rescue-hero-high', 'rescue-captive',
   'beast-attack', 'beast-hurt', 'bird-attack', 'bird-hurt', 'undead-attack', 'undead-hurt', 'elemental-attack', 'elemental-hurt',
   'construct-attack', 'construct-hurt', 'ooze-attack', 'ooze-hurt',
   'dragon-attack', 'dragon-hurt', 'wolf-attack', 'wolf-hurt', 'wolf-death', 'orc-attack', 'orc-hurt', 'orc-death', 'demon-roar',

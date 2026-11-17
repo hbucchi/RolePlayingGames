@@ -6,7 +6,7 @@ const vampireWeaknesses = act('Vampire Weaknesses', 'Forbiddance: can\'t enter a
 
 export const undead = [
   {
-    name: 'Skeleton', art: { portrait: 'skeleton', body: 'body-skeleton' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'lawful evil',
+    name: 'Skeleton', art: { portrait: 'skeleton', body: 'body-skeleton', tint: 'sepia(.35) brightness(1.15)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'lawful evil',
     ac: 13, armor: 'armor scraps', hp: '2d8+4', speed: 30, ab: [10, 14, 15, 6, 8, 5],
     vulnerable: ['bludgeoning'], immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 },
     languages: 'understands the languages it knew in life but can\'t speak', cr: '1/4',
@@ -44,7 +44,7 @@ export const undead = [
     lore: lore('Shambling, moaning, relentless hunger.', 'Corpses raised by dark magic, rotting but impossible to stop by ordinary wounds.', 'Shuffle forward in numbers; keep coming after "death".'),
   },
   {
-    name: 'Ogre Zombie', art: { portrait: 'ogre', body: 'body-ogre', tint: 'grayscale(0.6) hue-rotate(60deg) brightness(0.85)' }, voice: 'orc', size: 'Large', type: 'undead', alignment: 'neutral evil',
+    name: 'Ogre Zombie', art: { portrait: 'ogre', body: 'body-ogre', tint: 'sepia(.4) hue-rotate(60deg) saturate(1.3) brightness(.9)' }, voice: 'orc', size: 'Large', type: 'undead', alignment: 'neutral evil',
     ac: 8, hp: '9d10+36', speed: 30, ab: [19, 6, 18, 3, 6, 5], saves: { wis: 0 },
     immune: ['poison'], conditionImmune: ['poisoned'], senses: { darkvision: 60 },
     languages: 'understands Common and Giant but can\'t speak', cr: '2', traits: [T.undeadFort],
@@ -105,7 +105,7 @@ export const undead = [
     lore: lore('A spirit of pure spite, endlessly cold.', 'A soul torn from its body too soon, unable to rest and furious at the living.', 'Drift through walls, drain life, retreat into stone.'),
   },
   {
-    name: 'Wight', art: { portrait: 'wight', body: 'body-wight' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Wight', art: { portrait: 'wight', body: 'body-wight', tint: 'saturate(1.5) brightness(1.2)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 14, armor: 'studded leather', hp: '6d8+18', speed: 30, ab: [15, 14, 16, 10, 13, 15],
     skills: { perception: 3, stealth: 4 }, resist: ['necrotic', 'bludgeoning, piercing, and slashing from nonmagical attacks that aren\'t silvered'],
     immune: ['poison'], conditionImmune: ['exhaustion', 'poisoned'], senses: { darkvision: 60 }, languages: 'the languages it knew in life', cr: '3',
@@ -218,7 +218,7 @@ export const undead = [
     lore: lore('A dead god-king who still expects worship.', 'Rulers and high priests who chose undeath to keep their power, their hearts kept in sealed jars.', 'Command lesser mummies, blasphemous word to stun, insect plague the clustered; find the heart to end it.'),
   },
   {
-    name: 'Vampire Spawn', art: { portrait: 'fam-vampire', body: 'body-vampire', tint: 'grayscale(0.4)', portraitTint: 'grayscale(.4)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
+    name: 'Vampire Spawn', art: { portrait: 'fam-vampire', body: 'body-vampire', tint: 'saturate(1.3) brightness(1.05)', portraitTint: 'grayscale(.4)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'neutral evil',
     ac: 15, armor: 'natural armor', hp: '11d8+33', speed: 30, ab: [16, 16, 16, 11, 10, 12],
     saves: { dex: 6, wis: 3 }, skills: { perception: 3, stealth: 6 }, resist: ['necrotic', nonmagicalBPS],
     senses: { darkvision: 60 }, languages: 'the languages it knew in life', cr: '5',
@@ -266,7 +266,7 @@ export const undead = [
     lore: lore('Aristocratic, seductive, contemptuous; treats the living as cattle.', 'A mortal who sought eternal life through blood and now hungers forever, ruling from a castle of thralls.', 'Charm a defender, summon swarms, grapple and bite; retreat as mist.'),
   },
   {
-    name: 'Lich', art: { portrait: 'fam-lich', body: 'body-necromancer', tint: 'grayscale(0.4) brightness(1.1)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'any evil alignment',
+    name: 'Lich', art: { portrait: 'fam-lich', body: 'body-necromancer', tint: 'hue-rotate(60deg) saturate(1.6) brightness(1.2)' }, voice: 'undead', size: 'Medium', type: 'undead', alignment: 'any evil alignment',
     ac: 17, armor: 'natural armor', hp: '18d8+54', speed: 30, ab: [11, 16, 16, 20, 14, 16],
     saves: { con: 10, int: 12, wis: 9 }, skills: { arcana: 19, history: 12, insight: 9, perception: 9 },
     resist: ['cold', 'lightning', 'necrotic'], immune: ['poison', nonmagicalBPS],

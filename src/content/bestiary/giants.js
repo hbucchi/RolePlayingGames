@@ -57,7 +57,7 @@ export const giants = [
     habitat: ['mountain', 'underdark'],
     appearance: 'An eighteen-foot giant with coal-black skin, a beard and hair of flickering flame, wearing blackened plate armour and wielding a huge greatsword in a volcanic forge.',
     lore: lore('Militaristic master smiths.', 'Fire giants work great forges in volcanoes, forging weapons and planning conquest.', 'Disciplined formation, greatswords.') }),
-  G({ name: 'Cloud Giant', art: { portrait: 'fam-giant', body: 'body-fam-giant', tint: 'grayscale(.4) brightness(1.4)', portraitTint: 'grayscale(.4) brightness(1.4)' }, voice: 'boss', size: 'Huge', alignment: 'neutral good (50%) or neutral evil (50%)', ac: 14, armor: 'natural armor', hp: '16d12+96', speed: 40, ab: [27, 10, 22, 12, 16, 16],
+  G({ name: 'Cloud Giant', art: { portrait: 'fam-giant', body: 'body-fam-giant', tint: 'sepia(1) hue-rotate(170deg) saturate(.9) brightness(1.5)', portraitTint: 'grayscale(.4) brightness(1.4)' }, voice: 'boss', size: 'Huge', alignment: 'neutral good (50%) or neutral evil (50%)', ac: 14, armor: 'natural armor', hp: '16d12+96', speed: 40, ab: [27, 10, 22, 12, 16, 16],
     saves: { con: 10, wis: 7, cha: 7 }, skills: { insight: 7, perception: 7 }, languages: 'Common, Giant', cr: '9',
     traits: [T.keenSmell],
     spellcasting: spells({ ability: 'cha', dc: 15, atWill: ['detect magic', 'fog cloud', 'light'], perDay: { 3: ['feather fall', 'fly', 'misty step', 'telekinesis'], 1: ['control weather', 'gaseous form'] } }),

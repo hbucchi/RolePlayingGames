@@ -55,3 +55,14 @@ test('each weapon leaves its own strike mark and its own pitch of hit sound', as
   assert.equal(shape('Longbow', 'piercing', true), null, 'the arrow already flew');
   assert.equal(shape('Life Drain', 'necrotic'), null, 'nothing to show for a touch');
 });
+
+test('a rescue: the hero says one of three lines, the captive answers one of three; every take exists', async () => {
+  const { spokenLine, RESCUE_HERO_LINES, RESCUE_CAPTIVE_LINES, variantsOf, SOUND_KEYS } = await import('../src/ui/audio.js');
+  const seq = (...v) => { let i = 0; return () => v[i++]; };
+  assert.deepEqual(spokenLine(RESCUE_HERO_LINES, seq(0.9, 0.7)), { line: RESCUE_HERO_LINES[2], n: 6 });
+  assert.deepEqual(spokenLine(RESCUE_CAPTIVE_LINES, seq(0, 0.1)), { line: RESCUE_CAPTIVE_LINES[0], n: 1 });
+  for (const key of ['rescue-hero-low', 'rescue-hero-high', 'rescue-captive']) {
+    assert.ok(SOUND_KEYS.includes(key)); assert.equal(variantsOf(key), 6);
+    for (let n = 1; n <= 6; n++) assert.ok(fs.existsSync(new URL(`../assets/sounds/${key}-${n}.mp3`, import.meta.url)), `${key}-${n}`);
+  }
+});

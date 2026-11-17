@@ -80,7 +80,7 @@ export function installRender(ctx) {
     let pic; let turnTo = turn;
     if (dead) {
       // Long bodies lie along their footprint (either way round); others at their own angle.
-      const L = Math.max(d.w, d.h) * sz * (spanOf(m.size ?? 1) === 1 ? 1.3 : 1.08) * bodyScale(hero ? m.race : m.statId);
+      const L = Math.max(d.w, d.h) * sz * (spanOf(m.size ?? 1) === 1 ? 1.6 : 1.08) * bodyScale(hero ? m.race : m.statId);
       turnTo = (d.w === d.h ? h % 360 : (d.w > d.h ? 0 : 90) + (h % 2 ? 180 : 0)) + ((h % 25) - 12);
       pic = `<mask id="${id}" style="mask-type:alpha"><image href="${esc(dead)}" x="${-L / 2}" y="${-L / 2}" width="${L}" height="${L}" preserveAspectRatio="xMidYMid meet"/></mask>
         <image href="${esc(dead)}" x="${-L / 2}" y="${-L / 2}" width="${L}" height="${L}" preserveAspectRatio="xMidYMid meet" class="dead-img" style="filter:${look}"/>
